@@ -9,8 +9,15 @@ import { Prng } from './rng';
 
 /** The bot is an input source, not part of the race: its dice must not come from the world's streams. */
 const botRngs = new WeakMap<World, Prng>();
+/** ...nor may its plans live on the player's Rider (a replay runs without the bot). */
+const botCuts = new WeakMap<World, CutPlan>();
 
-/** Seconds until `r` would run into a car if it rode along lateral position x (Infinity when clear). */
+interface CutPlan {
+  cutId: number;
+  cutTake: boolean;
+}
+
+/** Seconds until `r` would run into a car or the cones if it rode along lateral position x (Infinity when clear). */
 export function laneClearance(w: World, r: Rider, x: number): number {
   let best = Infinity;
   for (const c of w.cars) {
@@ -21,7 +28,42 @@ export function laneClearance(w: World, r: Rider, x: number): number {
     const t = dist <= 0 ? 0 : closing <= 0.1 ? Infinity : dist / closing;
     if (t < best) best = t;
   }
+  const cones = w.road.conesAhead(x, 0.4, r.z);
+  if (cones < Infinity && r.speed > 0.1) best = Math.min(best, cones / r.speed);
   return best;
+}
+
+/**
+ * A trail coming up: make up its mind once whether to take it (the more aware, the likelier; `always` for
+ * the bot, which rolls no dice), line up by the barrier, cut through the opening if it can still make it
+ * past the end post, and ride the trail to the merge. Returns the line it wants.
+ */
+export function cutLine(w: World, r: Rider, want: number, plan: CutPlan = r, always = false): number {
+  const R = w.road;
+  const i = R.nextCut(r.z);
+  if (i < 0) return want;
+  const c = R.cuts[i];
+  const K = C.CUT;
+  const s = c.side;
+  if (R.trailAt(r.x, r.z) === s) {
+    if (r.z > c.z1 - K.merge) return s > 0 ? C.LANE_X[3] : C.LANE_X[1];
+    return s * K.mid;
+  }
+  if (r.z < c.z0 - K.look || r.z > c.z0 + K.gap) return want;
+  if (plan.cutId !== i) {
+    plan.cutId = i;
+    plan.cutTake = always || w.aiRng.float() < K.take[0] + K.take[1] * r.aware;
+  }
+  const out = r.x * s;
+  if (!plan.cutTake) return out > C.EDGE ? s * C.EDGE : want;
+  if (r.z < c.z0 - K.lineUp) return want;
+  if (r.z < c.z0) return s * C.EDGE;
+  // in the opening: across before the end post, or back to the road
+  const t = (c.z0 + K.gap - r.z) / Math.max(r.speed, 1);
+  const reach = r.isPlayer ? r.steer * t : Math.min(r.latV * s * t + 0.5 * r.latAcc * t * t, r.steer * t);
+  if (K.inner + 0.3 - out <= reach) return s * K.mid;
+  plan.cutTake = false;
+  return s * C.EDGE;
 }
 
 /** The lane (C.LANE_X index) with the most room ahead, starting from where `r` would like to be. */
@@ -212,7 +254,8 @@ export function rivalThink(w: World, r: Rider): void {
       }
     }
   }
-  r.wantX = avoid(w, r, want);
+  if ((r.intent === 'race' && r.huntT === 0) || w.road.trailAt(r.x, r.z) !== 0) want = cutLine(w, r, want);
+  r.wantX = w.road.clampWant(Math.abs(want) > C.EDGE ? want : avoid(w, r, want), r.z, r.speed * 0.5);
   if (!calm(w)) maybeSwing(w, r, keen);
 }
 
@@ -265,7 +308,7 @@ function thugThink(w: World, r: Rider): void {
     r.pace = Math.max(0, p.speed - 9);
     want = r.foeSide * C.EDGE;
   }
-  r.wantX = avoid(w, r, want);
+  r.wantX = w.road.clampWant(avoid(w, r, want), r.z, r.speed * 0.5);
 }
 
 /**
@@ -290,7 +333,11 @@ export function botInput(w: World, skill = 1, fight = true, comply = false): voi
     if (gap > -3 && gap < 18 && (!prey || gap < prey.z - p.z)) prey = r;
   }
   let want: number = prey ? clampEdge(prey.x + (p.x >= prey.x ? 1.7 : -1.7)) : C.LANE_X[nearestLane(p.x)];
-  want = dodge(w, p, want, 0.8 + 1.6 * skill);
+  let plan = botCuts.get(w);
+  if (!plan) botCuts.set(w, (plan = { cutId: -1, cutTake: false }));
+  want = cutLine(w, p, want, plan, true);
+  if (Math.abs(want) <= C.EDGE) want = dodge(w, p, want, 0.8 + 1.6 * skill);
+  want = w.road.clampWant(want, p.z, p.speed * 0.5);
   // Ease toward the pick like a finger would, instead of jumping each tick when the choice flips.
   const prev = w.input.targetX ?? p.x;
   w.input.targetX = prev + (want - prev) * 0.25;

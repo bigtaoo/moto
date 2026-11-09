@@ -1,6 +1,6 @@
 // Headless races: how long a race takes, where the bot finishes, how often it fights and crashes,
 // and how much pressure it is under while leading.
-// Usage: npm run bot -- [races] [skill 0..1] [fight|race] [upgrade level 0..6 for all three] [stop: pull over for the buggies]
+// Usage: npm run bot -- [races] [skill 0..1] [fight|race] [upgrade level 0..6 for all three] [stop: pull over for the buggies | go] [division 0..4]
 
 import { World } from '../src/sim/world';
 import { TICK_HZ } from '../src/sim/config';
@@ -11,11 +11,15 @@ const skill = Number(process.argv[3] ?? 1);
 const fight = process.argv[4] !== 'race';
 const up = Number(process.argv[5] ?? 0);
 const comply = process.argv[6] === "stop"; // pulls over for the buggies
+const div = Number(process.argv[7] ?? 0);
 interface Row { place: number; time: number; kos: number; crashes: number; hits: number; lead: number; leadHits: number; leadCrashes: number; quiet: number; hunts: number; ambushes: number;
-  aiSwings: number; hitP: number; shoves: number; aiShoves: number; took: number; lost: number; whiffs: number; counters: number; fines: number; heat: number; letGo: number }
+  aiSwings: number; hitP: number; shoves: number; aiShoves: number; took: number; lost: number; whiffs: number; counters: number; fines: number; heat: number; letGo: number;
+  jumps: number; stomps: number; cones: number; aiCones: number; trail: number; aiTrail: number; posts: number }
 const rows: Row[] = [];
 for (let seed = 1; seed <= races; seed++) {
-  const w = new World({ seed, upgrades: { top: up, steer: up, hp: up } });
+  const w = new World({ seed, upgrades: { top: up, steer: up, hp: up }, div });
+  let jumps = 0, stomps = 0, cones = 0, aiCones = 0, trail = 0, aiTrail = 0, posts = 0;
+  const onTrail = w.riders.map(() => false);
   let hits = 0;
   let lead = 0;
   let leadHits = 0;
@@ -47,8 +51,17 @@ for (let seed = 1; seed <= races; seed++) {
       if (e.type === 'whiff') whiffs++;
       if (e.type === 'swing' && e.aim === 0) aiSwings++;
       if (e.type === 'patrolLetGo') letGo++;
+      if (e.type === 'jump' && e.rider === 0) jumps++;
+      if (e.type === 'land' && e.stomp >= 0) stomps++;
+      if (e.type === 'crash' && e.cause === 'cones') { if (e.rider === 0) cones++; else aiCones++; }
+      if (e.type === 'crash' && e.cause === 'wall' && w.road.cuts.some((c) => Math.abs(w.riders[e.rider].z - c.z0 - 24) < 3)) posts++;
     }
     w.events.length = 0;
+    for (const r of w.riders) {
+      const on = w.road.trailAt(r.x, r.z) !== 0;
+      if (on && !onTrail[r.id]) { if (r.isPlayer) trail++; else aiTrail++; }
+      onTrail[r.id] = on;
+    }
     heat = Math.max(heat, w.heat);
     if (leading) {
       lead++;
@@ -57,10 +70,12 @@ for (let seed = 1; seed <= races; seed++) {
     } else calm = 0;
   }
   const row: Row = { place: w.player.place, time: w.time, kos: w.kos, crashes: w.crashes, hits, lead: lead / TICK_HZ, leadHits, leadCrashes, quiet: quiet / TICK_HZ, hunts, ambushes,
-    aiSwings, hitP, shoves: w.shoves, aiShoves, took, lost, whiffs, counters, fines: w.fines, heat, letGo };
+    aiSwings, hitP, shoves: w.shoves, aiShoves, took, lost, whiffs, counters, fines: w.fines, heat, letGo,
+    jumps, stomps, cones, aiCones, trail, aiTrail, posts };
   rows.push(row);
   console.log(`seed ${seed}: place ${row.place}, ${row.time.toFixed(0)} s, KOs ${row.kos}, crashes ${row.crashes} (${leadCrashes} while 1st), fights ${hits}, 1st for ${row.lead.toFixed(0)} s, hit ${leadHits}x while 1st, longest calm lead ${row.quiet.toFixed(0)} s, hunts ${hunts}, ambushes ${ambushes}`);
 }
 const avg = (k: keyof Row) => rows.reduce((s, r) => s + r[k], 0) / rows.length;
 console.log(`avg: place ${avg('place').toFixed(1)}, ${avg('time').toFixed(0)} s, KOs ${avg('kos').toFixed(1)}, crashes ${avg('crashes').toFixed(1)}, fights ${avg('hits').toFixed(1)}, 1st for ${avg('lead').toFixed(0)} s, hit ${avg('leadHits').toFixed(1)}x / crashed ${avg('leadCrashes').toFixed(1)}x while 1st, longest calm lead ${avg('quiet').toFixed(0)} s, hunts ${avg('hunts').toFixed(1)}, ambushes ${avg('ambushes').toFixed(1)}`);
 console.log(`     AI swings at player ${avg('aiSwings').toFixed(1)}, player hit ${avg('hitP').toFixed(1)}, shoves ${avg('shoves').toFixed(1)} (AI ${avg('aiShoves').toFixed(1)}), weapons taken ${avg('took').toFixed(1)} / lost ${avg('lost').toFixed(1)}, AI whiffs at player ${avg('whiffs').toFixed(1)}, counters ${avg('counters').toFixed(1)}, max heat ${avg('heat').toFixed(2)}, let go ${avg('letGo').toFixed(1)}, fines $${avg('fines').toFixed(0)}`);
+console.log(`     division ${div}: jumps ${avg('jumps').toFixed(1)}, stomps ${avg('stomps').toFixed(2)}, cone crashes ${avg('cones').toFixed(2)} (AI ${avg('aiCones').toFixed(2)}), trails taken ${avg('trail').toFixed(1)} (AI ${avg('aiTrail').toFixed(1)}), post crashes ${avg('posts').toFixed(2)}, top-3 ${(rows.filter((r) => r.place <= 3).length / rows.length * 100).toFixed(0)}%`);

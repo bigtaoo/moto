@@ -4,7 +4,7 @@
  * Bump on any change to the race rules that alters what a seed plus inputs produce, and record the new
  * golden hash in world.test.ts. Replays and (later) online rooms only mix the same version.
  */
-export const SIM_VERSION = 11;
+export const SIM_VERSION = 12;
 
 export const TICK_HZ = 30;
 export const DT = 1 / TICK_HZ;
@@ -84,7 +84,7 @@ export type WeaponKind = keyof typeof WEAPON;
  * further), then the rider gets up and runs back to it.
  */
 export const DOWN = {
-  lie: { ko: 30, car: 40, wall: 36 }, // ticks on the ground at least before getting up
+  lie: { ko: 30, car: 40, wall: 36, cones: 36 }, // ticks on the ground at least before getting up
   body: 20, // m/s² the body slows at ...
   bike: 11, // ... and the scooter
   bikeSide: 0.6, // share of the sideways shove the scooter takes
@@ -312,6 +312,65 @@ export const AI = {
   /** Seconds a line picked to get round traffic is kept. */
   escHold: 0.7,
 };
+
+/**
+ * Road features, placed per race (their own dice) in evenly spaced slots over this stretch of the race,
+ * each moved up to `jitter` of a slot either way.
+ */
+export const FEATURES = { from: 0.14, to: 0.9, jitter: 0.25 };
+
+/**
+ * Construction zone: cones close the right lane (lane 3) for `len` metres. They funnel in over `taper`
+ * metres before it and out over `out` after; riders keep left of `edge`. A rider who hits the cones
+ * faster than crashSpeed goes down; cars merge out of the lane within carMerge metres of the cones.
+ */
+export const WORKS = { len: [90, 150] as const, taper: 26, out: 14, edge: 3.1, crashSpeed: 10, carMerge: 40 };
+
+/**
+ * Shortcut trail: a dirt track just outside the barrier on one side. The barrier opens for `gap` metres
+ * at its start (get across before it closes again, or hit its end post) and for `merge` metres at its
+ * end, where the trail runs back onto the road. Riders on it keep between inner and outer, ride at `top`
+ * of their speed, but every metre there counts `gain` metres of the road: it cuts a corner. Past `split`
+ * a rider is off the road (riders on it and on the road can't touch or hit each other). Rivals decide
+ * once per trail whether to take it: take[0] + take[1] * awareness.
+ */
+export const CUT = {
+  len: [150, 210] as const, gap: 24, merge: 22, split: 8.2, inner: 9.9, outer: 13.3, mid: 11.6,
+  gain: 1.3, top: 0.9, take: [0.3, 0.55] as const, look: 90, lineUp: 60,
+};
+
+/**
+ * Ramps: one in a lane (cars keep out of that lane from before..after it), one mid-trail. Over it faster
+ * than minSpeed sends a rider flying for `air` seconds per m/s: no steering, no blows either way, no
+ * traffic. Landing gives `boost` speed, and landing on a rider (stomp) knocks them off.
+ */
+export const RAMP = { halfW: 1.2, trailHalfW: 1.7, air: 0.035, minSpeed: 10, boost: 1.08, stompX: 1.1, stompZ: 1.6, before: 10, after: 3 };
+
+/**
+ * The ladder: finish in the top PROMOTE places to move up a division. Each is somewhere else and harder:
+ * rivals faster (`top` m/s) and keener and sharper (`mind` on aggression and awareness), more traffic,
+ * extra security buggies, more road features, and a bigger purse (`prize` times the prize money).
+ */
+export interface Division {
+  name: string;
+  env: 'meadow' | 'desert' | 'autumn' | 'snow' | 'dusk';
+  top: number;
+  mind: number;
+  traffic: number;
+  patrol: number;
+  prize: number;
+  ramps: number;
+  works: number;
+  cuts: number;
+}
+export const DIVISIONS: readonly Division[] = [
+  { name: 'Rookie Cup', env: 'meadow', top: 0, mind: 0, traffic: 1, patrol: 0, prize: 1, ramps: 1, works: 1, cuts: 0 },
+  { name: 'Dust Bowl', env: 'desert', top: 0.9, mind: 0.05, traffic: 1.1, patrol: 0, prize: 1.5, ramps: 1, works: 1, cuts: 1 },
+  { name: 'Maple Run', env: 'autumn', top: 1.8, mind: 0.1, traffic: 1.2, patrol: 1, prize: 2.1, ramps: 2, works: 1, cuts: 1 },
+  { name: 'Frost Pass', env: 'snow', top: 2.7, mind: 0.15, traffic: 1.3, patrol: 1, prize: 2.8, ramps: 2, works: 1, cuts: 1 },
+  { name: 'Neon Coast', env: 'dusk', top: 3.6, mind: 0.2, traffic: 1.45, patrol: 2, prize: 3.6, ramps: 2, works: 2, cuts: 1 },
+];
+export const PROMOTE = 3;
 
 export const PLAYER_BODY = 0xf2c230;
 export const PLAYER_RIDE = 0x2a6fdb;
