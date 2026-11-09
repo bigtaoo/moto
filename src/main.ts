@@ -1,0 +1,251 @@
+// Wires the 30 Hz sim to the 3D view, the HUD, input, sound and the save.
+
+import './style.css';
+import { World, type SimEvent } from './sim/world';
+import * as C from './sim/config';
+import { botInput } from './sim/ai';
+import { Stage, RaceView } from './view/scene';
+import { Controls } from './view/input';
+import { Hud, type RaceResult } from './view/hud';
+import { sfx, unlockAudio, suspendAudio } from './view/audio';
+import { loadSave, storeSave } from './meta';
+
+const params = new URLSearchParams(location.search);
+const BOT = params.has('bot');
+const LEN = Number(params.get('len')) || undefined;
+
+const canvas = document.getElementById('c') as HTMLCanvasElement;
+const app = document.getElementById('app')!;
+const titleEl = document.getElementById('title')!;
+const stage = new Stage(canvas);
+const hud = new Hud(app);
+const save = loadSave();
+
+let world!: World;
+let view!: RaceView;
+let state: 'title' | 'race' | 'results' = 'title';
+let paused = false;
+let acc = 0;
+let hitstop = 0;
+let slow = 0;
+let atkBuffer = 0;
+let lastCount = -1;
+let lastGrudgeKos = 0;
+const rnd = Math.random;
+
+const controls = new Controls(canvas, () => (world ? world.player.x : 0));
+
+function newRace(): void {
+  view?.dispose();
+  const seed = ((save.races * 7919 + 17) % 99991) + 1;
+  world = new World({ seed, upgrades: save.up, grudges: save.grudges, length: LEN });
+  view = new RaceView(stage, world, seed);
+  hud.setup(world);
+  hud.hideResults();
+  controls.reset();
+  acc = 0;
+  hitstop = 0;
+  slow = 0;
+  atkBuffer = 0;
+  lastCount = -1;
+  lastGrudgeKos = 0;
+}
+
+function startRace(): void {
+  unlockAudio();
+  titleEl.classList.add('hidden');
+  state = 'race';
+}
+
+const near = (id: number) => id === 0 || Math.abs(world.riders[id].z - world.player.z) < 28;
+const ordinal = (n: number) => n + (n === 1 ? 'st' : n === 2 ? 'nd' : n === 3 ? 'rd' : 'th');
+
+function handle(e: SimEvent): void {
+  const w = world;
+  switch (e.type) {
+    case 'go':
+      hud.flash('GO!', 'go');
+      sfx.beep(true);
+      break;
+    case 'swing':
+      view.riders[e.rider].swing(e.side);
+      if (near(e.rider)) sfx.whoosh();
+      break;
+    case 'hit': {
+      const v = w.riders[e.to];
+      view.riders[e.to].hit();
+      view.fx.sparks(v.x - e.side * 0.3, 1.5, v.z, e.side, e.ko, rnd);
+      const mine = e.from === 0 || e.to === 0;
+      if (mine) {
+        hitstop = e.ko ? 0.1 : 0.055;
+        view.shake(e.to === 0 ? 0.45 : 0.22);
+      }
+      if (near(e.to)) sfx.thunk(e.ko);
+      if (e.from === 0 && e.ko) {
+        if (w.grudgeKos > lastGrudgeKos) {
+          lastGrudgeKos = w.grudgeKos;
+          hud.flash(`GRUDGE SETTLED +$${C.GRUDGE_BONUS + C.KO_BONUS}`, 'ko');
+        } else hud.flash(`KO! +$${C.KO_BONUS}`, 'ko');
+      }
+      break;
+    }
+    case 'crash': {
+      const r = w.riders[e.rider];
+      view.riders[e.rider].setDown(true);
+      view.ragdolls[e.rider].throw(r.x, r.z, e.speed, e.vx, rnd);
+      view.fx.dust(r.x, r.z, e.speed, rnd);
+      if (e.rider === 0) {
+        slow = 0.55;
+        view.shake(0.8);
+        hud.flash(e.cause === 'car' ? 'WIPEOUT!' : e.cause === 'patrol' ? `BUSTED −$${C.FINE}` : 'KNOCKED OFF!', 'bad');
+      }
+      if (near(e.rider)) sfx.crash();
+      break;
+    }
+    case 'recover':
+      view.riders[e.rider].setDown(false);
+      view.ragdolls[e.rider].hide();
+      break;
+    case 'pickup':
+      if (e.rider === 0) {
+        hud.flash(e.kind === 'pan' ? 'FRYING PAN!' : 'BASEBALL BAT!', 'go');
+        sfx.pickup();
+      }
+      break;
+    case 'patrolWarn':
+      hud.flash('SECURITY!', 'warn');
+      sfx.siren();
+      break;
+    case 'grudge':
+      hud.flash(`${w.riders[e.rider].name} holds a grudge!`, 'warn');
+      break;
+    case 'finish':
+      if (e.rider === 0) {
+        hud.flash(`${ordinal(e.place)} place!`, e.place === 1 ? 'go' : '');
+        sfx.coin();
+      }
+      break;
+    case 'over':
+      finishRace();
+      break;
+    case 'rub':
+      view.fx.scrape(e.x, e.z, rnd);
+      if (e.player || Math.abs(e.z - w.player.z) < 20) sfx.scrape(e.player);
+      break;
+    case 'caught':
+    case 'drop':
+      break;
+  }
+}
+
+function finishRace(): void {
+  const w = world;
+  const place = w.player.place;
+  const prize = C.PRIZE[place - 1] ?? 0;
+  const koBonus = w.kos * C.KO_BONUS;
+  const grudgeBonus = w.grudgeKos * C.GRUDGE_BONUS;
+  const earned = Math.max(0, prize + koBonus + grudgeBonus - w.fines);
+  save.cash += earned;
+  save.races++;
+  if (save.best === 0 || place < save.best) save.best = place;
+  save.grudges = [...w.grudges];
+  storeSave(save);
+  const res: RaceResult = {
+    place, total: w.riders.length, prize, kos: w.kos, koBonus, grudgeKos: w.grudgeKos, grudgeBonus,
+    fines: w.fines, earned, time: w.time, grudges: save.grudges.map((id) => w.riders[id].name),
+  };
+  state = 'results';
+  const show = () => hud.showResults(res, save, buy, again);
+  const buy = (k: keyof typeof save.up) => {
+    const cost = C.upgradeCost(save.up[k]);
+    if (save.cash < cost || save.up[k] >= C.UPGRADE_MAX) return;
+    save.cash -= cost;
+    save.up[k]++;
+    storeSave(save);
+    sfx.coin();
+    show();
+  };
+  const again = () => {
+    newRace();
+    state = 'race';
+  };
+  show();
+}
+
+function tick(): void {
+  const inp = world.input;
+  if (state === 'race' && BOT) {
+    botInput(world, 0.8);
+  } else if (state === 'race') {
+    inp.targetX = controls.targetX;
+    inp.steer = controls.steer;
+    inp.brake = controls.brake;
+    if (controls.attack) { atkBuffer = 8; controls.attack = false; }
+    inp.attack = atkBuffer > 0;
+  } else {
+    inp.steer = 0;
+    inp.brake = false;
+    inp.attack = false;
+  }
+  world.step();
+  let swung = false;
+  for (const e of world.events) {
+    if (e.type === 'swing' && e.rider === 0) swung = true;
+    handle(e);
+  }
+  world.events.length = 0;
+  if (swung) atkBuffer = 0;
+  else if (atkBuffer > 0) atkBuffer--;
+  // countdown beeps
+  if (world.countdown > 0) {
+    const n = Math.ceil(world.countdown / C.TICK_HZ);
+    if (n !== lastCount) {
+      lastCount = n;
+      hud.flash(String(n), 'count');
+      sfx.beep(false);
+    }
+  }
+}
+
+function setPaused(on: boolean): void {
+  if (state !== 'race' || paused === on) return;
+  paused = on;
+  hud.setPaused(on);
+  suspendAudio(on);
+}
+
+controls.onPause = () => setPaused(!paused);
+controls.onAny = () => unlockAudio();
+hud.pauseBtn.addEventListener('click', () => setPaused(true));
+hud.pauseResume.addEventListener('click', () => setPaused(false));
+document.addEventListener('visibilitychange', () => { if (document.hidden) setPaused(true); });
+titleEl.querySelector('button')!.addEventListener('click', startRace);
+window.addEventListener('resize', () => { stage.resize(); hud.resize(); });
+
+let lastT = performance.now();
+function frame(now: number): void {
+  requestAnimationFrame(frame);
+  const dt = Math.min(0.1, (now - lastT) / 1000);
+  lastT = now;
+  if (paused) return;
+  let simDt = dt;
+  if (hitstop > 0) { hitstop -= dt; simDt = 0; }
+  else if (slow > 0) { slow -= dt; simDt *= 0.35; }
+  if (state !== 'title') {
+    acc += simDt;
+    let n = 0;
+    while (acc >= C.DT && n++ < 8) { acc -= C.DT; tick(); }
+  }
+  view.update(simDt, Math.min(1, acc / C.DT));
+  hud.update(world, view, save.cash, dt);
+  hud.showHint(state === 'race' && save.races < 2 && world.time < 6);
+}
+
+newRace();
+const best = document.getElementById('best');
+if (best && save.races > 0) best.textContent = `Cash $${save.cash} · best ${ordinal(save.best)}`;
+if (BOT) startRace();
+requestAnimationFrame(frame);
+
+// For poking at the game from the console while testing.
+Object.assign(window, { __game: { get world() { return world; }, get view() { return view; }, get state() { return state; }, save, botInput } });
