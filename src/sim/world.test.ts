@@ -8,7 +8,7 @@ import { World, type WorldOpts } from './world';
 // The golden hashes pin what a seed plus inputs produce. If one changes, either the change was meant
 // to alter the race (bump SIM_VERSION in config.ts and paste the new hashes here) or the sim lost
 // its determinism (find out why before touching anything).
-const GOLDEN = { version: 7, mid: 'bea59b3d', end: '3777c949', endTick: 4714 };
+const GOLDEN = { version: 8, mid: 'db1642c2', end: '775df4b7', endTick: 4304 };
 
 const OPTS: WorldOpts = { seed: 1, upgrades: { top: 2, steer: 2, hp: 2 } };
 const MID = 60 * TICK_HZ;

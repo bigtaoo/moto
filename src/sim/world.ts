@@ -27,7 +27,16 @@ export interface Rider {
   braking: boolean;
   /** 'away': a thug not on the road right now. */
   state: 'ride' | 'down' | 'away';
+  /** Down: ticks left lying on the road; then runT counts ticks spent running back to the scooter. */
   downT: number;
+  runT: number;
+  /** Down: where the scooter is (it slides on without the rider), last tick's spot, and its speed. */
+  bikeX: number;
+  bikeZ: number;
+  bikePX: number;
+  bikePZ: number;
+  bikeV: number;
+  bikeVx: number;
   invT: number;
   atkT: number;
   atkSide: Side;
@@ -233,7 +242,7 @@ export class World {
     this.riders.push({
       id: this.riders.length, name: o.name, isPlayer: o.isPlayer, x: o.x, z: o.z, px: o.x, pz: o.z, vx: 0, speed: 0,
       top: o.top, accel: C.PLAYER_BASE.accel, steer: o.steer, hp: o.hp, maxHp: o.hp, wantX: o.x, braking: false,
-      state: 'ride', downT: 0, invT: 0, atkT: 0, atkSide: 1, atkCd: 0, hitT: 0, weapon: o.weapon ?? null,
+      state: 'ride', downT: 0, runT: 0, bikeX: o.x, bikeZ: o.z, bikePX: o.x, bikePZ: o.z, bikeV: 0, bikeVx: 0, invT: 0, atkT: 0, atkSide: 1, atkCd: 0, hitT: 0, weapon: o.weapon ?? null,
       finished: false, place: 0, aggr: o.aggr, aware: o.aware, stalkT: 0, body: o.body, ride: o.ride, koPlayer: 0, rubT: 0, rubSide: 1,
       thug: false, huntT: 0, gang: 'lurk', gangT: 0, pace: 0,
     });
@@ -262,7 +271,7 @@ export class World {
 
   step(): void {
     this.tick++;
-    for (const r of this.riders) { r.px = r.x; r.pz = r.z; }
+    for (const r of this.riders) { r.px = r.x; r.pz = r.z; r.bikePX = r.bikeX; r.bikePZ = r.bikeZ; }
     for (const c of this.cars) c.pz = c.z;
     this.patrol.px = this.patrol.x;
     this.patrol.pz = this.patrol.z;
@@ -299,11 +308,37 @@ export class World {
     if (r.rubT > 0) r.rubT--;
     if (r.state === 'away') return;
     if (r.state === 'down') {
-      r.speed = Math.max(0, r.speed - 20 * C.DT);
-      r.z += r.speed * C.DT;
-      r.vx *= 0.85;
-      r.x = clamp(r.x + r.vx * C.DT, -C.EDGE, C.EDGE);
-      if (--r.downT <= 0) this.recover(r);
+      const D = C.DOWN;
+      // the scooter slides on by itself
+      r.bikeV = Math.max(0, r.bikeV - D.bike * C.DT);
+      r.bikeZ += r.bikeV * C.DT;
+      r.bikeVx *= 0.88;
+      r.bikeX = clamp(r.bikeX + r.bikeVx * C.DT, -C.EDGE, C.EDGE);
+      if (r.runT === 0) {
+        // tumbling to a stop, then a moment on the ground
+        r.speed = Math.max(0, r.speed - D.body * C.DT);
+        r.z += r.speed * C.DT;
+        r.vx *= 0.85;
+        r.x = clamp(r.x + r.vx * C.DT, -C.EDGE, C.EDGE);
+        if (r.downT > 0) r.downT--;
+        if (r.downT === 0 && r.speed < 2) {
+          if (r.thug) return this.recover(r); // thugs limp off instead
+          r.runT = 1;
+          r.speed = 0;
+        }
+        return;
+      }
+      // up and running back to the scooter
+      const dx = r.bikeX - r.x;
+      const dz = r.bikeZ - r.z;
+      if (dx * dx + dz * dz < D.reach * D.reach || r.runT > D.maxRun * C.TICK_HZ) return this.recover(r);
+      // along the road at running pace, across at a bit less (no square roots in the sim)
+      const s = D.run * Math.min(1, r.runT / (D.runUp * C.TICK_HZ)) * C.DT;
+      const sz = clamp(dz, -s, s);
+      r.z += sz;
+      r.x += clamp(dx, -s * 0.7, s * 0.7);
+      r.speed = Math.max(0, sz / C.DT);
+      r.runT++;
       return;
     }
     const target = r.braking || (r.finished && r.isPlayer) ? 0 : this.topNow(r);
@@ -341,6 +376,10 @@ export class World {
       this.events.push({ type: 'recover', rider: r.id });
       return;
     }
+    // back on the scooter, where it came to rest
+    r.x = r.px = r.bikeX;
+    r.z = r.pz = r.bikeZ;
+    r.runT = 0;
     r.state = 'ride';
     r.hp = r.maxHp;
     r.invT = C.INVULN_TICKS;
@@ -469,8 +508,13 @@ export class World {
   crash(r: Rider, c: CrashCause, vx: number): void {
     if (r.state !== 'ride') return;
     r.state = 'down';
-    r.downT = C.DOWN_TICKS[c];
+    r.downT = C.DOWN.lie[c];
+    r.runT = 0;
     r.vx = vx;
+    r.bikeX = r.bikePX = r.x;
+    r.bikeZ = r.bikePZ = r.z;
+    r.bikeV = r.speed;
+    r.bikeVx = vx * C.DOWN.bikeSide;
     r.atkT = 0;
     r.huntT = 0;
     if (r.isPlayer) {
@@ -885,7 +929,7 @@ export class World {
       r.vx = 0;
       r.speed = r.pace = p.speed * G.lurk;
       r.hp = r.maxHp;
-      r.invT = r.atkT = r.atkCd = r.hitT = r.downT = r.rubT = r.stalkT = r.gangT = 0;
+      r.invT = r.atkT = r.atkCd = r.hitT = r.downT = r.runT = r.rubT = r.stalkT = r.gangT = 0;
       r.gang = 'lurk';
       r.weapon = k === 0 && prog >= G.batFrom ? 'bat' : 'pan';
       ids.push(r.id);

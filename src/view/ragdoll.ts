@@ -1,6 +1,7 @@
 // View-only ragdoll for a dummy thrown off its scooter: 12 Verlet points in sim space (x across, y up,
-// z along) with elbows and knees, drawn with the same chunky parts as the riding dummy. The sim only
-// knows "down for N ticks"; this never feeds back into it.
+// z along) with elbows and knees, drawn with the same chunky parts as the riding dummy. Once the sim
+// has the rider up and running back to the scooter, the same points are posed by a run cycle instead,
+// blended in from wherever the body came to rest. This never feeds back into the sim.
 
 import * as THREE from 'three';
 import { ROAD_HALF } from '../sim/config';
@@ -59,6 +60,15 @@ export class Ragdoll {
   private readonly limbs: THREE.Mesh[];
   private acc = 0;
   private bumpT = 0;
+  /** Running: blend from the lying pose (0) to the run cycle (1), stride phase, and the lying pose. */
+  private running = false;
+  private upT = 0;
+  private stride = 0;
+  private readonly from = REST.map(() => new THREE.Vector3());
+  /** Where the body came to rest (it rarely matches the sim's body), and the sim's distance left then. */
+  private sx = 0;
+  private sz = 0;
+  private simD0 = 0;
   active = false;
   /** Seconds since the throw. */
   age = 0;
@@ -111,6 +121,7 @@ export class Ragdoll {
       this.q[i].copy(this.p[i]).addScaledVector(v, -STEP);
     }
     this.active = true;
+    this.running = false;
     this.age = 0;
     this.acc = 0;
     this.bumpT = 0.15;
@@ -128,13 +139,70 @@ export class Ragdoll {
   }
 
   update(dt: number): void {
-    if (!this.active) return;
+    if (!this.active || this.running) return;
     this.age += dt;
     this.bumpT -= dt;
     this.acc += Math.min(dt, 0.1);
     while (this.acc >= STEP) {
       this.acc -= STEP;
       this.simulate();
+    }
+    this.draw();
+  }
+
+  /**
+   * Up and running back to the scooter at (tx, tz). The run starts wherever the body came to rest and
+   * keeps pace with the sim's runner at (x, z), so they reach the scooter on the same tick; the run
+   * cycle replaces the physics, blended in over a moment so it looks like getting up.
+   */
+  run(x: number, z: number, tx: number, tz: number, pace: number, reach: number, dt: number): void {
+    if (!this.active) return;
+    const { p } = this;
+    const simD = Math.hypot(tx - x, tz - z);
+    if (!this.running) {
+      this.running = true;
+      this.upT = 0;
+      this.stride = 0;
+      for (let i = 0; i < p.length; i++) this.from[i].copy(p[i]);
+      this.sx = p[PELVIS].x;
+      this.sz = p[PELVIS].z;
+      this.simD0 = Math.max(simD, reach + 0.01);
+    }
+    this.age += dt;
+    this.upT = Math.min(1, this.upT + dt / 0.35);
+    const prog = Math.min(1, Math.max(0, (this.simD0 - simD) / (this.simD0 - reach)));
+    const ox = this.sx + (tx - this.sx) * prog;
+    const oz = this.sz + (tz - this.sz) * prog;
+    const viewD0 = Math.hypot(tx - this.sx, tz - this.sz);
+    const speed = pace * (viewD0 / (this.simD0 - reach));
+    this.stride += dt * (4 + Math.min(14, speed) * 0.9);
+    let fx = tx - ox;
+    let fz = tz - oz;
+    const n = Math.hypot(fx, fz);
+    if (n > 0.2) { fx /= n; fz /= n; } else { fx = 0; fz = 1; }
+    const k = this.upT * this.upT * (3 - 2 * this.upT);
+    const ph = this.stride;
+    const bob = Math.abs(Math.sin(ph)) * 0.07;
+    for (let i = 0; i < REST.length; i++) {
+      let [lx, ly, lz] = REST[i];
+      ly -= 0.15; // feet on the road, not the deck
+      const leg = i === KNEE_L || i === FOOT_L ? 0 : i === KNEE_R || i === FOOT_R ? Math.PI : -1;
+      const arm = i === EL_L || i === HAND_L ? Math.PI : i === EL_R || i === HAND_R ? 0 : -1;
+      if (leg >= 0) {
+        const s = Math.sin(ph + leg);
+        if (i === KNEE_L || i === KNEE_R) { lz += s * 0.28; ly += Math.max(0, s) * 0.12; }
+        else { lz += Math.sin(ph + leg - 0.7) * 0.38; ly += Math.max(0, -Math.cos(ph + leg)) * 0.22; }
+      } else if (arm >= 0) {
+        const s = Math.sin(ph + arm);
+        lz = (i === EL_L || i === EL_R ? 0.02 : 0.15) + s * (i === EL_L || i === EL_R ? 0.18 : 0.3);
+        ly = i === EL_L || i === EL_R ? 1.25 : 1.32 + s * 0.08;
+      }
+      ly += bob;
+      lz += Math.max(0, ly - 1) * 0.22; // lean into it
+      const wx = ox + fz * lx + fx * lz;
+      const wz = oz - fx * lx + fz * lz;
+      p[i].lerpVectors(this.from[i], a.set(wx, ly, wz), k);
+      this.q[i].copy(p[i]);
     }
     this.draw();
   }

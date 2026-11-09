@@ -2,7 +2,7 @@
 
 import * as THREE from 'three';
 import type { World } from '../sim/world';
-import { CAR } from '../sim/config';
+import { CAR, DOWN, TICK_HZ } from '../sim/config';
 import { Track, toWorld, place } from './track';
 import { RiderView } from './rider';
 import { Ragdoll } from './ragdoll';
@@ -130,16 +130,23 @@ export class RaceView {
         this.ragdolls[i].update(dt);
         continue;
       }
-      const x = this.smoothX(i, lerp(r.px, r.x, alpha), dt);
-      const z = lerp(r.pz, r.z, alpha);
-      place(rv.root, x, 0, z);
+      // down, the model is just the scooter lying where it slid to; the body is the ragdoll
+      const down = r.state === 'down';
+      const x = this.smoothX(i, down ? lerp(r.bikePX, r.bikeX, alpha) : lerp(r.px, r.x, alpha), dt);
+      const z = down ? lerp(r.bikePZ, r.bikeZ, alpha) : lerp(r.pz, r.z, alpha);
+      place(rv.root, x, 0, z, rv.yaw);
       rv.setWeapon(r.weapon);
       rv.update(dt, r.speed, this.drawVx[i], r.rubT > 0 ? r.rubSide : 0);
       // Blink while invulnerable after getting back up.
       rv.root.visible = r.invT <= 0 || Math.floor(r.invT / 3) % 2 === 0;
       if (r.state === 'ride') this.shadows.add(x, z, 0.5, 0.75);
+      else this.shadows.add(x, z, 0.6, 0.6);
       const rd = this.ragdolls[i];
-      rd.update(dt);
+      if (down && r.runT > 0) {
+        // up and running back to the scooter
+        const pace = DOWN.run * Math.min(1, r.runT / (DOWN.runUp * TICK_HZ));
+        rd.run(lerp(r.px, r.x, alpha), lerp(r.pz, r.z, alpha), r.bikeX, r.bikeZ, pace, DOWN.reach, dt);
+      } else rd.update(dt);
       if (rd.active) {
         rd.centre(this.v2);
         this.shadows.add(this.v2.x, this.v2.z, 0.6, 0.6);

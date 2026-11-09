@@ -68,6 +68,10 @@ export class RiderView {
   private bank = 0;
   private down = false;
   private tip = 0;
+  /** Down: the scooter slews round as it slides, towards this side. */
+  private downSide: 1 | -1 = 1;
+  /** Extra heading for the whole model (the slewed scooter), applied by the scene. */
+  yaw = 0;
 
   constructor(readonly body: number, readonly ride: number) {
     this.mat = toonMaterial({ vertexColors: true, emissive: 0xffffff, emissiveIntensity: 0 });
@@ -166,17 +170,21 @@ export class RiderView {
     this.squash = 1;
   }
 
-  setDown(down: boolean): void {
+  setDown(down: boolean, side: 1 | -1 = 1): void {
     this.down = down;
+    this.downSide = side;
     this.dummy.visible = !down;
-    if (!down) this.tip = 0;
+    if (!down) this.tip = this.yaw = 0;
   }
 
   /** `rub` is the side (-1/1) of a rider being pressed shoulder to shoulder, 0 when clear. */
   update(dt: number, _speed: number, lateral: number, rub = 0): void {
     const target = this.down ? 0 : Math.max(-0.4, Math.min(0.4, lateral * 0.06 + rub * 0.24));
     this.bank += (target - this.bank) * Math.min(1, dt * 8);
-    if (this.down) this.tip = Math.min(1.45, this.tip + dt * 5);
+    if (this.down) {
+      this.tip = Math.min(1.45, this.tip + dt * 5);
+      this.yaw += (this.downSide * 0.9 - this.yaw) * Math.min(1, dt * 2.5);
+    }
     // Swing (0.42 s): wind up across the body, whip out to the side (the sim lands the blow 4 ticks in,
     // late in the whip), follow through.
     const sw = this.swingSide;

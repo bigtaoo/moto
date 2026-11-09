@@ -96,7 +96,7 @@ function handle(e: SimEvent): void {
     }
     case 'crash': {
       const r = w.riders[e.rider];
-      view.riders[e.rider].setDown(true);
+      view.riders[e.rider].setDown(true, e.vx < 0 ? -1 : 1);
       view.ragdolls[e.rider].throw(r.x, r.z, e.speed, e.vx, rnd, e.cause === 'car' ? 1.45 : 1);
       view.fx.dust(r.x, r.z, e.speed, rnd);
       if (e.rider === 0) {
