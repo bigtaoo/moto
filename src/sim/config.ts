@@ -4,7 +4,7 @@
  * Bump on any change to the race rules that alters what a seed plus inputs produce, and record the new
  * golden hash in world.test.ts. Replays and (later) online rooms only mix the same version.
  */
-export const SIM_VERSION = 4;
+export const SIM_VERSION = 5;
 
 export const TICK_HZ = 30;
 export const DT = 1 / TICK_HZ;
@@ -57,30 +57,38 @@ export const WEAPON = {
 } as const;
 export type WeaponKind = keyof typeof WEAPON;
 
-export const DOWN_TICKS = { ko: 60, car: 72, patrol: 66 };
+export const DOWN_TICKS = { ko: 60, car: 72 };
 export const INVULN_TICKS = 45;
 export const RECOVER_SPEED = 0.35;
 
 export const CAR = { halfW: 0.95, halfL: 2.2, riderHalfW: 0.4, minSpeed: 9, maxSpeed: 16, oncoming: -14 };
 export const TRAFFIC = { ahead: 260, behind: 50, spawnFrom: 170, base: 9, extra: 6, gap: 14 };
 
+/**
+ * The test-site security buggy. It never hits anyone: it rides up, then either cuts in front of the
+ * player and holds them up, or rides alongside and squeezes them toward the barrier. It is solid, so
+ * riders bump off it like they do off each other. Brake, steer round it or outlast it.
+ */
 export const PATROL = {
   startAt: 0.3, // fraction of the race
   spawnBack: 75,
-  chaseGain: 4,
-  steer: 5,
-  warnAt: 13,
-  warnTicks: 36, // siren to lunge: long enough to see it coming and swerve
-  dash: 11,
-  dashTicks: 36,
-  fallBack: 110,
-  fallTicks: 330, // 11 s of peace after each lunge, caught or not
-  /** A catch is a fine and a shunt, not a crash: speed is cut to this and you're shoved aside. */
-  bumpSlow: 0.6,
-  bumpPush: 4,
-  /** Buggy footprint, for keeping it out of traffic. */
+  chaseGain: 6,
+  steer: 5, // slower than any rider, so you can always slip round it
+  accel: 9,
+  brake: 12,
+  warnAt: 13, // siren and a plan when it gets this close behind
+  pressTicks: 180, // how long it blocks or squeezes
+  blockAhead: 6, // metres ahead of the player it settles while blocking ...
+  blockPace: 0.8, // ... driving at this fraction of the player's top speed
+  squeezeIn: 0.5, // metres it keeps leaning in past touching while squeezing
+  rub: 0.993, // speed a rider keeps per tick while grinding against it: being squeezed slows you
+  pinned: 0.99, // ... and this on top while pinned on the barrier
+  fallBack: 50,
+  fallTicks: 150, // ticks of peace after each go
+  /** Buggy footprint, for keeping it out of traffic and riders off it. */
   halfW: 1.0,
   halfL: 1.7,
+  riderHalfW: 0.45,
   /** Change lane when a car is closer than this many seconds along the wanted line. */
   dodgeT: 1.4,
 };
@@ -92,23 +100,25 @@ export const PATROL = {
 export const LEADER = {
   startAt: 0.06, // fraction of the race before any of this starts
   firstDelay: 4, // seconds in the lead before the first threat
-  gapEarly: 16, // seconds of calm between threats, early in the race ...
-  gapLate: 9, // ... and near the end
+  gapEarly: 11, // seconds of calm between threats, early in the race ...
+  gapLate: 5, // ... and near the end
   /** After the player goes down for any reason, no new threat for at least this long. */
   mercy: 10,
 };
 export const HUNT = {
   chase: 20, // seconds to catch up before giving up ...
-  attack: 6, // ... then seconds on the leader's shoulder
+  attack: 8, // ... then seconds on the leader's shoulder
   range: 260, // only rivals this close behind are picked
   boostMin: 5, // m/s faster than the leader, plus boostPerM for each metre behind
   boostPerM: 0.1,
   boostMax: 15,
-  swing: 1.5, // swing keenness multiplier while hunting
+  swing: 2.5, // swing keenness multiplier while hunting
 };
+/** Thugs fight like any rival (same swing odds, same hp) but always come armed. Knock one off and its weapon is yours. */
 export const GANG = {
   name: 'Thug',
-  hp: 2,
+  hp: 3,
+  aggr: 0.9,
   top: 34,
   accel: 12,
   steer: 7.5,
@@ -118,17 +128,15 @@ export const GANG = {
   spawnAhead: 100, // metres ahead of the leader they wait
   lurk: 0.42, // their speed while waiting, as a fraction of the leader's
   engageAt: 30, // pull out when the leader is this close behind
-  attackTime: 5, // seconds alongside before they give up
-  swing: 0.035, // per tick while the leader is in reach
-  pairFrom: 0.6, // two of them from this far into the race
-  batFrom: 0.8, // and one carries a bat
+  attackTime: 8, // seconds alongside before they give up
+  pairFrom: 0.4, // two of them from this far into the race
+  batFrom: 0.5, // frying pans before this, then the first one carries a bat
   goneAt: 45, // metres behind the leader where they drop out of the race
 };
 
 export const PRIZE = [600, 420, 300, 220, 160, 120, 90, 70];
 export const KO_BONUS = 60;
 export const GRUDGE_BONUS = 150;
-export const FINE = 60;
 /** Knock the player off this many times and a rival becomes a grudge. */
 export const GRUDGE_AT = 2;
 

@@ -15,7 +15,6 @@ export interface RaceResult {
   koBonus: number;
   grudgeKos: number;
   grudgeBonus: number;
-  fines: number;
   earned: number;
   time: number;
   grudges: string[];
@@ -223,7 +222,6 @@ export class Hud {
         ${row(`Prize (${ordinal(res.place)})`, `$${res.prize}`)}
         ${row(`Knockouts × ${res.kos}`, `$${res.koBonus}`)}
         ${res.grudgeKos ? row(`Grudges settled × ${res.grudgeKos}`, `$${res.grudgeBonus}`, 'good') : ''}
-        ${res.fines ? row('Security fines', `−$${res.fines}`, 'bad') : ''}
         ${row('Earned', `$${res.earned}`, 'total')}
       </div>
       ${res.grudges.length ? `<div class="grudges">Holding a grudge: <b>${res.grudges.join(', ')}</b><br><small>Knock them off next race for +$150 each</small></div>` : ''}

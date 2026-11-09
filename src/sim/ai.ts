@@ -101,7 +101,7 @@ function thugThink(w: World, r: Rider): void {
     r.pace = Math.max(0, Math.min(r.top, p.speed - ahead * 1.2));
     want = clampEdge(p.x + side * 1.7);
     if (r.gangT > G.attackTime * C.TICK_HZ || p.state !== 'ride' || p.finished || ahead < -12) { r.gang = 'leave'; r.gangT = 0; }
-    else if (w.targetFor(r) === p && r.atkCd <= 0 && r.atkT <= 0 && w.aiRng.float() < G.swing) w.tryAttack(r);
+    else if (w.targetFor(r) === p && r.atkCd <= 0 && r.atkT <= 0 && w.aiRng.float() < r.aggr * C.AI.swingAtPlayer) w.tryAttack(r);
   }
   if (r.gang === 'leave') {
     r.pace = Math.max(0, p.speed - 9);

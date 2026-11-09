@@ -6,7 +6,7 @@ import * as C from './config';
 import { rivalThink, laneClearance } from './ai';
 
 export type Side = -1 | 1;
-export type CrashCause = 'ko' | 'car' | 'patrol';
+export type CrashCause = 'ko' | 'car';
 
 export interface Rider {
   id: number;
@@ -76,8 +76,15 @@ export interface Pickup {
 
 export interface Patrol {
   active: boolean;
-  mode: 'chase' | 'warn' | 'dash' | 'fall' | 'off';
+  /** chase: ride up from behind. block: cut in front and hold the player up. squeeze: ride alongside and lean in. */
+  mode: 'chase' | 'block' | 'squeeze' | 'fall' | 'off';
   t: number;
+  /** Which side of the player it works from. */
+  side: Side;
+  /** Goes so far, to alternate block and squeeze. */
+  goes: number;
+  /** Blocking: has it got in front yet? */
+  ahead: boolean;
   x: number;
   z: number;
   px: number;
@@ -93,7 +100,6 @@ export type SimEvent =
   | { type: 'pickup'; rider: number; kind: C.WeaponKind }
   | { type: 'drop'; pickup: number }
   | { type: 'patrolWarn' }
-  | { type: 'caught'; side: Side }
   | { type: 'finish'; rider: number; place: number }
   | { type: 'grudge'; rider: number }
   | { type: 'rub'; x: number; z: number; side: Side; player: boolean }
@@ -132,7 +138,7 @@ export class World {
   readonly riders: Rider[] = [];
   readonly cars: Car[] = [];
   readonly pickups: Pickup[] = [];
-  readonly patrol: Patrol = { active: false, mode: 'off', t: 0, x: 0, z: 0, px: 0, pz: 0, speed: 0 };
+  readonly patrol: Patrol = { active: false, mode: 'off', t: 0, side: 1, goes: 0, ahead: false, x: 0, z: 0, px: 0, pz: 0, speed: 0 };
   readonly events: SimEvent[] = [];
   readonly grudges: Set<number>;
   readonly input: Input = { targetX: null, steer: 0, brake: false, attack: false };
@@ -143,7 +149,6 @@ export class World {
   kos = 0;
   grudgeKos = 0;
   crashes = 0;
-  fines = 0;
   private nextId = 1;
   private threatCd = Math.round(C.LEADER.firstDelay * C.TICK_HZ);
   private nextThreat: 'hunt' | 'ambush' = 'hunt';
@@ -174,7 +179,7 @@ export class World {
     // Two thugs, off the road until an ambush calls them.
     for (let i = 0; i < 2; i++) {
       const G = C.GANG;
-      this.addRider({ name: G.name, isPlayer: false, x: 0, z: -1000, top: G.top, steer: G.steer, hp: G.hp, aggr: 1, aware: G.aware, body: G.body, ride: G.ride });
+      this.addRider({ name: G.name, isPlayer: false, x: 0, z: -1000, top: G.top, steer: G.steer, hp: G.hp, aggr: G.aggr, aware: G.aware, body: G.body, ride: G.ride });
       const t = this.riders[this.riders.length - 1];
       t.thug = true;
       t.state = 'away';
@@ -522,62 +527,134 @@ export class World {
   private updatePatrol(): void {
     const pt = this.patrol;
     const p = this.player;
+    const P = C.PATROL;
     if (!pt.active) {
-      if (!p.finished && p.z > this.length * C.PATROL.startAt) {
-        Object.assign(pt, { active: true, mode: 'chase', t: 0, x: p.x, z: p.z - C.PATROL.spawnBack, speed: p.speed });
+      if (!p.finished && p.z > this.length * P.startAt) {
+        Object.assign(pt, { active: true, mode: 'chase', t: 0, x: p.x, z: p.z - P.spawnBack, speed: p.speed });
         pt.px = pt.x;
         pt.pz = pt.z;
+        this.patrolContacts(); // don't appear inside someone
       }
       return;
     }
     if (p.finished && pt.mode !== 'fall' && pt.mode !== 'off') { pt.mode = 'fall'; pt.t = 9999; }
     pt.t++;
     const gap = p.z - pt.z;
+    const riding = p.state === 'ride';
+    // a lane's width to one side of the player, on a side with room
+    const beside = (side: Side): number => {
+      const off = P.halfW + P.riderHalfW + 1.2;
+      return Math.abs(p.x + side * off) <= C.EDGE ? p.x + side * off : p.x - side * off;
+    };
+    let want = pt.x;
+    let speed = pt.speed;
     switch (pt.mode) {
-      case 'chase': {
-        pt.speed = p.speed + C.PATROL.chaseGain + Math.max(0, gap - 30) * 0.15;
-        if (gap < C.PATROL.warnAt && p.state === 'ride') { pt.mode = 'warn'; pt.t = 0; this.events.push({ type: 'patrolWarn' }); }
-        if (p.state === 'down') { pt.mode = 'fall'; pt.t = 0; }
-        break;
-      }
-      case 'warn':
-        pt.speed = p.speed + 1;
-        if (pt.t >= C.PATROL.warnTicks) { pt.mode = 'dash'; pt.t = 0; }
-        break;
-      case 'dash':
-        pt.speed = p.speed + C.PATROL.dash;
-        if (p.state === 'ride' && p.invT <= 0 && Math.abs(p.x - pt.x) < 1.25 && Math.abs(gap) < 2.6) {
-          // Pulled over, not wiped out: a fine and a shunt that costs speed.
-          const side: Side = p.x >= pt.x ? 1 : -1;
-          this.fines += C.FINE;
-          p.speed *= C.PATROL.bumpSlow;
-          p.vx += side * C.PATROL.bumpPush;
-          p.hitT = 6;
-          this.events.push({ type: 'caught', side });
-          pt.mode = 'fall';
+      case 'chase':
+        speed = p.speed + P.chaseGain + Math.max(0, gap - 30) * 0.25;
+        // come up a lane over, never into the player's back
+        pt.side = pt.x >= p.x ? 1 : -1;
+        want = beside(pt.side);
+        if (!riding) { pt.mode = 'fall'; pt.t = 0; }
+        else if (gap < P.warnAt) {
+          pt.mode = pt.goes++ % 2 === 0 ? 'block' : 'squeeze';
           pt.t = 0;
-        } else if (pt.t >= C.PATROL.dashTicks || gap < -8) {
-          pt.mode = 'fall';
-          pt.t = 0;
+          pt.ahead = false;
+          this.events.push({ type: 'patrolWarn' });
         }
         break;
+      case 'block': {
+        const lead = pt.z - p.z;
+        if (!pt.ahead) {
+          // overtake a lane over, then cut in
+          speed = p.speed + 8;
+          want = beside(pt.side);
+          if (lead > P.halfL + 2.5) { pt.ahead = true; pt.t = 0; }
+        } else {
+          // sit in front of the player, a bit slower than they'd like to go
+          speed = Math.min(p.top * P.blockPace, p.speed + (P.blockAhead - lead) * 1.5);
+          want = p.x;
+        }
+        if (!riding || pt.t > P.pressTicks || (pt.ahead && lead < -2) || (!pt.ahead && pt.t > P.pressTicks)) { pt.mode = 'fall'; pt.t = 0; }
+        break;
+      }
+      case 'squeeze':
+        // ride level with the player and lean in toward them
+        pt.side = pt.x >= p.x ? 1 : -1;
+        speed = p.speed + clamp(gap * 2, -6, 6);
+        want = p.x + pt.side * (P.halfW + P.riderHalfW - P.squeezeIn);
+        if (!riding || pt.t > P.pressTicks) { pt.mode = 'fall'; pt.t = 0; }
+        break;
       case 'fall':
-        pt.speed = Math.max(4, p.speed - 9);
-        if (gap > C.PATROL.fallBack && pt.t > C.PATROL.fallTicks) {
+        // pull off the player's line first; only drop back once it's out of their way
+        want = beside(pt.side);
+        speed = gap < 0.5 && Math.abs(pt.x - p.x) < P.halfW + P.riderHalfW + 0.3 ? p.speed + 3 : Math.max(4, p.speed - 9);
+        if (gap > P.fallBack && pt.t > P.fallTicks) {
           if (p.finished) pt.mode = 'off';
           else { pt.mode = 'chase'; pt.t = 0; }
         }
         break;
       case 'off':
-        pt.speed = 0;
+        speed = 0;
         break;
     }
-    this.patrolTraffic(pt.mode === 'chase' ? p.x : pt.x);
+    pt.speed = speed > pt.speed ? Math.min(speed, pt.speed + P.accel * C.DT) : Math.max(speed, pt.speed - P.brake * C.DT);
+    this.patrolTraffic(want);
     pt.z += pt.speed * C.DT;
-    // The buggy bowls over any rival in its path.
-    if (pt.mode === 'dash') {
+    this.patrolContacts();
+  }
+
+  /**
+   * The buggy is solid but never rams: a rider beside it is pushed aside (pinned on the barrier if
+   * there's no room) and grinds speed off; one behind it is held on its bumper; one in front makes it
+   * brake. Which face they meet on comes from last tick's positions, so it can't flip mid-contact.
+   */
+  private patrolContacts(): void {
+    const pt = this.patrol;
+    if (pt.mode === 'off') return;
+    const P = C.PATROL;
+    const wide = P.halfW + P.riderHalfW;
+    const long = P.halfL + 0.6;
+    const carW = C.CAR.halfW + P.halfW;
+    const carL = C.CAR.halfL + P.halfL;
+    const hitsCar = (x: number) => this.cars.some((c) => Math.abs(c.x - x) < carW && Math.abs(c.z - pt.z) < carL);
+    // two passes, so a push from one rider can't leave the buggy inside another
+    for (let pass = 0; pass < 2; pass++) {
       for (const r of this.riders) {
-        if (!r.isPlayer && r.state === 'ride' && Math.abs(r.x - pt.x) < 1.25 && Math.abs(r.z - pt.z) < 2.4) this.crash(r, 'patrol', (r.x >= pt.x ? 1 : -1) * 5);
+        if (r.state !== 'ride') continue;
+        if (Math.abs(r.x - pt.x) >= wide - 1e-6 || Math.abs(r.z - pt.z) >= long - 1e-6) continue;
+        const odx = r.px - pt.px;
+        const odz = r.pz - pt.pz;
+        if (Math.abs(odx) / wide >= Math.abs(odz) / long) {
+          const s: Side = odx >= 0 ? 1 : -1;
+          let nx = pt.x + s * wide;
+          if (Math.abs(nx) > C.EDGE) {
+            nx = s * C.EDGE;
+            const bx = nx - s * wide;
+            if (hitsCar(bx)) {
+              // nowhere for either to go: the rider drops in behind the buggy
+              r.z = pt.z - long;
+              r.speed = Math.min(r.speed, pt.speed);
+              continue;
+            }
+            pt.x = bx;
+            r.speed *= P.pinned;
+          }
+          r.x = nx;
+          if (pass === 0) {
+            r.speed *= P.rub;
+            r.rubT = C.CONTACT.rubTicks;
+            r.rubSide = -s as Side;
+            if ((this.tick + r.id) % C.CONTACT.rubEvery === 0) {
+              this.events.push({ type: 'rub', x: r.x - s * P.riderHalfW, z: r.z, side: -s as Side, player: r.isPlayer });
+            }
+          }
+        } else if (odz >= 0) {
+          pt.z = r.z - long;
+          pt.speed = Math.min(pt.speed, r.speed);
+        } else {
+          r.z = pt.z - long;
+          r.speed = Math.min(r.speed, pt.speed);
+        }
       }
     }
   }
@@ -615,13 +692,22 @@ export class World {
     }
     const step = P.steer * (target === want ? 1 : 1.6) * C.DT;
     const nx = clamp(pt.x + clamp(target - pt.x, -step, step), -C.EDGE, C.EDGE);
-    if (!this.cars.some((c) => Math.abs(c.x - nx) < wide && Math.abs(c.z - pt.z) < long)) pt.x = nx;
+    // judged where the buggy will be after this tick's move, so it can't slip in beside a slower car's tail
+    const blocked = (c: Car) => Math.abs(c.x - nx) < wide &&
+      (Math.abs(c.z - pt.z) < long || Math.abs(c.z - pt.z - Math.max(0, pt.speed - c.speed) * C.DT) < long);
+    if (!this.cars.some(blocked)) pt.x = nx;
     // still boxed in: hang back behind the car ahead (an oncoming one is dodged above)
     for (const c of this.cars) {
       if (Math.abs(c.x - pt.x) >= wide || c.speed <= 0) continue;
       const dist = c.z - pt.z - long;
       if (dist < -long) continue;
       pt.speed = Math.min(pt.speed, c.speed + Math.max(0, dist) * 1.5);
+    }
+    // and keep ahead of a car coming up right behind it (cars don't see the buggy)
+    for (const c of this.cars) {
+      if (Math.abs(c.x - pt.x) >= wide || c.speed <= 0) continue;
+      const dist = pt.z - c.z - long;
+      if (dist < 0.5 && dist > -long) pt.speed = Math.max(pt.speed, c.speed + 0.5);
     }
   }
 
@@ -694,7 +780,7 @@ export class World {
       r.hp = r.maxHp;
       r.invT = r.atkT = r.atkCd = r.hitT = r.downT = r.rubT = r.stalkT = r.gangT = 0;
       r.gang = 'lurk';
-      r.weapon = k === 0 && prog >= G.batFrom ? 'bat' : null;
+      r.weapon = k === 0 && prog >= G.batFrom ? 'bat' : 'pan';
       ids.push(r.id);
     }
     this.events.push({ type: 'ambush', riders: ids });

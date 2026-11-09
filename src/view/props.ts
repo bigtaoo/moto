@@ -165,7 +165,7 @@ export class PatrolView {
     const pt = w.patrol;
     this.root.visible = pt.active && pt.mode !== 'off';
     if (!this.root.visible) return;
-    this.t += dt * (pt.mode === 'warn' || pt.mode === 'dash' ? 14 : 7);
+    this.t += dt * (pt.mode === 'block' || pt.mode === 'squeeze' ? 14 : 7);
     const on = Math.sin(this.t) > 0;
     this.red.color.setHex(on ? 0xff2020 : 0x501010);
     this.blue.color.setHex(on ? 0x102050 : 0x2a6fff);

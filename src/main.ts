@@ -97,12 +97,12 @@ function handle(e: SimEvent): void {
     case 'crash': {
       const r = w.riders[e.rider];
       view.riders[e.rider].setDown(true);
-      view.ragdolls[e.rider].throw(r.x, r.z, e.speed, e.vx, rnd, e.cause === 'car' ? 1.45 : e.cause === 'patrol' ? 1.25 : 1);
+      view.ragdolls[e.rider].throw(r.x, r.z, e.speed, e.vx, rnd, e.cause === 'car' ? 1.45 : 1);
       view.fx.dust(r.x, r.z, e.speed, rnd);
       if (e.rider === 0) {
         slow = 0.55;
         view.shake(0.8);
-        hud.flash(e.cause === 'car' ? 'WIPEOUT!' : e.cause === 'patrol' ? `BUSTED −$${C.FINE}` : 'KNOCKED OFF!', 'bad');
+        hud.flash(e.cause === 'car' ? 'WIPEOUT!' : 'KNOCKED OFF!', 'bad');
       }
       if (near(e.rider)) sfx.crash();
       break;
@@ -145,18 +145,6 @@ function handle(e: SimEvent): void {
       view.fx.scrape(e.x, e.z, rnd);
       if (e.player || Math.abs(e.z - w.player.z) < 20) sfx.scrape(e.player);
       break;
-    case 'caught': {
-      // Pulled over: a shunt from the buggy and a fine, but you stay on the scooter.
-      const p = w.player;
-      view.riders[0].hit(e.side, false);
-      view.fx.pow(p.x - e.side * 0.5, 1.2, p.z - 0.6, true);
-      view.fx.sparks(p.x - e.side * 0.4, 0.6, p.z - 0.8, e.side, true, rnd);
-      hitstop = 0.08;
-      view.shake(0.6);
-      hud.flash(`BUSTED −$${C.FINE}`, 'bad');
-      sfx.crash();
-      break;
-    }
     case 'drop':
       break;
   }
@@ -168,7 +156,7 @@ function finishRace(): void {
   const prize = C.PRIZE[place - 1] ?? 0;
   const koBonus = w.kos * C.KO_BONUS;
   const grudgeBonus = w.grudgeKos * C.GRUDGE_BONUS;
-  const earned = Math.max(0, prize + koBonus + grudgeBonus - w.fines);
+  const earned = Math.max(0, prize + koBonus + grudgeBonus);
   save.cash += earned;
   save.races++;
   if (save.best === 0 || place < save.best) save.best = place;
@@ -176,7 +164,7 @@ function finishRace(): void {
   storeSave(save);
   const res: RaceResult = {
     place, total: w.racers, prize, kos: w.kos, koBonus, grudgeKos: w.grudgeKos, grudgeBonus,
-    fines: w.fines, earned, time: w.time, grudges: save.grudges.map((id) => w.riders[id].name),
+    earned, time: w.time, grudges: save.grudges.map((id) => w.riders[id].name),
   };
   state = 'results';
   const show = () => hud.showResults(res, save, buy, again);
