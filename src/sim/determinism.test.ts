@@ -21,7 +21,7 @@ const BANNED: readonly { pattern: RegExp; why: string }[] = [
 ];
 
 const ALLOWED: readonly { file: string; pattern: RegExp; why: string }[] = [
-  { file: 'config.ts', pattern: /upgradeCost = .*1\.55 \*\* level/, why: 'a shop price between races, never race state' },
+  { file: 'config.ts', pattern: /upgradeCost = .*1\.6 \*\* level/, why: 'a shop price between races, never race state' },
   { file: 'hash.ts', pattern: /Object\.keys\(v as object\)/, why: 'the state hash walks fields in creation order, which the code that builds them fixes' },
   { file: 'world.ts', pattern: /\.sort\(\(a, b\) => b\.z - a\.z \|\| a\.id - b\.id\)/, why: 'ties broken by rider id' },
 ];

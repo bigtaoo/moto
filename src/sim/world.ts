@@ -238,6 +238,10 @@ export interface WorldOpts {
   length?: number;
   /** Division (C.DIVISIONS index): where the race is and how hard. */
   div?: number;
+  /** Season (C.TIERS index): harder again on top of the division. */
+  tier?: number;
+  /** The player's ride (C.VEHICLES index). */
+  vehicle?: number;
 }
 
 const CAR_COLORS = [0xd8d8d8, 0x3f6fb5, 0xb53f3f, 0x2e8b57, 0xe0c040, 0x444a55, 0xf08a30, 0x8a5cc0];
@@ -289,7 +293,8 @@ export class World {
   readonly aiRng: Prng;
   readonly seed: number;
   readonly divIndex: number;
-  readonly div: C.Division;
+  readonly div: C.Stage;
+  readonly vehicle: number;
   /** Construction zones, trails and ramps this race. */
   readonly road: Road;
   private readonly trafficBase: number;
@@ -297,9 +302,10 @@ export class World {
 
   constructor(opts: WorldOpts) {
     this.seed = opts.seed;
-    this.length = opts.length ?? C.RACE_LEN;
     this.divIndex = clamp(Math.floor(opts.div ?? 0), 0, C.DIVISIONS.length - 1);
-    this.div = C.DIVISIONS[this.divIndex];
+    this.div = C.stage(this.divIndex, Math.floor(opts.tier ?? 0));
+    this.length = opts.length ?? Math.round(C.RACE_LEN * this.div.len);
+    this.vehicle = clamp(Math.floor(opts.vehicle ?? 0), 0, C.VEHICLES.length - 1);
     this.road = new Road(this.length, this.div, new Prng(opts.seed * 23 + 7));
     this.trafficBase = Math.round(C.TRAFFIC.base * this.div.traffic);
     this.trafficExtra = Math.round(C.TRAFFIC.extra * this.div.traffic);
@@ -317,13 +323,14 @@ export class World {
     this.grudges = new Set(opts.grudges ?? []);
     this.nemesis = opts.nemesis !== undefined && opts.nemesis >= 1 && opts.nemesis <= C.ROSTER.length ? opts.nemesis : -1;
     const up = opts.upgrades ?? { top: 0, steer: 0, hp: 0 };
+    const v = C.VEHICLES[this.vehicle];
     const grid = (i: number) => ({ x: C.LANE_X[1 + (i % 3)] + (i >= 3 ? -0.9 : 0.9), z: 14 - Math.floor(i / 3) * 6 });
     // Player starts at the back of the grid so the first fight comes within seconds.
     this.addRider({
       name: 'You', isPlayer: true, x: C.LANE_X[2], z: 2,
-      top: C.PLAYER_BASE.top + up.top * C.UPGRADE_STEP.top,
-      steer: C.PLAYER_BASE.steer + up.steer * C.UPGRADE_STEP.steer,
-      hp: C.PLAYER_BASE.hp + up.hp * C.UPGRADE_STEP.hp,
+      top: C.PLAYER_BASE.top + v.top + up.top * C.UPGRADE_STEP.top,
+      steer: C.PLAYER_BASE.steer + v.steer + up.steer * C.UPGRADE_STEP.steer,
+      hp: C.PLAYER_BASE.hp + v.hp + up.hp * C.UPGRADE_STEP.hp, accel: C.PLAYER_BASE.accel + v.accel,
       aggr: 0, aware: 1, body: C.PLAYER_BODY, ride: C.PLAYER_RIDE,
     });
     C.ROSTER.forEach((s, i) => {
@@ -331,7 +338,7 @@ export class World {
       const d = this.div;
       const nem = i + 1 === this.nemesis;
       this.addRider({
-        name: s.name, isPlayer: false, x: g.x, z: g.z, top: s.top + d.top + (nem ? C.NEMESIS.top : 0), steer: 7, hp: C.RIVAL_HP + (nem ? C.NEMESIS.hp : 0),
+        name: s.name, isPlayer: false, x: g.x, z: g.z, top: s.top + d.top + (nem ? C.NEMESIS.top : 0), steer: 7, hp: C.RIVAL_HP + d.hp + (nem ? C.NEMESIS.hp : 0),
         aggr: Math.min(1, s.aggr + d.mind + (nem ? C.NEMESIS.aggr : 0)), aware: Math.min(1, s.aware + d.mind), body: s.body, ride: s.ride, weapon: s.weapon,
       });
     });
@@ -372,10 +379,10 @@ export class World {
     return id === this.nemesis || this.grudges.has(id);
   }
 
-  private addRider(o: { name: string; isPlayer: boolean; x: number; z: number; top: number; steer: number; hp: number; aggr: number; aware: number; body: number; ride: number; weapon?: C.WeaponKind }): void {
+  private addRider(o: { name: string; isPlayer: boolean; x: number; z: number; top: number; steer: number; hp: number; accel?: number; aggr: number; aware: number; body: number; ride: number; weapon?: C.WeaponKind }): void {
     this.riders.push({
       id: this.riders.length, name: o.name, isPlayer: o.isPlayer, x: o.x, z: o.z, px: o.x, pz: o.z, vx: 0, speed: 0,
-      top: o.top, accel: C.PLAYER_BASE.accel, steer: o.steer, hp: o.hp, maxHp: o.hp, wantX: o.x, braking: false,
+      top: o.top, accel: o.accel ?? C.PLAYER_BASE.accel, steer: o.steer, hp: o.hp, maxHp: o.hp, wantX: o.x, braking: false,
       state: 'ride', downT: 0, runT: 0, bikeX: o.x, bikeZ: o.z, bikePX: o.x, bikePZ: o.z, bikeV: 0, bikeVx: 0, invT: 0, atkT: 0, atkSide: 1, atkCd: 0, hitT: 0, weapon: o.weapon ?? null,
       finished: false, place: 0, aggr: o.aggr, aware: o.aware, body: o.body, ride: o.ride, koPlayer: 0, koByPlayer: 0, rubT: 0, rubSide: 1,
       thug: false, huntT: 0, gang: 'lurk', gangT: 0, role: 'strike', pace: 0,
@@ -1170,7 +1177,7 @@ export class World {
       speed: from === 'ahead' ? p.top * pace : p.speed,
       from, move, pace, press: Math.round(this.roll(P.pressSec) * (1 + C.HEAT.press * this.heat) * C.TICK_HZ),
       blockAhead: this.roll(P.blockAhead), pullOutAt: this.roll(P.pullOutAt),
-      react: Math.max(3, Math.round(this.roll(P.react) - Math.floor(this.heat) * C.HEAT.react)), top: this.roll(P.top),
+      react: Math.max(3, Math.round(this.roll(P.react) - Math.floor(this.heat) * C.HEAT.react)), top: this.roll(P.top) + this.div.top,
       vx: 0, laneX: x, laneT: 0, slowT: 0, haltT: 0, resume: move,
     });
     pt.px = pt.x;

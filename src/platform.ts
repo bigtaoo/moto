@@ -7,7 +7,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Bridge = any;
 
-const params = new URLSearchParams(location.search);
+const params = new URLSearchParams(typeof location === 'undefined' ? '' : location.search);
 let bridge: Bridge | null = null;
 let fake = false;
 let rewardedBusy = false;

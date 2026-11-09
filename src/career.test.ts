@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { newCup, scoreRace, standings, cupOver, endCup, CUP_RACES, POINTS, CUP_BONUS, newFeud, settleFeud, REVENGE_PAY, AHEAD_PAY, BREAK_PAY } from './career';
+import { newCup, scoreRace, standings, cupOver, endCup, CUP_RACES, POINTS, CUP_BONUS, newFeud, settleFeud, REVENGE_PAY, AHEAD_PAY, BREAK_PAY, settleRace, buyUpgrade, upgradePrice, upgradeLock, rideState, chooseRide, type RaceSummary } from './career';
+import { parseSave } from './meta';
 import * as C from './sim/config';
 
 /** Places for the player and the roster: the player at `me`, the rivals filling the rest in id order. */
@@ -96,5 +97,88 @@ describe('nemesis', () => {
     const f = newFeud();
     settleFeud(f, race({ by: [[5, 3]], places: [1, 2, 3, 4, 5, 6, 7, 8] }), 1);
     expect(f.beef[5]).toBe(0);
+  });
+});
+
+describe('career settlement, seasons and the garage', () => {
+  const summary = (place: number, extra: Partial<RaceSummary> = {}): RaceSummary => ({
+    place, kos: 0, grudgeKos: 0, shoves: 0, fines: 0, grudges: [], places: places(place),
+    koPlayer: Array(C.ROSTER.length + 1).fill(0), koByPlayer: Array(C.ROSTER.length + 1).fill(0), ...extra,
+  });
+
+  it('pays the race at the stage purse and moves the cup on', () => {
+    const save = parseSave(null);
+    save.tier = 1;
+    const s = settleRace(save, summary(1, { kos: 2, fines: 50 }));
+    expect(s.prize).toBe(Math.round(C.PRIZE[0] * C.stage(0, 1).prize));
+    expect(s.earned).toBe(s.prize + 2 * C.KO_BONUS - 50 + s.feud.cash);
+    expect(save.cash).toBe(s.earned);
+    expect(save.races).toBe(1);
+    expect(save.cup.race).toBe(1);
+    expect(s.end).toBeNull();
+  });
+
+  it('starts the next season at the first division after the top title, and stops at the last', () => {
+    const save = parseSave(null);
+    save.div = C.DIVISIONS.length - 1;
+    let s;
+    for (let i = 0; i < CUP_RACES; i++) s = settleRace(save, summary(1));
+    expect(s!.end!.champion).toBe(true);
+    expect(s!.end!.nextTier).toBe(true);
+    expect(save.tier).toBe(1);
+    expect(save.div).toBe(0);
+    expect(save.titles).toBe(1);
+    expect(save.cup.race).toBe(0);
+
+    save.tier = C.TIERS.length - 1;
+    save.div = C.DIVISIONS.length - 1;
+    for (let i = 0; i < CUP_RACES; i++) s = settleRace(save, summary(1));
+    expect(s!.end!.champion).toBe(true);
+    expect(s!.end!.nextTier).toBe(false);
+    expect(save.tier).toBe(C.TIERS.length - 1);
+    expect(save.div).toBe(C.DIVISIONS.length - 1);
+  });
+
+  it('caps upgrades per season and names the season that opens the next level', () => {
+    const save = parseSave(null);
+    save.cash = 1e7;
+    while (buyUpgrade(save, 'top'));
+    expect(save.up.top).toBe(C.UPGRADE_CAP[0].top);
+    expect(upgradePrice(save, 'top')).toBeNull();
+    expect(upgradeLock(save, 'top')).toBe(C.TIERS[1].name);
+    save.tier = C.TIERS.length - 1;
+    while (buyUpgrade(save, 'top'));
+    expect(save.up.top).toBe(C.UPGRADE_MAX.top);
+    expect(upgradeLock(save, 'top')).toBeNull();
+  });
+
+  it('opens rides by rung, buys them once and swaps between owned ones for free', () => {
+    const save = parseSave(null);
+    const v = 1;
+    expect(rideState(save, 0)).toBe('riding');
+    expect(rideState(save, v)).toBe('locked');
+    expect(chooseRide(save, v)).toBe(false);
+    save.div = C.VEHICLES[v].rung;
+    expect(rideState(save, v)).toBe('buy');
+    expect(chooseRide(save, v)).toBe(false); // no cash
+    save.cash = C.VEHICLES[v].price + 5;
+    expect(chooseRide(save, v)).toBe(true);
+    expect(save.cash).toBe(5);
+    expect(save.garage).toEqual({ cur: v, owned: [0, v] });
+    expect(chooseRide(save, 0)).toBe(true);
+    expect(rideState(save, v)).toBe('owned');
+    expect(chooseRide(save, v)).toBe(true);
+    expect(save.cash).toBe(5);
+  });
+
+  it('reads old saves without seasons or a garage, and clamps bad ones', () => {
+    const old = parseSave(JSON.stringify({ cash: 900, up: { top: 9, steer: 2, hp: 1 }, div: 3 }));
+    expect(old.tier).toBe(0);
+    expect(old.garage).toEqual({ cur: 0, owned: [0] });
+    expect(old.up.top).toBe(C.UPGRADE_MAX.top > 9 ? 9 : C.UPGRADE_MAX.top);
+    const bad = parseSave(JSON.stringify({ tier: 99, up: { top: 99 }, garage: { cur: 3, owned: [2, 2, 99, -1, 'x'] } }));
+    expect(bad.tier).toBe(C.TIERS.length - 1);
+    expect(bad.up.top).toBe(C.UPGRADE_MAX.top);
+    expect(bad.garage).toEqual({ cur: 0, owned: [0, 2] });
   });
 });

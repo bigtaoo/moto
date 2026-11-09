@@ -2,6 +2,7 @@
 // standings go up a division. Pure functions over the save, so it can be tested without the game.
 
 import * as C from './sim/config';
+import type { Save } from './meta';
 
 export const CUP_RACES = 4;
 /** Cup points by finishing place. */
@@ -49,16 +50,129 @@ export interface CupEnd {
   rank: number;
   promoted: boolean;
   champion: boolean;
+  /** Champion of a tier with another after it: on to the next season, back at the first division. */
+  nextTier: boolean;
   bonus: number;
 }
 
 /** Close a finished cup: the player's rank, the bonus, and whether they go up (or won the top division). */
-export function endCup(cup: Cup, div: number): CupEnd {
+export function endCup(cup: Cup, div: number, tier = 0): CupEnd {
   const rank = standings(cup).find((s) => s.id === 0)!.rank;
   const top = rank <= C.PROMOTE;
   const last = div >= C.DIVISIONS.length - 1;
-  const bonus = Math.round((CUP_BONUS[rank - 1] ?? 0) * C.DIVISIONS[div].prize);
-  return { rank, promoted: top && !last, champion: last && rank === 1, bonus };
+  const bonus = Math.round((CUP_BONUS[rank - 1] ?? 0) * C.stage(div, tier).prize);
+  const champion = last && rank === 1;
+  return { rank, promoted: top && !last, champion, nextTier: champion && tier < C.TIERS.length - 1, bonus };
+}
+
+/** What the race left behind, per rider id where it is a list (0 the player). Thugs are not in the lists. */
+export interface RaceSummary {
+  place: number;
+  kos: number;
+  grudgeKos: number;
+  shoves: number;
+  fines: number;
+  places: number[];
+  koPlayer: number[];
+  koByPlayer: number[];
+  /** Rivals holding a grudge after the race. */
+  grudges: number[];
+}
+
+export interface Settlement {
+  prize: number;
+  koBonus: number;
+  grudgeBonus: number;
+  shoveBonus: number;
+  fines: number;
+  feud: FeudOutcome;
+  /** The race of the cup this was (1-based), and the cup's division and tier. */
+  cupRace: number;
+  div: number;
+  tier: number;
+  table: Standing[];
+  end: CupEnd | null;
+  earned: number;
+}
+
+/**
+ * Pay out a race and move the career on: prize and bonuses, the cup table (and the cup's end: promotion,
+ * the title, the next season), the feuds. Changes `save`; storing it is the caller's.
+ */
+export function settleRace(save: Save, s: RaceSummary): Settlement {
+  const { div, tier } = save;
+  const st = C.stage(div, tier);
+  const prize = Math.round((C.PRIZE[s.place - 1] ?? 0) * st.prize);
+  const koBonus = s.kos * C.KO_BONUS;
+  const grudgeBonus = s.grudgeKos * C.GRUDGE_BONUS;
+  const shoveBonus = s.shoves * C.SHOVE_BONUS;
+  let earned = Math.max(0, prize + koBonus + grudgeBonus + shoveBonus - s.fines);
+  scoreRace(save.cup, s.places);
+  const table = standings(save.cup);
+  const feud = settleFeud(save.feud, s, st.prize);
+  earned += feud.cash;
+  const cupRace = save.cup.race;
+  const end = cupOver(save.cup) ? endCup(save.cup, div, tier) : null;
+  if (end) {
+    earned += end.bonus;
+    if (end.promoted) save.div++;
+    if (end.champion) save.titles++;
+    if (end.nextTier) {
+      save.tier++;
+      save.div = 0;
+    }
+    save.cup = newCup();
+  }
+  save.cash += earned;
+  save.races++;
+  if (save.best === 0 || s.place < save.best) save.best = s.place;
+  save.grudges = [...s.grudges];
+  return { prize, koBonus, grudgeBonus, shoveBonus, fines: s.fines, feud, cupRace, div, tier, table, end, earned };
+}
+
+// ---- the garage --------------------------------------------------------------------------------
+
+export type UpKey = 'top' | 'steer' | 'hp';
+
+/** Price of the next level of an upgrade; null at the top, or at this season's cap (see `upgradeLock`). */
+export const upgradePrice = (save: Save, k: UpKey): number | null =>
+  save.up[k] >= C.UPGRADE_CAP[save.tier][k] ? null : C.upgradeCost(save.up[k]);
+
+/** The season that opens the next level, when this one has it capped; null if open or maxed. */
+export function upgradeLock(save: Save, k: UpKey): string | null {
+  if (save.up[k] >= C.UPGRADE_MAX[k] || save.up[k] < C.UPGRADE_CAP[save.tier][k]) return null;
+  const t = C.UPGRADE_CAP.findIndex((c) => c[k] > save.up[k]);
+  return C.TIERS[t].name;
+}
+
+export function buyUpgrade(save: Save, k: UpKey): boolean {
+  const p = upgradePrice(save, k);
+  if (p === null || save.cash < p) return false;
+  save.cash -= p;
+  save.up[k]++;
+  return true;
+}
+
+export type RideState = 'riding' | 'owned' | 'buy' | 'locked';
+
+export function rideState(save: Save, v: number): RideState {
+  if (save.garage.cur === v) return 'riding';
+  if (save.garage.owned.includes(v)) return 'owned';
+  return C.rung(save.div, save.tier) >= C.VEHICLES[v].rung ? 'buy' : 'locked';
+}
+
+/** Buy (if need be, and affordable) and ride vehicle `v`. */
+export function chooseRide(save: Save, v: number): boolean {
+  const st = rideState(save, v);
+  if (st === 'locked') return false;
+  if (st === 'buy') {
+    const price = C.VEHICLES[v].price;
+    if (save.cash < price) return false;
+    save.cash -= price;
+    save.garage.owned.push(v);
+  }
+  save.garage.cur = v;
+  return true;
 }
 
 // ---- the nemesis -------------------------------------------------------------------------------

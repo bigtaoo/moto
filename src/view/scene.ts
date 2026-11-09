@@ -2,7 +2,7 @@
 
 import * as THREE from 'three';
 import type { World } from '../sim/world';
-import { CAR, DOWN, TICK_HZ } from '../sim/config';
+import { CAR, DOWN, TICK_HZ, VEHICLES, rung } from '../sim/config';
 import { Track, toWorld, place, rampLift, RAMP_LOOK } from './track';
 import { ENVS, type Env } from './env';
 import { RiderView } from './rider';
@@ -11,6 +11,17 @@ import { Traffic, PatrolView, Pickups, Shadows } from './props';
 import { Fx } from './fx';
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+
+/**
+ * What a rival is drawn riding (looks only: the sim gives rivals their pace from the stage). Scooters in
+ * the first season; after that a spread of whatever rides the ladder has opened by now.
+ */
+function rivalRide(w: World, id: number, thug: boolean): number {
+  if (thug || w.div.tier === 0) return 0;
+  const at = rung(w.divIndex, w.div.tier);
+  const open = VEHICLES.filter((v) => v.rung <= at).length;
+  return (id * 7 + w.divIndex + w.div.tier) % open; // 7 is coprime with every count of rides, so the field is mixed
+}
 
 /** Camera framing per orientation: portrait sees more road ahead from higher up. */
 const CAM = {
@@ -90,7 +101,7 @@ export class RaceView {
     const env = ENVS[w.div.env];
     stage.setEnv(env);
     this.track = new Track(w.length, seed, env, w.road);
-    this.riders = w.riders.map((r) => new RiderView(r.body, r.ride));
+    this.riders = w.riders.map((r, i) => new RiderView(r.body, r.ride, i === 0 ? w.vehicle : rivalRide(w, i, r.thug)));
     this.ragdolls = this.riders.map((rv) => {
       const rd = new Ragdoll(rv.body, rv.ride, rv.mat);
       rd.onImpact = (x, z, v) => this.fx.puff(x, z, v, Math.random);

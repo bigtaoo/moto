@@ -2,7 +2,7 @@
 // platform (src/platform.ts) as one JSON string.
 
 import type { Upgrades } from './sim/world';
-import { DIVISIONS } from './sim/config';
+import { DIVISIONS, TIERS, VEHICLES, UPGRADE_MAX } from './sim/config';
 import { newCup, newFeud, type Cup, type Feud } from './career';
 import { saveData } from './platform';
 
@@ -18,6 +18,10 @@ export interface Save {
   /** Times the top division's cup was won. */
   titles: number;
   feud: Feud;
+  /** Season (C.TIERS index). */
+  tier: number;
+  /** Vehicles owned (C.VEHICLES indexes) and the one ridden. */
+  garage: { cur: number; owned: number[] };
 }
 
 const num = (v: unknown) => Number(v) || 0;
@@ -34,7 +38,10 @@ function readFeud(f: Partial<Feud> | undefined): Feud {
 
 /** The save from its JSON (null or junk: a fresh one). */
 export function parseSave(raw: string | null): Save {
-  const fresh: Save = { cash: 0, up: { top: 0, steer: 0, hp: 0 }, grudges: [], races: 0, best: 0, div: 0, cup: newCup(), titles: 0, feud: newFeud() };
+  const fresh: Save = {
+    cash: 0, up: { top: 0, steer: 0, hp: 0 }, grudges: [], races: 0, best: 0, div: 0, cup: newCup(), titles: 0, feud: newFeud(), tier: 0,
+    garage: { cur: 0, owned: [0] },
+  };
   try {
     if (!raw) return fresh;
     const s = JSON.parse(raw) as Partial<Save>;
@@ -43,9 +50,13 @@ export function parseSave(raw: string | null): Save {
       cup.race = Math.max(0, Math.floor(Number(s.cup.race) || 0));
       s.cup.pts.forEach((p, i) => { if (i < cup.pts.length) cup.pts[i] = Number(p) || 0; });
     }
+    const lvl = (v: unknown, max: number) => Math.max(0, Math.min(max, Math.floor(num(v))));
+    const owned = [0];
+    if (Array.isArray(s.garage?.owned)) for (const v of s.garage.owned) if (Number.isInteger(v) && v > 0 && v < VEHICLES.length && !owned.includes(v)) owned.push(v);
+    const cur = Number(s.garage?.cur);
     return {
       cash: Number(s.cash) || 0,
-      up: { top: s.up?.top ?? 0, steer: s.up?.steer ?? 0, hp: s.up?.hp ?? 0 },
+      up: { top: lvl(s.up?.top, UPGRADE_MAX.top), steer: lvl(s.up?.steer, UPGRADE_MAX.steer), hp: lvl(s.up?.hp, UPGRADE_MAX.hp) },
       grudges: Array.isArray(s.grudges) ? s.grudges.filter((n) => typeof n === 'number') : [],
       races: Number(s.races) || 0,
       best: Number(s.best) || 0,
@@ -53,6 +64,8 @@ export function parseSave(raw: string | null): Save {
       cup,
       titles: Number(s.titles) || 0,
       feud: readFeud(s.feud),
+      tier: Math.max(0, Math.min(TIERS.length - 1, Math.floor(num(s.tier)))),
+      garage: { cur: owned.includes(cur) ? cur : 0, owned },
     };
   } catch {
     return fresh;

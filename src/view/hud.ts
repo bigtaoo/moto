@@ -1,10 +1,10 @@
 // DOM overlay. Per-frame changes go through transform/opacity only; text is touched only when it changes.
 
 import type { World } from '../sim/world';
-import { ATTACK, WEAPON, UPGRADE_MAX, upgradeCost } from '../sim/config';
+import { ATTACK, WEAPON, UPGRADE_MAX, UPGRADE_CAP, VEHICLES, DIVISIONS, stage, type Vehicle } from '../sim/config';
 import type { RaceView } from './scene';
 import type { Save } from '../meta';
-import { BREAK_AT, type CupEnd, type FeudOutcome, type Nemesis } from '../career';
+import { BREAK_AT, rideState, upgradeLock, upgradePrice, type CupEnd, type FeudOutcome, type Nemesis, type UpKey } from '../career';
 
 export interface League {
   /** The division this race was in. */
@@ -15,8 +15,27 @@ export interface League {
   table: { name: string; pts: number; rank: number; me: boolean }[];
   /** Set when this race closed the cup. */
   end: CupEnd | null;
-  /** The division the next race is in. */
+  /** The division the next race is in, and the season (C.TIERS name). */
   next: string;
+  season: string;
+}
+
+/** What a vehicle adds over the scooter, in the player's words. */
+function statLine(v: Vehicle): string {
+  const sg = (n: number) => (n > 0 ? '+' : n < 0 ? '−' : '±') + Math.abs(n);
+  if (!v.top && !v.steer && !v.hp && !v.accel) return 'The baseline';
+  return [
+    v.top ? `${sg(Math.round(v.top * 3.6))} km/h` : '', v.accel ? `${sg(v.accel)} kick` : '', v.steer ? `${sg(v.steer)} grip` : '', v.hp ? `${sg(v.hp)} tough` : '',
+  ].filter(Boolean).join(' · ');
+}
+
+function againLabel(l: League): string {
+  const e = l.end;
+  if (!e) return 'Next race';
+  if (e.nextTier) return `On to the ${l.season} season`;
+  if (e.promoted) return `On to ${l.next}`;
+  if (e.champion) return 'Defend the title';
+  return `Retry the ${l.next} cup`;
 }
 
 const $ = <T extends HTMLElement = HTMLElement>(root: ParentNode, sel: string) => root.querySelector(sel) as T;
@@ -44,7 +63,6 @@ export interface RaceResult {
   doubled: boolean;
 }
 
-type UpKey = keyof Save['up'];
 const UP_NAMES: Record<UpKey, string> = { top: 'Top speed', steer: 'Handling', hp: 'Toughness' };
 
 const ordinal = (n: number) => n + (n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th');
@@ -307,16 +325,18 @@ export class Hud {
     this.results.classList.add('hidden');
   }
 
-  showResults(res: RaceResult, save: Save, onBuy: (k: UpKey) => void, onAgain: () => void, onDouble: () => void): void {
+  showResults(res: RaceResult, save: Save, onBuy: (k: UpKey) => void, onAgain: () => void, onDouble: () => void, onRide: (v: number) => void): void {
     const card = $(this.results, '.card');
     const row = (a: string, b: string, cls = '') => `<div class="row ${cls}"><span>${a}</span><b>${b}</b></div>`;
     const ups = (Object.keys(UP_NAMES) as UpKey[]).map((k) => {
       const lvl = save.up[k];
-      const max = lvl >= UPGRADE_MAX;
-      const cost = upgradeCost(lvl);
-      const pips = Array.from({ length: UPGRADE_MAX }, (_, i) => `<i class="${i < lvl ? 'on' : ''}"></i>`).join('');
+      const cost = upgradePrice(save, k);
+      const lock = upgradeLock(save, k);
+      const cap = UPGRADE_CAP[save.tier][k];
+      const pips = Array.from({ length: UPGRADE_MAX[k] }, (_, i) => `<i class="${i < lvl ? 'on' : i >= cap ? 'lock' : ''}"></i>`).join('');
+      const label = cost !== null ? '$' + cost : lock ? `🔒 ${lock}` : 'MAX';
       return `<div class="up"><div class="upname">${UP_NAMES[k]}<div class="pips">${pips}</div></div>
-        <button data-k="${k}" ${max || save.cash < cost ? 'disabled' : ''}>${max ? 'MAX' : '$' + cost}</button></div>`;
+        <button data-k="${k}" ${cost === null || save.cash < cost ? 'disabled' : ''}>${label}</button></div>`;
     }).join('');
     card.innerHTML = `
       <h2 class="${res.place === 1 ? 'win' : ''}">${ordinal(res.place)} place</h2>
@@ -336,15 +356,29 @@ export class Hud {
       ${this.leagueHtml(res.league)}
       ${res.grudges.length ? `<div class="grudges">Holding a grudge: <b>${res.grudges.join(', ')}</b><br><small>Knock them off next race for +$150 each</small></div>` : ''}
       <div class="cashline">Cash <b>$${save.cash}</b></div>
-      <div class="ups">${ups}</div>
-      <button class="primary again">${res.league.end ? (res.league.end.promoted ? `On to ${res.league.next}` : res.league.end.champion ? 'Defend the title' : `Retry the ${res.league.next} cup`) : 'Next race'}</button>`;
+      <div class="ups">${ups}${this.garageHtml(save)}</div>
+      <button class="primary again">${againLabel(res.league)}</button>`;
     card.querySelectorAll<HTMLButtonElement>('.up button').forEach((b) => {
       b.onclick = () => onBuy(b.dataset.k as UpKey);
+    });
+    card.querySelectorAll<HTMLButtonElement>('.ride').forEach((b) => {
+      b.onclick = () => onRide(Number(b.dataset.v));
     });
     $<HTMLButtonElement>(card, '.again').onclick = onAgain;
     const dbl = card.querySelector<HTMLButtonElement>('.double');
     if (dbl) dbl.onclick = () => { dbl.disabled = true; onDouble(); };
     this.results.classList.remove('hidden');
+  }
+
+  /** The rides: the one being ridden, the others owned, the next to buy, and what is still locked. */
+  private garageHtml(save: Save): string {
+    const cards = VEHICLES.map((v, i) => {
+      const st = rideState(save, i);
+      const label = st === 'riding' ? 'Riding' : st === 'owned' ? 'Ride it' : st === 'buy' ? `$${v.price}` : `🔒 ${stage(v.rung % DIVISIONS.length, Math.floor(v.rung / DIVISIONS.length)).name}`;
+      const off = st === 'riding' || st === 'locked' || (st === 'buy' && save.cash < v.price);
+      return `<button class="ride ${st}" data-v="${i}" ${off ? 'disabled' : ''}><b>${v.name}</b><span>${statLine(v)}</span><small>${v.blurb}</small><i>${label}</i></button>`;
+    }).join('');
+    return `<div class="garage"><div class="cuphead">Garage</div><div class="rides">${cards}</div></div>`;
   }
 
   private feudRows(res: RaceResult, row: (a: string, b: string, cls?: string) => string): string {

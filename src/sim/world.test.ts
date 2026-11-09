@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import * as C from './config';
 import { SIM_VERSION, TICK_HZ } from './config';
 import { botInput } from './ai';
 import { hashState } from './hash';
@@ -8,9 +9,9 @@ import { World, type WorldOpts } from './world';
 // The golden hashes pin what a seed plus inputs produce. If one changes, either the change was meant
 // to alter the race (bump SIM_VERSION in config.ts and paste the new hashes here) or the sim lost
 // its determinism (find out why before touching anything).
-const GOLDEN = { version: 13, mid: 'f3a8663a', end: '769126d2', endTick: 4660 };
+const GOLDEN = { version: 14, mid: '6bde2803', end: '23cc71ec', endTick: 4896 };
 
-const OPTS: WorldOpts = { seed: 1, upgrades: { top: 2, steer: 2, hp: 2 }, div: 2, nemesis: 3 };
+const OPTS: WorldOpts = { seed: 1, upgrades: { top: 2, steer: 2, hp: 2 }, div: 2, nemesis: 3, tier: 1, vehicle: 2 };
 const MID = 60 * TICK_HZ;
 const CAP = 400 * TICK_HZ;
 
@@ -127,5 +128,33 @@ describe('nemesis and remount', () => {
     expect(p.state).toBe('ride');
     expect(p.invT).toBeGreaterThan(0);
     expect(w.input.remount).toBe(false);
+  });
+});
+
+describe('seasons and rides', () => {
+  it('puts the ride on top of the base and the upgrades', () => {
+    const up = { top: 2, steer: 1, hp: 3 };
+    const base = new World({ seed: 4, upgrades: up });
+    const v = 4;
+    const rode = new World({ seed: 4, upgrades: up, vehicle: v });
+    const V = C.VEHICLES[v];
+    expect(rode.vehicle).toBe(v);
+    expect(rode.player.top).toBeCloseTo(base.player.top + V.top, 6);
+    expect(rode.player.steer).toBeCloseTo(base.player.steer + V.steer, 6);
+    expect(rode.player.hp).toBe(base.player.hp + V.hp);
+    expect(rode.player.accel).toBeCloseTo(base.player.accel + V.accel, 6);
+    expect(new World({ seed: 4, vehicle: 99 }).vehicle).toBe(C.VEHICLES.length - 1);
+  });
+
+  it('makes a later season faster, tougher and longer than the same division before it', () => {
+    const am = new World({ seed: 6, div: 1 });
+    const pro = new World({ seed: 6, div: 1, tier: 1 });
+    expect(pro.div.name).toBe(`${C.TIERS[1].name} ${C.DIVISIONS[1].name}`);
+    expect(pro.length).toBe(Math.round(C.RACE_LEN * C.TIERS[1].len));
+    expect(pro.length).toBeGreaterThan(am.length);
+    for (let i = 1; i <= C.ROSTER.length; i++) {
+      expect(pro.riders[i].top - am.riders[i].top).toBeCloseTo(C.TIERS[1].top[1] - C.TIERS[0].top[1], 6);
+      expect(pro.riders[i].hp).toBe(am.riders[i].hp + C.TIERS[1].hp);
+    }
   });
 });

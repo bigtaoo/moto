@@ -10,7 +10,7 @@ import { Controls } from './view/input';
 import { Hud, type RaceResult } from './view/hud';
 import { sfx, unlockAudio, suspendAudio, setMuted } from './view/audio';
 import { parseSave, storeSave, type Save } from './meta';
-import { CUP_RACES, scoreRace, standings, cupOver, endCup, newCup, riderName, settleFeud, REVENGE_PAY } from './career';
+import { CUP_RACES, riderName, settleRace, buyUpgrade, chooseRide, REVENGE_PAY, type UpKey } from './career';
 import * as platform from './platform';
 
 const params = new URLSearchParams(location.search);
@@ -64,7 +64,7 @@ function newRace(): void {
   view?.dispose();
   const seed = ((save.races * 7919 + 17) % 99991) + 1;
   const nem = save.feud.nemesis;
-  const opts = { seed, upgrades: save.up, grudges: save.grudges, length: LEN, div: save.div, nemesis: nem?.id };
+  const opts = { seed, upgrades: save.up, grudges: save.grudges, length: LEN, div: save.div, tier: save.tier, vehicle: save.garage.cur, nemesis: nem?.id };
   world = new World(opts);
   recorder = new Recorder(opts);
   view = new RaceView(stage, world, seed);
@@ -235,46 +235,24 @@ function handle(e: SimEvent): void {
 function finishRace(): void {
   const w = world;
   const place = w.player.place;
-  const div = save.div;
-  const prize = Math.round((C.PRIZE[place - 1] ?? 0) * w.div.prize);
-  const koBonus = w.kos * C.KO_BONUS;
-  const grudgeBonus = w.grudgeKos * C.GRUDGE_BONUS;
-  const shoveBonus = w.shoves * C.SHOVE_BONUS;
-  let earned = Math.max(0, prize + koBonus + grudgeBonus + shoveBonus - w.fines);
-  // the cup: points for every finisher; after the last race, the table decides who goes up
-  scoreRace(save.cup, w.riders.map((r) => (r.thug ? 0 : r.place)));
-  const table = standings(save.cup).map((s) => ({ name: riderName(s.id), pts: s.pts, rank: s.rank, me: s.id === 0 }));
-  // the feuds: the nemesis' bounty, and bad blood towards the next one
-  const fo = settleFeud(save.feud, {
-    koPlayer: w.riders.map((r) => (r.thug ? 0 : r.koPlayer)),
-    koByPlayer: w.riders.map((r) => (r.thug ? 0 : r.koByPlayer)),
-    places: w.riders.map((r) => (r.thug ? 0 : r.place)),
-  }, w.div.prize);
-  earned += fo.cash;
-  const cupRace = save.cup.race;
-  const end = cupOver(save.cup) ? endCup(save.cup, div) : null;
-  if (end) {
-    earned += end.bonus;
-    if (end.promoted) save.div++;
-    if (end.champion) save.titles++;
-    save.cup = newCup();
-  }
-  save.cash += earned;
-  save.races++;
-  if (save.best === 0 || place < save.best) save.best = place;
-  save.grudges = [...w.grudges];
+  const of = (f: (r: (typeof w.riders)[number]) => number) => w.riders.map((r) => (r.thug ? 0 : f(r)));
+  const s = settleRace(save, {
+    place, kos: w.kos, grudgeKos: w.grudgeKos, shoves: w.shoves, fines: w.fines, grudges: [...w.grudges],
+    places: of((r) => r.place), koPlayer: of((r) => r.koPlayer), koByPlayer: of((r) => r.koByPlayer),
+  });
   storeSave(save);
+  const table = s.table.map((t) => ({ name: riderName(t.id), pts: t.pts, rank: t.rank, me: t.id === 0 }));
   const res: RaceResult = {
-    place, total: w.racers, prize, kos: w.kos, koBonus, grudgeKos: w.grudgeKos, grudgeBonus, shoves: w.shoves, shoveBonus, fines: w.fines,
-    earned, time: w.time, grudges: save.grudges.map((id) => w.riders[id].name),
-    league: { div: C.DIVISIONS[div].name, race: cupRace, races: CUP_RACES, table, end, next: C.DIVISIONS[save.div].name },
-    feud: { out: fo, nemesis: save.feud.nemesis, name: riderName },
-    double: earned > 0 && platform.rewardedReady() ? earned : 0,
+    place, total: w.racers, prize: s.prize, kos: w.kos, koBonus: s.koBonus, grudgeKos: w.grudgeKos, grudgeBonus: s.grudgeBonus,
+    shoves: w.shoves, shoveBonus: s.shoveBonus, fines: s.fines, earned: s.earned, time: w.time, grudges: save.grudges.map((id) => w.riders[id].name),
+    league: { div: w.div.name, race: s.cupRace, races: CUP_RACES, table, end: s.end, next: C.stage(save.div, save.tier).name, season: C.TIERS[save.tier].name },
+    feud: { out: s.feud, nemesis: save.feud.nemesis, name: riderName },
+    double: s.earned > 0 && platform.rewardedReady() ? s.earned : 0,
     doubled: false,
   };
   state = 'results';
-  platform.lifecycle(place <= C.PROMOTE ? 'level_completed' : 'level_failed', { world: C.DIVISIONS[div].name, level: String(cupRace) });
-  const show = () => hud.showResults(res, save, buy, again, double);
+  platform.lifecycle(place <= C.PROMOTE ? 'level_completed' : 'level_failed', { world: w.div.name, level: String(s.cupRace) });
+  const show = () => hud.showResults(res, save, buy, again, double, ride);
   const double = () => {
     void platform.showRewarded('double_cash').then((ok) => {
       if (ok && !res.doubled) {
@@ -287,13 +265,17 @@ function finishRace(): void {
       if (state === 'results') show();
     });
   };
-  const buy = (k: keyof typeof save.up) => {
-    const cost = C.upgradeCost(save.up[k]);
-    if (save.cash < cost || save.up[k] >= C.UPGRADE_MAX) return;
-    save.cash -= cost;
-    save.up[k]++;
+  const buy = (k: UpKey) => {
+    if (!buyUpgrade(save, k)) return;
     storeSave(save);
     sfx.coin();
+    show();
+  };
+  const ride = (v: number) => {
+    const had = save.cash;
+    if (!chooseRide(save, v)) return;
+    storeSave(save);
+    if (save.cash < had) sfx.coin();
     show();
   };
   const again = () => {
@@ -427,7 +409,7 @@ async function boot(): Promise<void> {
   newRace();
   const best = document.getElementById('best');
   if (best && save.races > 0) {
-    best.textContent = `${C.DIVISIONS[save.div].name} · race ${save.cup.race + 1}/${CUP_RACES} · cash $${save.cash}` + (save.titles ? ` · ${save.titles}× champion` : '');
+    best.textContent = `${C.stage(save.div, save.tier).name} · race ${save.cup.race + 1}/${CUP_RACES} · cash $${save.cash}` + (save.titles ? ` · ${save.titles}× champion` : '');
   }
   if (BOT) startRace();
   requestAnimationFrame(frame);
