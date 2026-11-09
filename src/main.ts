@@ -10,6 +10,7 @@ import { Controls } from './view/input';
 import { Hud, type RaceResult } from './view/hud';
 import { sfx, unlockAudio, suspendAudio } from './view/audio';
 import { loadSave, storeSave } from './meta';
+import { CUP_RACES, scoreRace, standings, cupOver, endCup, newCup, riderName } from './career';
 
 const params = new URLSearchParams(location.search);
 const BOT = params.has('bot');
@@ -35,17 +36,32 @@ let lastCount = -1;
 let lastGrudgeKos = 0;
 const rnd = Math.random;
 
-const controls = new Controls(canvas, () => (world ? world.player.x : 0));
+const controls = new Controls(canvas, () => (world ? world.player.x : 0), () => {
+  if (!world) return [-C.EDGE, C.EDGE];
+  const p = world.player;
+  const R = world.road;
+  let [lo, hi] = R.bounds(p.x, p.z);
+  hi = Math.max(hi, C.EDGE); // the cones don't hold the player in
+  // a trail's opening coming up: pushing out holds the player on the barrier and lets them in when it opens
+  const i = R.nextCut(p.z);
+  const c = i >= 0 ? R.cuts[i] : null;
+  if (c && c.z0 - p.z < 50 && p.z < c.z0 + C.CUT.gap) {
+    if (c.side > 0) hi = C.CUT.outer;
+    else lo = -C.CUT.outer;
+  }
+  return [lo, hi];
+});
 
 function newRace(): void {
   view?.dispose();
   const seed = ((save.races * 7919 + 17) % 99991) + 1;
-  const opts = { seed, upgrades: save.up, grudges: save.grudges, length: LEN };
+  const opts = { seed, upgrades: save.up, grudges: save.grudges, length: LEN, div: save.div };
   world = new World(opts);
   recorder = new Recorder(opts);
   view = new RaceView(stage, world, seed);
   hud.setup(world);
   hud.hideResults();
+  hud.setLeague(`${world.div.name} · race ${save.cup.race + 1}/${CUP_RACES}`);
   controls.reset();
   acc = 0;
   hitstop = 0;
@@ -98,7 +114,7 @@ function handle(e: SimEvent): void {
         if (w.grudgeKos > lastGrudgeKos) {
           lastGrudgeKos = w.grudgeKos;
           hud.flash(`GRUDGE SETTLED +$${C.GRUDGE_BONUS + C.SHOVE_BONUS}`, 'ko');
-        } else hud.flash(`${e.into === 'car' ? 'INTO TRAFFIC!' : 'INTO THE WALL!'} +$${C.SHOVE_BONUS}`, 'ko');
+        } else hud.flash(`${e.into === 'car' ? 'INTO TRAFFIC!' : e.into === 'cones' ? 'INTO THE CONES!' : 'INTO THE WALL!'} +$${C.SHOVE_BONUS}`, 'ko');
       }
       break;
     case 'hit': {
@@ -124,12 +140,13 @@ function handle(e: SimEvent): void {
     case 'crash': {
       const r = w.riders[e.rider];
       view.riders[e.rider].setDown(true, e.vx < 0 ? -1 : 1);
-      view.ragdolls[e.rider].throw(r.x, r.z, e.speed, e.vx, rnd, e.cause === 'car' ? 1.45 : e.cause === 'wall' ? 1.2 : 1);
+      view.ragdolls[e.rider].throw(r.x, r.z, e.speed, e.vx, rnd, e.cause === 'car' ? 1.45 : e.cause === 'wall' || e.cause === 'cones' ? 1.2 : 1);
+      if (e.cause === 'cones') view.scatterCones(r.x, r.z);
       view.fx.dust(r.x, r.z, e.speed, rnd);
       if (e.rider === 0) {
         slow = 0.55;
         view.shake(0.8);
-        hud.flash(e.cause === 'car' ? 'WIPEOUT!' : e.cause === 'wall' ? 'SLAMMED!' : 'KNOCKED OFF!', 'bad');
+        hud.flash(e.cause === 'car' ? 'WIPEOUT!' : e.cause === 'wall' ? 'SLAMMED!' : e.cause === 'cones' ? 'CONES!' : 'KNOCKED OFF!', 'bad');
       }
       if (near(e.rider)) sfx.crash();
       break;
@@ -177,17 +194,41 @@ function handle(e: SimEvent): void {
       break;
     case 'drop':
       break;
+    case 'jump':
+      if (near(e.rider)) sfx.whoosh();
+      if (e.rider === 0) hud.flash('AIR!', 'go');
+      break;
+    case 'land':
+      if (near(e.rider)) sfx.thunk(e.stomp >= 0);
+      if (e.rider === 0) view.shake(e.stomp >= 0 ? 0.5 : 0.2);
+      if (e.stomp >= 0 && e.rider === 0) {
+        hitstop = 0.1;
+        hud.flash(`STOMPED ${w.riders[e.stomp].name}! +$${C.KO_BONUS}`, 'ko');
+      } else if (e.stomp === 0) hud.flash(`${w.riders[e.rider].name} LANDED ON YOU!`, 'bad');
+      break;
   }
 }
 
 function finishRace(): void {
   const w = world;
   const place = w.player.place;
-  const prize = C.PRIZE[place - 1] ?? 0;
+  const div = save.div;
+  const prize = Math.round((C.PRIZE[place - 1] ?? 0) * w.div.prize);
   const koBonus = w.kos * C.KO_BONUS;
   const grudgeBonus = w.grudgeKos * C.GRUDGE_BONUS;
   const shoveBonus = w.shoves * C.SHOVE_BONUS;
-  const earned = Math.max(0, prize + koBonus + grudgeBonus + shoveBonus - w.fines);
+  let earned = Math.max(0, prize + koBonus + grudgeBonus + shoveBonus - w.fines);
+  // the cup: points for every finisher; after the last race, the table decides who goes up
+  scoreRace(save.cup, w.riders.map((r) => (r.thug ? 0 : r.place)));
+  const table = standings(save.cup).map((s) => ({ name: riderName(s.id), pts: s.pts, rank: s.rank, me: s.id === 0 }));
+  const cupRace = save.cup.race;
+  const end = cupOver(save.cup) ? endCup(save.cup, div) : null;
+  if (end) {
+    earned += end.bonus;
+    if (end.promoted) save.div++;
+    if (end.champion) save.titles++;
+    save.cup = newCup();
+  }
   save.cash += earned;
   save.races++;
   if (save.best === 0 || place < save.best) save.best = place;
@@ -196,6 +237,7 @@ function finishRace(): void {
   const res: RaceResult = {
     place, total: w.racers, prize, kos: w.kos, koBonus, grudgeKos: w.grudgeKos, grudgeBonus, shoves: w.shoves, shoveBonus, fines: w.fines,
     earned, time: w.time, grudges: save.grudges.map((id) => w.riders[id].name),
+    league: { div: C.DIVISIONS[div].name, race: cupRace, races: CUP_RACES, table, end, next: C.DIVISIONS[save.div].name },
   };
   state = 'results';
   const show = () => hud.showResults(res, save, buy, again);
@@ -306,7 +348,9 @@ function showStats(dt: number): void {
 
 newRace();
 const best = document.getElementById('best');
-if (best && save.races > 0) best.textContent = `Cash $${save.cash} · best ${ordinal(save.best)}`;
+if (best && save.races > 0) {
+  best.textContent = `${C.DIVISIONS[save.div].name} · race ${save.cup.race + 1}/${CUP_RACES} · cash $${save.cash}` + (save.titles ? ` · ${save.titles}× champion` : '');
+}
 if (BOT) startRace();
 requestAnimationFrame(frame);
 

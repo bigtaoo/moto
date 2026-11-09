@@ -2,9 +2,11 @@
 // The whole course is built once per race (it is only ~2.5 km), so there is no chunk streaming yet.
 
 import * as THREE from 'three';
-import { ROAD_HALF, LANE_X } from '../sim/config';
+import { ROAD_HALF, LANE_X, CUT, WORKS, RAMP } from '../sim/config';
 import { Prng } from '../sim/rng';
+import type { Road, Ramp } from '../sim/road';
 import { makeCanvasTexture, testSymbolTexture } from './textures';
+import type { Env } from './env';
 
 let phase = 0;
 
@@ -39,12 +41,39 @@ export function place(o: THREE.Object3D, x: number, y: number, z: number, yaw = 
 
 const SEG = 2;
 const SHOULDER = 1.2;
+const BARRIER_X = ROAD_HALF + SHOULDER + 0.3;
+/** Drawn ramp sizes: length up the slope and height at the lip. */
+export const RAMP_LOOK = { roadL: 4, roadH: 0.7, trailL: 5.5, trailH: 0.9 };
+
+/** Height of the ramp surface under sim (x, z), 0 off every ramp. */
+export function rampLift(ramps: readonly Ramp[], x: number, z: number): number {
+  for (const r of ramps) {
+    const L = r.trail ? RAMP_LOOK.trailL : RAMP_LOOK.roadL;
+    const d = r.z - z;
+    if (d < 0 || d > L || Math.abs(x - r.x) > r.halfW) continue;
+    return (r.trail ? RAMP_LOOK.trailH : RAMP_LOOK.roadH) * (1 - d / L);
+  }
+  return 0;
+}
+
+/** A wedge rising along +z from 0 at z = -len to h at z = 0, 2*halfW wide. Non-indexed, flat-shaded. */
+function wedge(halfW: number, len: number, h: number): THREE.BufferGeometry {
+  const w = halfW;
+  const A = [-w, 0, -len], B = [w, 0, -len], Cc = [-w, h, 0], D = [w, h, 0], E = [-w, 0, 0], F = [w, 0, 0];
+  const tris = [A, D, B, A, Cc, D, E, F, D, E, D, Cc, A, E, Cc, B, D, F];
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(tris.flat()), 3));
+  g.computeVertexNormals();
+  return g;
+}
 
 export class Track {
   readonly group = new THREE.Group();
   private readonly owned: { dispose(): void }[] = [];
+  private cones: THREE.InstancedMesh | null = null;
+  private conePos: { x: number; z: number; down: boolean }[] = [];
 
-  constructor(readonly length: number, seed: number) {
+  constructor(readonly length: number, seed: number, private readonly env: Env, private readonly R: Road) {
     phase = (seed % 97) * 0.37;
     const from = -60;
     const to = length + 320;
@@ -55,6 +84,33 @@ export class Track {
     this.signs(from, to);
     this.gate(12, false);
     this.gate(length, true);
+    this.works();
+    this.trails();
+    this.ramps();
+  }
+
+  /** Is (x, z) on or by a trail (keep trees and signs off it)? */
+  private onTrail(x: number, z: number, margin: number): boolean {
+    for (const c of this.R.cuts) if (z > c.z0 - margin && z < c.z1 + margin && x * c.side > ROAD_HALF) return true;
+    return false;
+  }
+
+  /** Knock over the cones near a crash at sim (x, z). */
+  scatterCones(x: number, z: number, rnd: () => number): void {
+    const m = this.cones;
+    if (!m) return;
+    const o = new THREE.Object3D();
+    let any = false;
+    this.conePos.forEach((c, i) => {
+      if (c.down || Math.abs(c.z - z) > 4 || Math.abs(c.x - x) > 3) return;
+      c.down = true;
+      any = true;
+      place(o, c.x + 0.6 + rnd() * 1.4, 0.2, c.z + 1 + rnd() * 4, rnd() * 6.28);
+      o.rotateX(Math.PI / 2);
+      o.updateMatrix();
+      m.setMatrixAt(i, o.matrix);
+    });
+    if (any) m.instanceMatrix.needsUpdate = true;
   }
 
   dispose(): void {
@@ -142,8 +198,8 @@ export class Track {
 
   private ground(from: number, to: number): void {
     const xs = [-160, -70, -30, -14, -ROAD_HALF - SHOULDER + 0.05, ROAD_HALF + SHOULDER - 0.05, 14, 30, 70, 160];
-    const a = new THREE.Color(0x7cc25a);
-    const b = new THREE.Color(0x5fa847);
+    const a = new THREE.Color(this.env.ground[0]);
+    const b = new THREE.Color(this.env.ground[1]);
     const k = new THREE.Color();
     const geo = this.strip(from, to, xs, (x) => -0.04 + Math.max(0, Math.abs(x) - 20) * 0.08, (x, z) => {
       const n = 0.5 + 0.5 * Math.sin(z * 0.05 + x * 0.11) * Math.sin(z * 0.013 - x * 0.07);
@@ -164,9 +220,13 @@ export class Track {
     const yellow = new THREE.Color(0xf2c230);
     const black = new THREE.Color(0x26262b);
     let i = 0;
+    // open where a trail leaves the road and where it comes back
+    const open = (s: number, z0: number, z1: number) =>
+      this.R.cuts.some((c) => c.side === s && ((z1 > c.z0 && z0 < c.z0 + CUT.gap) || (z1 > c.z1 - CUT.merge && z0 < c.z1)));
     for (let z = from, j = 0; z < to; z += step, j++) {
       for (const s of [-1, 1]) {
-        place(o, s * (ROAD_HALF + SHOULDER + 0.3), 0.37, z + step / 2);
+        if (open(s, z, z + step)) continue;
+        place(o, s * BARRIER_X, 0.37, z + step / 2);
         o.updateMatrix();
         mesh.setMatrixAt(i, o.matrix);
         mesh.setColorAt(i, j % 2 ? yellow : black);
@@ -179,28 +239,32 @@ export class Track {
 
   private trees(from: number, to: number, seed: number): void {
     const rnd = new Prng(seed * 31 + 7);
-    const n = Math.round((to - from) / 6);
+    const n = Math.round(((to - from) / 6) * this.env.trees);
     const trunkGeo = this.keep(new THREE.CylinderGeometry(0.18, 0.25, 1.6, 5));
     trunkGeo.translate(0, 0.8, 0);
     const leafGeo = this.keep(new THREE.ConeGeometry(1.4, 3.6, 6));
     leafGeo.translate(0, 3.1, 0);
-    const trunks = new THREE.InstancedMesh(trunkGeo, this.keep(new THREE.MeshLambertMaterial({ color: 0x7a5236 })), n);
+    const trunks = new THREE.InstancedMesh(trunkGeo, this.keep(new THREE.MeshLambertMaterial({ color: this.env.trunk })), n);
     const leaves = new THREE.InstancedMesh(leafGeo, this.keep(new THREE.MeshLambertMaterial({ color: 0xffffff })), n);
     const o = new THREE.Object3D();
-    const greens = [0x3f8f45, 0x4f9e3a, 0x2f7a4a, 0x6aa83c].map((c) => new THREE.Color(c));
+    const greens = this.env.leaves.map((c) => new THREE.Color(c));
+    let k = 0;
     for (let i = 0; i < n; i++) {
       const z = from + rnd.float() * (to - from);
       const side = rnd.float() < 0.5 ? -1 : 1;
       const x = side * (13 + rnd.float() * rnd.float() * 60);
+      if (Math.abs(x) < 18 && this.onTrail(x, z, 6)) continue;
       toWorld(x, -0.04 + Math.max(0, Math.abs(x) - 20) * 0.08, z, o.position);
       o.rotation.set(0, rnd.float() * 6.28, 0);
       const s = 0.7 + rnd.float() * 0.8;
       o.scale.set(s, s * (0.8 + rnd.float() * 0.5), s);
       o.updateMatrix();
-      trunks.setMatrixAt(i, o.matrix);
-      leaves.setMatrixAt(i, o.matrix);
-      leaves.setColorAt(i, greens[rnd.int(greens.length)]);
+      trunks.setMatrixAt(k, o.matrix);
+      leaves.setMatrixAt(k, o.matrix);
+      leaves.setColorAt(k, greens[rnd.int(greens.length)]);
+      k++;
     }
+    trunks.count = leaves.count = k;
     this.group.add(trunks, leaves);
   }
 
@@ -217,7 +281,8 @@ export class Track {
     let k = 0;
     for (let i = 0; i < n; i++) {
       const z = from + 60 + i * 120;
-      const side = i % 2 ? 1 : -1;
+      let side = i % 2 ? 1 : -1;
+      if (this.onTrail(side * (ROAD_HALF + 4), z, 8)) side = -side;
       place(o, side * (ROAD_HALF + 4), 0, z, side * 0.5);
       o.updateMatrix();
       board.setMatrixAt(i, o.matrix);
@@ -228,6 +293,150 @@ export class Track {
       }
     }
     this.group.add(poles, board);
+  }
+
+  /** Construction zones: a warning sign, a line of cones tapering across lane 3, a parked roller. */
+  private works(): void {
+    if (this.R.works.length === 0) return;
+    // traffic cones: orange with a white band
+    const geo = this.keep(new THREE.ConeGeometry(0.24, 0.75, 8));
+    geo.translate(0, 0.375, 0);
+    const pos = geo.getAttribute('position');
+    const col = new Float32Array(pos.count * 3);
+    for (let i = 0; i < pos.count; i++) {
+      const y = pos.getY(i);
+      const white = y > 0.32 && y < 0.5;
+      col.set(white ? [0.96, 0.96, 0.94] : [0.98, 0.42, 0.08], i * 3);
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    for (const w of this.R.works) {
+      for (let z = w.z0 - WORKS.taper; z <= w.z1 + WORKS.out; z += 2.5) this.conePos.push({ x: this.R.worksHi(z) + 0.3, z, down: false });
+      // and across the closed lane where the taper starts
+      for (let x = LANE_X[3] - 1.2; x <= ROAD_HALF; x += 1.2) this.conePos.push({ x, z: w.z0 - WORKS.taper - 3, down: false });
+    }
+    const mesh = new THREE.InstancedMesh(geo, this.keep(new THREE.MeshLambertMaterial({ vertexColors: true })), this.conePos.length);
+    const o = new THREE.Object3D();
+    this.conePos.forEach((c, i) => {
+      place(o, c.x, 0, c.z);
+      o.updateMatrix();
+      mesh.setMatrixAt(i, o.matrix);
+    });
+    this.cones = mesh;
+    this.group.add(mesh);
+    const signTex = this.keep(makeCanvasTexture(128, 128, (g, W, H) => {
+      g.fillStyle = '#f2c230';
+      g.beginPath();
+      g.moveTo(W / 2, 4); g.lineTo(W - 4, H / 2); g.lineTo(W / 2, H - 4); g.lineTo(4, H / 2);
+      g.closePath();
+      g.fill();
+      g.lineWidth = 6;
+      g.strokeStyle = '#16161a';
+      g.stroke();
+      g.fillStyle = '#16161a';
+      g.font = 'bold 22px sans-serif';
+      g.textAlign = 'center';
+      g.fillText('ROAD', W / 2, H / 2 - 4);
+      g.fillText('WORKS', W / 2, H / 2 + 20);
+    }));
+    const arrowTex = this.keep(makeCanvasTexture(128, 64, (g, W, H) => {
+      g.fillStyle = '#16161a';
+      g.fillRect(0, 0, W, H);
+      g.fillStyle = '#f2c230';
+      for (let i = 0; i < 3; i++) {
+        const x = 18 + i * 36;
+        g.beginPath();
+        g.moveTo(x, H / 2); g.lineTo(x + 22, 8); g.lineTo(x + 34, 8); g.lineTo(x + 12, H / 2); g.lineTo(x + 34, H - 8); g.lineTo(x + 22, H - 8);
+        g.closePath();
+        g.fill();
+      }
+    }));
+    const signGeo = this.keep(new THREE.PlaneGeometry(1.6, 1.6));
+    signGeo.translate(0, 2.4, 0);
+    const arrowGeo = this.keep(new THREE.PlaneGeometry(2.2, 1.1));
+    arrowGeo.translate(0, 1.1, 0);
+    const pole = this.keep(new THREE.BoxGeometry(0.12, 1.8, 0.12));
+    pole.translate(0, 0.9, 0);
+    const signMat = this.keep(new THREE.MeshBasicMaterial({ map: signTex, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide }));
+    const arrowMat = this.keep(new THREE.MeshBasicMaterial({ map: arrowTex, side: THREE.DoubleSide }));
+    const poleMat = this.keep(new THREE.MeshLambertMaterial({ color: 0x2a2a2e }));
+    // a road roller parked in the closed lane
+    const yellow = this.keep(new THREE.MeshLambertMaterial({ color: 0xf2b630 }));
+    const dark = this.keep(new THREE.MeshLambertMaterial({ color: 0x35353a }));
+    const body = this.keep(new THREE.BoxGeometry(1.6, 1.3, 3));
+    body.translate(0, 1.15, 0);
+    const cab = this.keep(new THREE.BoxGeometry(1.4, 1, 1.2));
+    cab.translate(0, 2.3, -0.6);
+    const drum = this.keep(new THREE.CylinderGeometry(0.75, 0.75, 1.7, 12));
+    drum.rotateZ(Math.PI / 2);
+    for (const w of this.R.works) {
+      const s = new THREE.Group();
+      s.add(new THREE.Mesh(signGeo, signMat), new THREE.Mesh(pole, poleMat));
+      place(s, ROAD_HALF + 1.6, 0, w.z0 - WORKS.taper - 50, Math.PI);
+      const a = new THREE.Group();
+      a.add(new THREE.Mesh(arrowGeo, arrowMat), new THREE.Mesh(pole, poleMat));
+      a.children[1].scale.y = 0.4;
+      place(a, LANE_X[3] + 0.4, 0, w.z0 - WORKS.taper + 4, Math.PI);
+      const roller = new THREE.Group();
+      const d1 = new THREE.Mesh(drum, dark);
+      d1.position.set(0, 0.75, 1.6);
+      const d2 = new THREE.Mesh(drum, dark);
+      d2.position.set(0, 0.75, -1.6);
+      roller.add(new THREE.Mesh(body, yellow), new THREE.Mesh(cab, yellow), d1, d2);
+      place(roller, LANE_X[3] + 0.5, 0, (w.z0 + w.z1) / 2, 0.15);
+      this.group.add(s, a, roller);
+    }
+  }
+
+  /** Shortcut trails: a dirt track behind the barrier with tyre stacks along its far side. */
+  private trails(): void {
+    if (this.R.cuts.length === 0) return;
+    const mat = this.keep(new THREE.MeshLambertMaterial({ color: this.env.dirt }));
+    const tyre = this.keep(new THREE.CylinderGeometry(0.42, 0.42, 0.75, 10));
+    tyre.translate(0, 0.375, 0);
+    const spots: [number, number][] = [];
+    for (const c of this.R.cuts) {
+      const xs = c.side > 0 ? [ROAD_HALF + 0.9, CUT.outer + 0.9] : [-CUT.outer - 0.9, -ROAD_HALF - 0.9];
+      this.group.add(new THREE.Mesh(this.strip(c.z0 - 4, c.z1 + 4, xs, () => 0.015), mat));
+      for (let z = c.z0 + CUT.gap; z <= c.z1 - CUT.merge; z += 3) spots.push([c.side * (CUT.outer + 1.1), z]);
+    }
+    const tyres = new THREE.InstancedMesh(tyre, this.keep(new THREE.MeshLambertMaterial({ color: 0x26262b })), spots.length);
+    const o = new THREE.Object3D();
+    spots.forEach(([x, z], i) => {
+      place(o, x, 0, z);
+      o.updateMatrix();
+      tyres.setMatrixAt(i, o.matrix);
+    });
+    this.group.add(tyres);
+  }
+
+  /** Ramps: yellow-and-black kickers in a lane, dirt mounds on the trails. */
+  private ramps(): void {
+    const road = this.keep(wedge(RAMP.halfW, RAMP_LOOK.roadL, RAMP_LOOK.roadH));
+    const mound = this.keep(wedge(RAMP.trailHalfW, RAMP_LOOK.trailL, RAMP_LOOK.trailH));
+    const stripes = this.keep(makeCanvasTexture(64, 64, (g, W, H) => {
+      g.fillStyle = '#f2c230';
+      g.fillRect(0, 0, W, H);
+      g.fillStyle = '#16161a';
+      for (let i = -1; i < 4; i++) {
+        g.beginPath();
+        g.moveTo(i * 24, H); g.lineTo(i * 24 + 12, H); g.lineTo(i * 24 + 12 + H, 0); g.lineTo(i * 24 + H, 0);
+        g.closePath();
+        g.fill();
+      }
+    }));
+    stripes.wrapS = stripes.wrapT = THREE.RepeatWrapping;
+    // planar uvs over the wedge's footprint so the stripes run across the slope
+    const pos = road.getAttribute('position');
+    const uv = new Float32Array(pos.count * 2);
+    for (let i = 0; i < pos.count; i++) uv.set([pos.getX(i) / 1.2, pos.getZ(i) / 1.2], i * 2);
+    road.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    const roadMat = this.keep(new THREE.MeshLambertMaterial({ map: stripes }));
+    const moundMat = this.keep(new THREE.MeshLambertMaterial({ color: new THREE.Color(this.env.dirt).multiplyScalar(0.85) }));
+    for (const r of this.R.ramps) {
+      const m = new THREE.Mesh(r.trail ? mound : road, r.trail ? moundMat : roadMat);
+      place(m, r.x, 0, r.z);
+      this.group.add(m);
+    }
   }
 
   private gate(z: number, finish: boolean): void {

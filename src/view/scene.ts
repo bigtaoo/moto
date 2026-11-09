@@ -3,13 +3,13 @@
 import * as THREE from 'three';
 import type { World } from '../sim/world';
 import { CAR, DOWN, TICK_HZ } from '../sim/config';
-import { Track, toWorld, place } from './track';
+import { Track, toWorld, place, rampLift, RAMP_LOOK } from './track';
+import { ENVS, type Env } from './env';
 import { RiderView } from './rider';
 import { Ragdoll } from './ragdoll';
 import { Traffic, PatrolView, Pickups, Shadows } from './props';
 import { Fx } from './fx';
 
-const SKY = 0xbfe2f2;
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
 /** Camera framing per orientation: portrait sees more road ahead from higher up. */
@@ -23,18 +23,34 @@ export class Stage {
   readonly scene = new THREE.Scene();
   readonly camera = new THREE.PerspectiveCamera(60, 1, 0.3, 600);
   portrait = false;
+  private readonly hemi: THREE.HemisphereLight;
+  private readonly sun: THREE.DirectionalLight;
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.scene.background = new THREE.Color(SKY);
-    this.scene.fog = new THREE.Fog(SKY, 110, 330);
-    this.scene.add(new THREE.HemisphereLight(0xffffff, 0x5f8a4a, 1.25));
-    const sun = new THREE.DirectionalLight(0xfff4e0, 1.5);
-    sun.position.set(-30, 60, -20);
-    this.scene.add(sun);
+    this.scene.background = new THREE.Color();
+    this.scene.fog = new THREE.Fog(0xffffff, 110, 330);
+    this.hemi = new THREE.HemisphereLight();
+    this.sun = new THREE.DirectionalLight();
+    this.sun.position.set(-30, 60, -20);
+    this.scene.add(this.hemi, this.sun);
+    this.setEnv(ENVS.meadow);
     this.resize();
+  }
+
+  setEnv(e: Env): void {
+    (this.scene.background as THREE.Color).set(e.sky);
+    const fog = this.scene.fog as THREE.Fog;
+    fog.color.set(e.sky);
+    fog.near = e.fogNear;
+    fog.far = e.fogFar;
+    this.hemi.color.set(e.hemiSky);
+    this.hemi.groundColor.set(e.hemiGround);
+    this.hemi.intensity = e.hemi;
+    this.sun.color.set(e.sun);
+    this.sun.intensity = e.sunI;
   }
 
   resize(): void {
@@ -71,7 +87,9 @@ export class RaceView {
   private drawVx: number[] = [];
 
   constructor(private readonly stage: Stage, readonly w: World, seed: number) {
-    this.track = new Track(w.length, seed);
+    const env = ENVS[w.div.env];
+    stage.setEnv(env);
+    this.track = new Track(w.length, seed, env, w.road);
     this.riders = w.riders.map((r) => new RiderView(r.body, r.ride));
     this.ragdolls = this.riders.map((rv) => {
       const rd = new Ragdoll(rv.body, rv.ride, rv.mat);
@@ -91,6 +109,30 @@ export class RaceView {
       if (m.isMesh) m.geometry.dispose();
     });
     this.group.removeFromParent();
+  }
+
+  scatterCones(x: number, z: number): void {
+    this.track.scatterCones(x, z, Math.random);
+  }
+
+  /** How high rider i is drawn: up a ramp's slope, or along the arc of a jump. */
+  private lift(i: number, x: number, z: number, alpha: number): number {
+    const r = this.w.riders[i];
+    if (r.state !== 'ride') return 0;
+    if (r.airT > 0 && r.airMax > 0) {
+      const k = Math.min(1, Math.max(0, 1 - (r.airT - alpha) / r.airMax));
+      const lip = this.lipH(i);
+      return lip * (1 - k) + Math.min(2.4, 0.075 * r.airMax) * 4 * k * (1 - k);
+    }
+    return rampLift(this.w.road.ramps, x, z);
+  }
+
+  /** The lip height of the ramp rider i took off from (the last ramp behind it). */
+  private lipH(i: number): number {
+    const r = this.w.riders[i];
+    let best: { trail: boolean; z: number } | null = null;
+    for (const m of this.w.road.ramps) if (m.z <= r.z && (!best || m.z > best.z)) best = m;
+    return best ? (best.trail ? RAMP_LOOK.trailH : RAMP_LOOK.roadH) : 0;
   }
 
   shake(amount: number): void {
@@ -134,7 +176,7 @@ export class RaceView {
       const down = r.state === 'down';
       const x = this.smoothX(i, down ? lerp(r.bikePX, r.bikeX, alpha) : lerp(r.px, r.x, alpha), dt);
       const z = down ? lerp(r.bikePZ, r.bikeZ, alpha) : lerp(r.pz, r.z, alpha);
-      place(rv.root, x, 0, z, rv.yaw);
+      place(rv.root, x, down ? 0 : this.lift(i, x, z, alpha), z, rv.yaw);
       rv.setWeapon(r.weapon);
       rv.update(dt, r.speed, this.drawVx[i], r.rubT > 0 ? r.rubSide : 0);
       // Blink while invulnerable after getting back up.
@@ -197,7 +239,9 @@ export class RaceView {
       fz = Math.max(fz, this.v2.z - 2);
     }
     const k = this.first ? 1 : Math.min(1, dt * 6);
-    this.focusX += (fx * cfg.follow - this.focusX) * k;
+    // partway across the road; out past it (on a trail) the camera goes all the way with the rider
+    const out = Math.max(0, Math.abs(fx) - 5) * Math.sign(fx);
+    this.focusX += ((fx - out) * cfg.follow + out - this.focusX) * k;
     this.focusZ = this.first ? fz : this.focusZ + (fz - this.focusZ) * Math.min(1, dt * 14);
     this.first = false;
     const cam = this.stage.camera;

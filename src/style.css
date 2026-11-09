@@ -179,6 +179,20 @@ button.primary:active { transform: translateY(4px); box-shadow: 0 1px 0 var(--in
 .row.total { border-top: 3px solid var(--ink); margin-top: 4px; padding-top: 6px; font-size: 19px; font-weight: 900; }
 .grudges { background: #ffe1dc; border-radius: 10px; padding: 8px; font-size: 14px; margin: 6px 0; }
 .cashline { font-size: 18px; margin: 8px 0; }
+.cup { background: #eef0f4; border-radius: 10px; padding: 6px 8px; font-size: 14px; margin: 6px 0; text-align: left; }
+.cuphead { font-weight: 900; font-size: 13px; text-transform: uppercase; opacity: 0.7; margin-bottom: 2px; }
+.cupend { font-weight: 900; font-size: 16px; margin: 2px 0 4px; }
+.cupend.win { color: #c99a00; }
+.st { display: flex; justify-content: space-between; padding: 1px 2px; }
+.st.up span::after { content: ' ▲'; color: #1f8a3a; font-size: 11px; }
+.st.me { background: var(--yellow); border-radius: 6px; font-weight: 900; }
+.league {
+  position: absolute; left: 50%; top: 18%; transform: translate(-50%, 0); opacity: 0;
+  font-size: 17px; font-weight: 900; white-space: nowrap; color: var(--paper);
+  background: rgba(22, 22, 26, 0.75); border-radius: 999px; padding: 6px 16px; pointer-events: none;
+}
+.league.show { animation: league 4.5s ease-out forwards; }
+@keyframes league { 0% { opacity: 0; } 8% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
 .cashline b { background: var(--yellow); padding: 0 6px; border-radius: 6px; }
 .ups { display: flex; flex-direction: column; gap: 6px; }
 .up { display: flex; align-items: center; justify-content: space-between; gap: 8px; text-align: left; }
@@ -199,7 +213,7 @@ button.primary:active { transform: translateY(4px); box-shadow: 0 1px 0 var(--in
   .card { max-width: 640px; display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px; align-items: start; padding: 12px 16px; }
   .card > h2, .card > .sub { grid-column: 1; }
   .card .rows { grid-column: 1; margin: 6px 0; }
-  .card .grudges, .card .cashline { grid-column: 1; }
+  .card .grudges, .card .cashline, .card .cup { grid-column: 1; }
   .card .ups { grid-column: 2; grid-row: 1 / span 5; }
   .card .again { grid-column: 2; }
   .card.small, #title .card { display: block; max-width: 300px; }

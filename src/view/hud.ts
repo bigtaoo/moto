@@ -4,6 +4,20 @@ import type { World } from '../sim/world';
 import { ATTACK, WEAPON, UPGRADE_MAX, upgradeCost } from '../sim/config';
 import type { RaceView } from './scene';
 import type { Save } from '../meta';
+import type { CupEnd } from '../career';
+
+export interface League {
+  /** The division this race was in. */
+  div: string;
+  /** Races of the cup run, this one included, and how many it has. */
+  race: number;
+  races: number;
+  table: { name: string; pts: number; rank: number; me: boolean }[];
+  /** Set when this race closed the cup. */
+  end: CupEnd | null;
+  /** The division the next race is in. */
+  next: string;
+}
 
 const $ = <T extends HTMLElement = HTMLElement>(root: ParentNode, sel: string) => root.querySelector(sel) as T;
 
@@ -21,6 +35,7 @@ export interface RaceResult {
   earned: number;
   time: number;
   grudges: string[];
+  league: League;
 }
 
 type UpKey = keyof Save['up'];
@@ -45,6 +60,7 @@ export class Hud {
   private readonly incL: HTMLElement;
   private readonly incR: HTMLElement;
   private readonly heatEl: HTMLElement;
+  private readonly leagueEl: HTMLElement;
   /** Per rider: seconds left of a swing wound up at the player. */
   private tellT: number[] = [];
   private readonly results: HTMLElement;
@@ -75,6 +91,7 @@ export class Hud {
         <div class="banner"></div>
         <div class="chaser"></div>
         <div class="hint">Drag to steer · Tap to slap</div>
+        <div class="league"></div>
       </div>
       <div id="results" class="overlay hidden"><div class="card"></div></div>
       <div id="paused" class="overlay hidden"><div class="card small"><h2>Paused</h2><button class="primary">Resume</button></div></div>
@@ -93,6 +110,7 @@ export class Hud {
     this.incL = $(this.root, '.inc.l');
     this.incR = $(this.root, '.inc.r');
     this.heatEl = $(this.root, '.heat');
+    this.leagueEl = $(this.root, '.league');
     this.results = $(host, '#results');
     this.pauseEl = $(host, '#paused');
     this.pauseBtn = $(this.root, '.pausebtn');
@@ -131,6 +149,14 @@ export class Hud {
     this.chaser.classList.remove('on');
     this.banner.className = 'banner';
     this.resize();
+  }
+
+  /** The division and cup race, shown over the countdown. */
+  setLeague(text: string): void {
+    this.leagueEl.textContent = text;
+    this.leagueEl.className = 'league';
+    void this.leagueEl.offsetWidth;
+    this.leagueEl.className = 'league show';
   }
 
   showHint(on: boolean): void {
@@ -272,14 +298,28 @@ export class Hud {
         ${res.fines ? row('Security fines', `−$${res.fines}`, 'bad') : ''}
         ${row('Earned', `$${res.earned}`, 'total')}
       </div>
+      ${this.leagueHtml(res.league)}
       ${res.grudges.length ? `<div class="grudges">Holding a grudge: <b>${res.grudges.join(', ')}</b><br><small>Knock them off next race for +$150 each</small></div>` : ''}
       <div class="cashline">Cash <b>$${save.cash}</b></div>
       <div class="ups">${ups}</div>
-      <button class="primary again">Race again</button>`;
+      <button class="primary again">${res.league.end ? (res.league.end.promoted ? `On to ${res.league.next}` : res.league.end.champion ? 'Defend the title' : `Retry the ${res.league.next} cup`) : 'Next race'}</button>`;
     card.querySelectorAll<HTMLButtonElement>('.up button').forEach((b) => {
       b.onclick = () => onBuy(b.dataset.k as UpKey);
     });
     $<HTMLButtonElement>(card, '.again').onclick = onAgain;
     this.results.classList.remove('hidden');
+  }
+
+  /** The cup table after this race (the top 3 and the player), and how the cup ended if it did. */
+  private leagueHtml(l: League): string {
+    const rows = l.table.filter((t) => t.rank <= 3 || t.me).map((t) =>
+      `<div class="st ${t.me ? 'me' : ''} ${t.rank <= 3 ? 'up' : ''}"><span>${t.rank}. ${t.name}</span><b>${t.pts}</b></div>`).join('');
+    const e = l.end;
+    const head = e
+      ? e.champion ? `<div class="cupend win">CHAMPION! +$${e.bonus}</div>`
+        : e.promoted ? `<div class="cupend win">${ordinal(e.rank)} in the cup · PROMOTED${e.bonus ? ` +$${e.bonus}` : ''}</div>`
+        : `<div class="cupend">${ordinal(e.rank)} in the cup${e.bonus ? ` +$${e.bonus}` : ''} · top 3 go up</div>`
+      : '';
+    return `<div class="cup"><div class="cuphead">${l.div} cup · ${e ? 'final' : `race ${l.race}/${l.races}`}</div>${head}${rows}</div>`;
   }
 }

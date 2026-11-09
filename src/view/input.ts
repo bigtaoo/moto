@@ -1,7 +1,7 @@
 // One-finger controls: drag to steer (relative to where the finger went down), tap to slap.
 // A second finger tapping while the first drags also slaps. Keys: arrows/A-D steer, Space/J slap, S/Down brake, P pause.
 
-import { ROAD_HALF, EDGE } from '../sim/config';
+import { ROAD_HALF } from '../sim/config';
 
 const TAP_MS = 230;
 const TAP_PX = 14;
@@ -26,7 +26,12 @@ export class Controls {
   private drag: Touch | null = null;
   private readonly keys = new Set<string>();
 
-  constructor(el: HTMLElement, private readonly playerX: () => number) {
+  /**
+   * @param playerX where the player is across the road
+   * @param reach how far across the player can ride right now: a drag starts from inside it, so pushing out
+   *   against the barrier (to slip into a trail's opening when it comes) doesn't leave the next drag offset
+   */
+  constructor(el: HTMLElement, private readonly playerX: () => number, private readonly reach: () => [number, number]) {
     el.addEventListener('pointerdown', this.down);
     window.addEventListener('pointermove', this.move);
     window.addEventListener('pointerup', this.up);
@@ -57,7 +62,8 @@ export class Controls {
       this.attack = true;
       return;
     }
-    const anchor = this.targetX ?? this.playerX();
+    const [lo, hi] = this.reach();
+    const anchor = Math.max(lo, Math.min(hi, this.targetX ?? this.playerX()));
     this.drag = { id: e.pointerId, x0: e.clientX, y0: e.clientY, t0: performance.now(), moved: false, anchor };
   };
 
@@ -66,7 +72,9 @@ export class Controls {
     if (!d || e.pointerId !== d.id) return;
     const dx = e.clientX - d.x0;
     if (!d.moved && Math.hypot(dx, e.clientY - d.y0) > TAP_PX) d.moved = true;
-    if (d.moved) this.targetX = Math.max(-EDGE, Math.min(EDGE, d.anchor + dx * this.scale));
+    if (!d.moved) return;
+    const [lo, hi] = this.reach();
+    this.targetX = Math.max(lo, Math.min(hi, d.anchor + dx * this.scale));
   };
 
   private readonly up = (e: PointerEvent): void => {
