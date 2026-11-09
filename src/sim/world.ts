@@ -528,8 +528,6 @@ export class World {
     switch (pt.mode) {
       case 'chase': {
         pt.speed = p.speed + C.PATROL.chaseGain + Math.max(0, gap - 30) * 0.15;
-        const s = C.PATROL.steer * C.DT;
-        pt.x += clamp(p.x - pt.x, -s, s);
         if (gap < C.PATROL.warnAt && p.state === 'ride') { pt.mode = 'warn'; pt.t = 0; this.events.push({ type: 'patrolWarn' }); }
         if (p.state === 'down') { pt.mode = 'fall'; pt.t = 0; }
         break;
@@ -562,12 +560,56 @@ export class World {
         pt.speed = 0;
         break;
     }
+    this.patrolTraffic(pt.mode === 'chase' ? p.x : pt.x);
     pt.z += pt.speed * C.DT;
     // The buggy bowls over any rival in its path.
     if (pt.mode === 'dash') {
       for (const r of this.riders) {
         if (!r.isPlayer && r.state === 'ride' && Math.abs(r.x - pt.x) < 1.25 && Math.abs(r.z - pt.z) < 2.4) this.crash(r, 'patrol', (r.x >= pt.x ? 1 : -1) * 5);
       }
+    }
+  }
+
+  /**
+   * Keeps the buggy out of traffic: it steers toward `want` but changes lane when a car is in the
+   * way, never slides sideways into a car beside it, and slows behind a car it cannot get round.
+   */
+  private patrolTraffic(want: number): void {
+    const pt = this.patrol;
+    const P = C.PATROL;
+    const wide = C.CAR.halfW + P.halfW + 0.15;
+    const long = C.CAR.halfL + P.halfL + 0.3;
+    // seconds until the buggy reaches a car along lateral position x (0: one is already beside it)
+    const clear = (x: number): number => {
+      let best = Infinity;
+      for (const c of this.cars) {
+        if (Math.abs(c.x - x) > wide) continue;
+        const dist = c.z - pt.z - long;
+        if (dist < -2 * long) continue;
+        const closing = pt.speed - c.speed;
+        const t = dist <= 0 ? 0 : closing <= 0.1 ? Infinity : dist / closing;
+        if (t < best) best = t;
+      }
+      return best;
+    };
+    let target = want;
+    if (clear(want) < P.dodgeT) {
+      let score = -Infinity;
+      for (let i = 0; i < C.LANE_X.length; i++) {
+        const x = C.LANE_X[i];
+        const s = Math.min(clear(x), 4) - Math.abs(x - want) * 0.1 - (i === C.ONCOMING_LANE ? 1 : 0);
+        if (s > score) { score = s; target = x; }
+      }
+    }
+    const step = P.steer * (target === want ? 1 : 1.6) * C.DT;
+    const nx = clamp(pt.x + clamp(target - pt.x, -step, step), -C.EDGE, C.EDGE);
+    if (!this.cars.some((c) => Math.abs(c.x - nx) < wide && Math.abs(c.z - pt.z) < long)) pt.x = nx;
+    // still boxed in: hang back behind the car ahead (an oncoming one is dodged above)
+    for (const c of this.cars) {
+      if (Math.abs(c.x - pt.x) >= wide || c.speed <= 0) continue;
+      const dist = c.z - pt.z - long;
+      if (dist < -long) continue;
+      pt.speed = Math.min(pt.speed, c.speed + Math.max(0, dist) * 1.5);
     }
   }
 

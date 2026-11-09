@@ -4,7 +4,7 @@
  * Bump on any change to the race rules that alters what a seed plus inputs produce, and record the new
  * golden hash in world.test.ts. Replays and (later) online rooms only mix the same version.
  */
-export const SIM_VERSION = 1;
+export const SIM_VERSION = 2;
 
 export const TICK_HZ = 30;
 export const DT = 1 / TICK_HZ;
@@ -73,6 +73,11 @@ export const PATROL = {
   dashTicks: 40,
   fallBack: 75,
   fallTicks: 150,
+  /** Buggy footprint, for keeping it out of traffic. */
+  halfW: 1.0,
+  halfL: 1.7,
+  /** Change lane when a car is closer than this many seconds along the wanted line. */
+  dodgeT: 1.4,
 };
 
 /**
