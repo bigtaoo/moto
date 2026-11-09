@@ -4,7 +4,7 @@
  * Bump on any change to the race rules that alters what a seed plus inputs produce, and record the new
  * golden hash in world.test.ts. Replays and (later) online rooms only mix the same version.
  */
-export const SIM_VERSION = 10;
+export const SIM_VERSION = 11;
 
 export const TICK_HZ = 30;
 export const DT = 1 / TICK_HZ;
@@ -44,17 +44,39 @@ export const ATTACK = {
   reachX: 2.5,
   reachZ: 1.9,
   minX: 0.45,
-  windup: 4, // ticks before the blow lands
+  windup: 4, // ticks before the player's blow lands
+  /**
+   * An AI rider's arm goes up first (the tell): its blow lands this many ticks after the swing starts. It
+   * aims at where the target was heading when it wound up, so a target that swerves (dodgeX) or brakes
+   * (dodgeZ) off that line in the meantime makes it miss, and a rider that swung at the player and missed
+   * is left wide open for `open` ticks: a blow then is a counter (counterDmg extra, and it loses its weapon).
+   */
+  windupAI: 10,
+  dodgeX: 1,
+  dodgeZ: 0.8,
+  open: 24,
+  counterDmg: 1,
   cooldown: 13, // ticks between swings
-  push: 4.5, // sideways m/s given to the target
+  push: 5.5, // sideways m/s given to the target (plus the weapon's push)
+  /** Ticks a struck rider is carried by the blow before steering again: an AI rider longer than the player. */
+  stagger: { ai: 6, player: 3 },
   slow: 0.86, // the target's speed is cut to this
   /** Swinging costs the swinger speed too, hit or miss: a landed blow still gains ground, a wild one loses it. */
   selfSlow: 0.9,
 };
 export const WEAPON = {
-  pan: { dmg: 2, reach: 0.2 },
-  bat: { dmg: 2, reach: 0.6 },
+  pan: { dmg: 2, reach: 0.2, push: 1 },
+  bat: { dmg: 2, reach: 0.6, push: 2 },
 } as const;
+
+/**
+ * Knocked into something: a rider who hits a car or slams the barrier (still moving sideways at wallVx or
+ * more) within `ticks` ticks of a blow goes down, and it counts for whoever struck them. A bat or pan carries a rider in the outer lane into it; a fist only one already riding the barrier.
+ */
+export const SHOVE = { ticks: 24, wallVx: 1, carry: 0.88 /* sideways speed kept per tick while staggered (0.82 otherwise) */ };
+
+/** A blow on an armed rider can knock the weapon loose: an empty-handed striker takes it, an armed one knocks it to the road. */
+export const STEAL = { player: 0.35, ai: 0.15 };
 export type WeaponKind = keyof typeof WEAPON;
 
 /**
@@ -62,7 +84,7 @@ export type WeaponKind = keyof typeof WEAPON;
  * further), then the rider gets up and runs back to it.
  */
 export const DOWN = {
-  lie: { ko: 30, car: 40 }, // ticks on the ground at least before getting up
+  lie: { ko: 30, car: 40, wall: 36 }, // ticks on the ground at least before getting up
   body: 20, // m/s² the body slows at ...
   bike: 11, // ... and the scooter
   bikeSide: 0.6, // share of the sideways shove the scooter takes
@@ -144,12 +166,35 @@ export const PATROL = {
   haltSpeed: 9,
   haltSec: 0.4,
   letHold: 1.0,
+  /** Pulling over costs a fine: this much, plus `fineStar` for each full star of heat. */
+  fine: 30,
+  fineStar: 20,
   /** Blocking: it only follows a lane change it is sure of, the player this far past the lane line, ... */
   laneCommit: 0.3,
   /** ... sticks with a lane at least this long, ... */
   laneHold: 12,
   /** ... and inside its lane it shades toward the player's side by up to this much. */
   laneShade: 0.6,
+};
+
+/**
+ * Heat (0..max stars): fighting where a security buggy can see it, and running from one, makes the next
+ * ones come sooner and keener; pulling over cools it. From `rough` stars up a squeezing buggy stops leaving
+ * a gap for traffic, so running is a real risk.
+ */
+export const HEAT = {
+  max: 3,
+  near: 30, // metres from the buggy within which a fight counts
+  hit: 0.15, // per blow the player lands there ...
+  down: 0.4, // ... and per rider they knock off there
+  flee: 0.7, // a buggy that pressed them gave up without them pulling over
+  comply: 1, // taken off when they pull over
+  decay: 0.04, // per second
+  gap: 0.6, // the wait for the next buggy is divided by 1 + gap * heat ...
+  units: 1, // ... extra buggies per star ...
+  press: 0.25, // ... press time times 1 + press * heat ...
+  react: 1.5, // ... and ticks off its reaction per star
+  rough: 2,
 };
 
 /**
@@ -199,6 +244,8 @@ export const GANG = {
 
 export const PRIZE = [600, 420, 300, 220, 160, 120, 90, 70];
 export const KO_BONUS = 60;
+/** Knocking someone into traffic or the barrier pays more than a plain knockout. */
+export const SHOVE_BONUS = 100;
 export const GRUDGE_BONUS = 150;
 /** Knock the player off this many times and a rival becomes a grudge. */
 export const GRUDGE_AT = 2;
@@ -256,7 +303,7 @@ export const AI = {
   wander: 0.35,
   /** Back off this long after a blow leaves them on their last hit point. */
   backTime: 2,
-  swingAtPlayer: 0.065, // per tick while in reach, times aggression
+  swingAtPlayer: 0.1, // per tick while in reach, times aggression
   swingAtRival: 0.02,
   /** Swing keenness when the other is level and just swung (open), or still lining up. */
   swingOpen: 1.8,

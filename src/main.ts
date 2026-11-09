@@ -72,8 +72,34 @@ function handle(e: SimEvent): void {
       sfx.beep(true);
       break;
     case 'swing':
-      view.riders[e.rider].swing(e.side);
-      if (near(e.rider)) sfx.whoosh();
+      view.riders[e.rider].swing(e.side, e.windup * C.DT);
+      if (e.rider !== 0 && e.aim === 0) {
+        hud.tell(e.rider, e.windup * C.DT);
+        sfx.tell();
+        setTimeout(() => sfx.whoosh(), Math.max(0, (e.windup - C.ATTACK.windup) * C.DT * 1000));
+      } else if (near(e.rider)) sfx.whoosh();
+      break;
+    case 'whiff':
+      if (e.dodged) {
+        hud.flash('DODGED!', 'go');
+        sfx.dodge();
+      }
+      break;
+    case 'steal':
+      if (e.from === 0) {
+        hud.flash(e.took ? `STOLE A ${e.kind === 'pan' ? 'PAN' : 'BAT'}!` : 'KNOCKED IT LOOSE!', 'go');
+        sfx.pickup();
+      } else if (e.to === 0) hud.flash(e.took ? `${w.riders[e.from].name} TOOK YOUR ${e.kind === 'pan' ? 'PAN' : 'BAT'}!` : 'WEAPON KNOCKED LOOSE!', 'bad');
+      break;
+    case 'shove':
+      if (e.from === 0) {
+        slow = 0.6;
+        view.shake(0.35);
+        if (w.grudgeKos > lastGrudgeKos) {
+          lastGrudgeKos = w.grudgeKos;
+          hud.flash(`GRUDGE SETTLED +$${C.GRUDGE_BONUS + C.SHOVE_BONUS}`, 'ko');
+        } else hud.flash(`${e.into === 'car' ? 'INTO TRAFFIC!' : 'INTO THE WALL!'} +$${C.SHOVE_BONUS}`, 'ko');
+      }
       break;
     case 'hit': {
       const v = w.riders[e.to];
@@ -86,6 +112,7 @@ function handle(e: SimEvent): void {
         view.shake(e.to === 0 ? 0.45 : 0.22);
       }
       if (near(e.to)) sfx.thunk(e.ko);
+      if (e.from === 0 && e.counter && !e.ko) hud.flash('COUNTER!', 'ko');
       if (e.from === 0 && e.ko) {
         if (w.grudgeKos > lastGrudgeKos) {
           lastGrudgeKos = w.grudgeKos;
@@ -97,12 +124,12 @@ function handle(e: SimEvent): void {
     case 'crash': {
       const r = w.riders[e.rider];
       view.riders[e.rider].setDown(true, e.vx < 0 ? -1 : 1);
-      view.ragdolls[e.rider].throw(r.x, r.z, e.speed, e.vx, rnd, e.cause === 'car' ? 1.45 : 1);
+      view.ragdolls[e.rider].throw(r.x, r.z, e.speed, e.vx, rnd, e.cause === 'car' ? 1.45 : e.cause === 'wall' ? 1.2 : 1);
       view.fx.dust(r.x, r.z, e.speed, rnd);
       if (e.rider === 0) {
         slow = 0.55;
         view.shake(0.8);
-        hud.flash(e.cause === 'car' ? 'WIPEOUT!' : 'KNOCKED OFF!', 'bad');
+        hud.flash(e.cause === 'car' ? 'WIPEOUT!' : e.cause === 'wall' ? 'SLAMMED!' : 'KNOCKED OFF!', 'bad');
       }
       if (near(e.rider)) sfx.crash();
       break;
@@ -122,7 +149,7 @@ function handle(e: SimEvent): void {
       sfx.siren();
       break;
     case 'patrolLetGo':
-      hud.flash('WARNING! MOVE ALONG', 'warn');
+      hud.flash(`FINED $${e.fine} · MOVE ALONG`, 'warn');
       break;
     case 'hunt':
       hud.flash(`${w.riders[e.rider].name} is hunting you!`, 'warn');
@@ -159,14 +186,15 @@ function finishRace(): void {
   const prize = C.PRIZE[place - 1] ?? 0;
   const koBonus = w.kos * C.KO_BONUS;
   const grudgeBonus = w.grudgeKos * C.GRUDGE_BONUS;
-  const earned = Math.max(0, prize + koBonus + grudgeBonus);
+  const shoveBonus = w.shoves * C.SHOVE_BONUS;
+  const earned = Math.max(0, prize + koBonus + grudgeBonus + shoveBonus - w.fines);
   save.cash += earned;
   save.races++;
   if (save.best === 0 || place < save.best) save.best = place;
   save.grudges = [...w.grudges];
   storeSave(save);
   const res: RaceResult = {
-    place, total: w.racers, prize, kos: w.kos, koBonus, grudgeKos: w.grudgeKos, grudgeBonus,
+    place, total: w.racers, prize, kos: w.kos, koBonus, grudgeKos: w.grudgeKos, grudgeBonus, shoves: w.shoves, shoveBonus, fines: w.fines,
     earned, time: w.time, grudges: save.grudges.map((id) => w.riders[id].name),
   };
   state = 'results';

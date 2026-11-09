@@ -96,6 +96,14 @@ export const sfx = {
     tone('sawtooth', 330, 520, 0.16, 0.14);
     tone('sawtooth', 330, 620, 0.2, 0.16, 0.18);
   },
+  /** Someone is winding up a swing at the player. */
+  tell(): void {
+    tone('triangle', 700, 1400, 0.1, 0.22);
+  },
+  /** Out of the way of a swing / a counter landing. */
+  dodge(): void {
+    noise(1800, 1.5, 0.12, 0.15, 3600);
+  },
   pickup(): void {
     tone('triangle', 520, 1040, 0.12, 0.3);
   },

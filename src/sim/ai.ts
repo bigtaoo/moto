@@ -128,7 +128,7 @@ function shadow(w: World, r: Rider, f: Rider, lead = 0, cap = r.top * 1.15): num
 /** Swing at whoever is in reach: keener at the one it's after when they're level and just swung (open). */
 function maybeSwing(w: World, r: Rider, keen: number): void {
   const t = w.targetFor(r);
-  if (!t || r.atkCd > 0 || r.atkT > 0) return;
+  if (!t || r.atkCd > 0 || r.atkT > 0 || r.openT > 0) return;
   let chance = r.aggr * (t.isPlayer ? C.AI.swingAtPlayer : C.AI.swingAtRival) * keen;
   if (t.id === r.foe && r.intent !== 'back') {
     const level = Math.abs(t.z - r.z) < 1.2;

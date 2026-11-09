@@ -57,6 +57,9 @@ export class RiderView {
   private weaponKind: WeaponKind | null = null;
   private swingT = 0;
   private swingSide: 1 | -1 = 1;
+  /** Seconds the arm is held up before the whip (an AI rider's tell), and how long it has been up. */
+  private holdT = 0;
+  private holdFor = 0;
   /** The swoosh drawn along the swing, one per side (mirrored). */
   private readonly trail: THREE.Mesh;
   private readonly trailMat: THREE.MeshBasicMaterial;
@@ -156,8 +159,13 @@ export class RiderView {
     if (this.weapon) this.hands[1].add(this.weapon);
   }
 
-  swing(side: 1 | -1): void {
-    this.swingT = 0.001;
+  /** `windup`: seconds from the swing starting to the blow landing (the player's is 4 ticks). */
+  swing(side: 1 | -1, windup = 4 / 30): void {
+    // the stock animation lands its blow 0.133 s in, 0.084 s of it raising the arm: hold the raise for the rest
+    const hold = windup - 4 / 30;
+    this.holdFor = hold > 0.02 ? hold + 0.084 : 0;
+    this.holdT = 0;
+    this.swingT = this.holdFor > 0 ? 0 : 0.001;
     this.swingSide = side;
     if (this.weapon) this.hands[side === 1 ? 1 : 0].add(this.weapon);
   }
@@ -190,7 +198,15 @@ export class RiderView {
     const sw = this.swingSide;
     let twist = 0;
     let lunge = 0;
-    if (this.swingT > 0) {
+    if (this.holdFor > 0) {
+      // the tell: the arm goes up high and back, and trembles
+      this.holdT += dt;
+      const k = easeOut(Math.min(1, this.holdT / (this.holdFor * 0.6)));
+      const shake = Math.sin(this.holdT * 55) * 0.06 * k;
+      this.arms[sw === 1 ? 1 : 0].rotation.set(0.55 - 1.55 * k + shake, sw * 0.75 * k, 0, 'YXZ');
+      twist = sw * 0.55 * k;
+      if (this.holdT >= this.holdFor) { this.holdFor = 0; this.swingT = 0.2; }
+    } else if (this.swingT > 0) {
       this.swingT += dt / 0.42;
       const t = this.swingT;
       const arm = this.arms[sw === 1 ? 1 : 0];

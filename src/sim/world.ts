@@ -6,7 +6,7 @@ import * as C from './config';
 import { rivalThink, laneClearance, nearestLane } from './ai';
 
 export type Side = -1 | 1;
-export type CrashCause = 'ko' | 'car';
+export type CrashCause = 'ko' | 'car' | 'wall';
 
 export interface Rider {
   id: number;
@@ -85,6 +85,17 @@ export interface Rider {
   wobTo: number;
   /** Who landed the last blow on this rider (-1: nobody yet). */
   hitBy: number;
+  /** Ticks left of being carried by a blow (no steering), and of a crash still counting for whoever struck. */
+  stagT: number;
+  shoveT: number;
+  /** Ticks left wide open after swinging at the player and missing. */
+  openT: number;
+  /** The swing under way: whom it is aimed at (-1: nobody) and where they were and how they were moving then. */
+  aim: number;
+  aimX: number;
+  aimZ: number;
+  aimVx: number;
+  aimV: number;
   /** Where it was over the last C.AI.memory ticks (ring buffer, indexed by tick), for the others' late view of it. */
   hx: number[];
   hz: number[];
@@ -167,14 +178,17 @@ export interface Patrol {
 }
 
 export type SimEvent =
-  | { type: 'swing'; rider: number; side: Side }
-  | { type: 'hit'; from: number; to: number; side: Side; dmg: number; ko: boolean }
+  | { type: 'swing'; rider: number; side: Side; aim: number; windup: number }
+  | { type: 'hit'; from: number; to: number; side: Side; dmg: number; ko: boolean; counter: boolean }
+  | { type: 'whiff'; rider: number; dodged: boolean }
+  | { type: 'shove'; from: number; to: number; into: 'car' | 'wall' }
+  | { type: 'steal'; from: number; to: number; kind: C.WeaponKind; took: boolean }
   | { type: 'crash'; rider: number; cause: CrashCause; vx: number; speed: number }
   | { type: 'recover'; rider: number }
   | { type: 'pickup'; rider: number; kind: C.WeaponKind }
   | { type: 'drop'; pickup: number }
   | { type: 'patrolWarn' }
-  | { type: 'patrolLetGo' }
+  | { type: 'patrolLetGo'; fine: number }
   | { type: 'finish'; rider: number; place: number }
   | { type: 'grudge'; rider: number }
   | { type: 'rub'; x: number; z: number; side: Side; player: boolean }
@@ -233,8 +247,15 @@ export class World {
   overT = -1;
   finished = 0;
   kos = 0;
+  /** Riders the player knocked into traffic or the barrier. */
+  shoves = 0;
   grudgeKos = 0;
   crashes = 0;
+  /** Fines paid for pulling over, and the heat (see C.HEAT). */
+  fines = 0;
+  heat = 0;
+  /** Dice for blows (weapons knocked loose): their own stream. */
+  private readonly combatRng: Prng;
   private nextId = 1;
   private threatCd = Math.round(C.LEADER.firstDelay * C.TICK_HZ);
   private nextThreat: 'hunt' | 'ambush' = 'hunt';
@@ -248,6 +269,7 @@ export class World {
     this.traffic = new Prng(opts.seed * 7 + 1);
     this.aiRng = new Prng(opts.seed * 13 + 5);
     this.patrolRng = new Prng(opts.seed * 17 + 11);
+    this.combatRng = new Prng(opts.seed * 19 + 3);
     const [lo, hi] = C.PATROL.count;
     this.patrolCount = lo + this.patrolRng.int(hi - lo + 1);
     this.patrolRate = C.PATROL.busyGap[0] + (C.PATROL.busyGap[1] - C.PATROL.busyGap[0]) * (this.patrolCount - lo) / (hi - lo);
@@ -305,6 +327,7 @@ export class World {
       thug: false, huntT: 0, gang: 'lurk', gangT: 0, role: 'strike', pace: 0,
       react: 10, latV: 0, latAcc: 16, intent: 'race', intentT: 0, lane: nearestLane(o.x), escX: o.x, escT: 0,
       foe: -1, foeSide: 1, foeOff: 1.6, wob: 0, wobTo: 0, hitBy: -1, hx: [], hz: [], hv: [],
+      stagT: 0, shoveT: 0, openT: 0, aim: -1, aimX: 0, aimZ: 0, aimVx: 0, aimV: 0,
     });
     this.resetMemory(this.riders[this.riders.length - 1]);
   }
@@ -398,6 +421,9 @@ export class World {
     if (r.hitT > 0) r.hitT--;
     if (r.atkCd > 0) r.atkCd--;
     if (r.rubT > 0) r.rubT--;
+    if (r.stagT > 0) r.stagT--;
+    if (r.shoveT > 0) r.shoveT--;
+    if (r.openT > 0) r.openT--;
     if (r.state === 'away') return;
     if (r.state === 'down') {
       const D = C.DOWN;
@@ -436,24 +462,29 @@ export class World {
     const target = r.braking || (r.finished && r.isPlayer) ? 0 : this.topNow(r);
     if (r.speed < target) r.speed = Math.min(target, r.speed + r.accel * C.DT);
     else r.speed = Math.max(target, r.speed - (r.braking ? C.BRAKE : C.COAST) * C.DT);
+    // a blow carries the rider sideways for a moment before they can steer against it
     if (r.isPlayer) {
       const step = r.steer * C.DT;
-      r.x += clamp(r.wantX - r.x, -step, step);
+      if (r.stagT === 0) r.x += clamp(r.wantX - r.x, -step, step);
     } else {
       // an AI rider has to build up and kill its sideways speed instead of snapping onto its line
       const v = clamp((r.wantX - r.x) * 2.6, -r.steer, r.steer);
       const dv = r.latAcc * C.DT;
-      r.latV += clamp(v - r.latV, -dv, dv);
+      if (r.stagT === 0) r.latV += clamp(v - r.latV, -dv, dv);
       r.x += r.latV * C.DT;
     }
     r.x += r.vx * C.DT;
-    r.vx *= 0.82;
+    let slam = false;
     if (Math.abs(r.x) > C.EDGE) {
+      // knocked into the barrier hard enough, it throws them off; otherwise they scrape along it
+      slam = r.shoveT > 0 && r.vx * Math.sign(r.x) > C.SHOVE.wallVx;
       r.x = Math.sign(r.x) * C.EDGE;
       r.vx = r.latV = 0;
-      r.speed *= 0.985; // scraping the barrier
+      r.speed *= 0.985;
     }
+    r.vx *= r.stagT > 0 ? C.SHOVE.carry : 0.82;
     r.z += r.speed * C.DT;
+    if (slam) this.crash(r, 'wall', -Math.sign(r.x) * 3);
   }
 
   /** The player rides flat out; an AI rider goes at the pace its AI picked this tick (src/sim/ai.ts). */
@@ -553,43 +584,90 @@ export class World {
     if (r.state !== 'ride' || r.atkT > 0 || r.atkCd > 0) return false;
     const t = this.targetFor(r, 0.3);
     r.atkSide = t ? (t.x >= r.x ? 1 : -1) : r.atkSide === 1 ? -1 : 1;
-    r.atkT = C.ATTACK.windup;
-    r.atkCd = C.ATTACK.cooldown;
-    r.speed *= C.ATTACK.selfSlow;
-    this.events.push({ type: 'swing', rider: r.id, side: r.atkSide });
+    r.atkT = r.isPlayer ? C.ATTACK.windup : C.ATTACK.windupAI;
+    r.atkCd = C.ATTACK.cooldown + r.atkT - C.ATTACK.windup;
+    // the player's blow is out at once; an AI rider holds its pace through the wind-up and loses it on the blow
+    if (r.isPlayer) r.speed *= C.ATTACK.selfSlow;
+    r.aim = t ? t.id : -1;
+    if (t) {
+      r.aimX = t.x;
+      r.aimZ = t.z;
+      r.aimVx = (t.x - t.px) * C.TICK_HZ;
+      r.aimV = t.speed;
+    }
+    this.events.push({ type: 'swing', rider: r.id, side: r.atkSide, aim: r.aim, windup: r.atkT });
     return true;
   }
 
   private resolveAttack(r: Rider): void {
     if (r.atkT <= 0) return;
     if (--r.atkT > 0 || r.state !== 'ride') return;
-    const reach = C.ATTACK.reachX + (r.weapon ? C.WEAPON[r.weapon].reach : 0) + 0.4;
+    const A = C.ATTACK;
+    if (!r.isPlayer) r.speed *= A.selfSlow;
+    const reach = A.reachX + (r.weapon ? C.WEAPON[r.weapon].reach : 0) + 0.4;
+    // an AI rider swings at where its target was heading when it wound up: off that line by now, it misses them
+    let dodged: Rider | null = null;
+    if (!r.isPlayer && r.aim >= 0) {
+      const t = this.riders[r.aim];
+      const k = A.windupAI * C.DT;
+      if (Math.abs(t.x - (r.aimX + r.aimVx * k)) > A.dodgeX || Math.abs(t.z - (r.aimZ + r.aimV * k)) > A.dodgeZ) dodged = t;
+    }
     let victim: Rider | null = null;
     let bestD = Infinity;
     for (const o of this.riders) {
-      if (o === r || o.state !== 'ride' || o.invT > 0) continue;
+      if (o === r || o === dodged || o.state !== 'ride' || o.invT > 0) continue;
       const dx = (o.x - r.x) * r.atkSide;
       const dz = Math.abs(o.z - r.z);
-      if (dx < C.ATTACK.minX - 0.2 || dx > reach || dz > C.ATTACK.reachZ + 0.4) continue;
+      if (dx < A.minX - 0.2 || dx > reach || dz > A.reachZ + 0.4) continue;
       if (dx + dz < bestD) { bestD = dx + dz; victim = o; }
     }
-    if (!victim) return;
-    const dmg = r.weapon ? C.WEAPON[r.weapon].dmg : 1;
+    if (!victim) {
+      // swung at the player and missed: overbalanced and wide open for a moment
+      if (!r.isPlayer && r.aim === this.player.id) {
+        r.openT = A.open;
+        r.speed *= 0.94;
+        this.events.push({ type: 'whiff', rider: r.id, dodged: dodged !== null });
+      }
+      return;
+    }
+    const counter = r.isPlayer && victim.openT > 0;
+    const dmg = (r.weapon ? C.WEAPON[r.weapon].dmg : 1) + (counter ? A.counterDmg : 0);
     victim.hp -= dmg;
-    victim.vx += r.atkSide * C.ATTACK.push;
-    victim.speed *= C.ATTACK.slow;
+    victim.vx += r.atkSide * (A.push + (r.weapon ? C.WEAPON[r.weapon].push : 0));
+    victim.latV = 0;
+    victim.stagT = victim.isPlayer ? A.stagger.player : A.stagger.ai;
+    victim.shoveT = C.SHOVE.ticks;
+    victim.openT = 0;
+    victim.speed *= A.slow;
     victim.hitT = 6;
     victim.hitBy = r.id;
     const ko = victim.hp <= 0;
-    this.events.push({ type: 'hit', from: r.id, to: victim.id, side: r.atkSide, dmg, ko });
-    if (ko) this.knockOff(victim, r);
+    this.events.push({ type: 'hit', from: r.id, to: victim.id, side: r.atkSide, dmg, ko, counter });
+    if (r.isPlayer && this.patrolSees()) this.addHeat(ko ? C.HEAT.hit + C.HEAT.down : C.HEAT.hit);
+    if (ko) return this.knockOff(victim, r);
+    // the blow can knock their weapon loose: an empty hand takes it, an armed one knocks it to the road
+    if (victim.weapon && this.combatRng.float() < (counter ? 1 : r.isPlayer ? C.STEAL.player : C.STEAL.ai)) {
+      const kind = victim.weapon;
+      victim.weapon = null;
+      const took = r.weapon === null && !r.thug;
+      if (took) r.weapon = kind;
+      else this.pickups.push({ id: this.nextId++, x: clamp(victim.x + r.atkSide * 1.2, -C.EDGE, C.EDGE), z: victim.z + 6, kind });
+      this.events.push({ type: 'steal', from: r.id, to: victim.id, kind, took });
+    }
   }
 
-  private knockOff(v: Rider, by: Rider): void {
-    if (by.isPlayer) {
-      this.kos++;
-      if (this.grudges.has(v.id)) { this.grudgeKos++; this.grudges.delete(v.id); }
-    }
+  /** A security buggy is close enough to see what the player is up to. */
+  private patrolSees(): boolean {
+    return this.patrol.active && Math.abs(this.patrol.z - this.player.z) < C.HEAT.near;
+  }
+
+  private addHeat(v: number): void {
+    this.heat = clamp(this.heat + v, 0, C.HEAT.max);
+  }
+
+  /** Whoever put `v` down gets the credit: the player's settle grudges, a rival's on the player starts one. */
+  private credit(v: Rider, by: Rider): void {
+    if (by.isPlayer && this.grudges.has(v.id)) { this.grudgeKos++; this.grudges.delete(v.id); }
     if (v.isPlayer && !by.isPlayer && !by.thug) {
       by.koPlayer++;
       if (by.koPlayer >= C.GRUDGE_AT && !this.grudges.has(by.id)) {
@@ -597,6 +675,11 @@ export class World {
         this.events.push({ type: 'grudge', rider: by.id });
       }
     }
+  }
+
+  private knockOff(v: Rider, by: Rider): void {
+    if (by.isPlayer) this.kos++;
+    this.credit(v, by);
     this.crash(v, 'ko', by.atkSide * 6);
   }
 
@@ -619,6 +702,17 @@ export class World {
       this.threatCd = Math.max(this.threatCd, Math.round(C.LEADER.mercy * C.TICK_HZ));
     }
     this.events.push({ type: 'crash', rider: r.id, cause: c, vx, speed: r.speed });
+    // knocked into a car or the barrier just after a blow: that one counts for whoever struck
+    if (c !== 'ko' && r.shoveT > 0 && r.hitBy >= 0) {
+      const by = this.riders[r.hitBy];
+      if (by.isPlayer) {
+        this.shoves++;
+        if (this.patrolSees()) this.addHeat(C.HEAT.down);
+      }
+      this.credit(r, by);
+      this.events.push({ type: 'shove', from: by.id, to: r.id, into: c });
+    }
+    r.shoveT = r.stagT = r.openT = 0;
     if (r.weapon) {
       const p: Pickup = { id: this.nextId++, x: clamp(r.x + Math.sign(vx || 1) * 1.2, -C.EDGE, C.EDGE), z: r.z + 6, kind: r.weapon };
       this.pickups.push(p);
@@ -707,9 +801,11 @@ export class World {
     const p = this.player;
     const P = C.PATROL;
     const riding = p.state === 'ride';
+    this.heat = Math.max(0, this.heat - C.HEAT.decay * C.DT);
+    const units = this.patrolCount + Math.floor(this.heat) * C.HEAT.units;
     if (!pt.active) {
       if (pt.wait > 0) pt.wait--;
-      else if (riding && !p.finished && pt.units < this.patrolCount && p.z > this.patrolFrom && p.z < this.length - P.stopBefore) this.sendPatrol();
+      else if (riding && !p.finished && pt.units < units && p.z > this.patrolFrom && p.z < this.length - P.stopBefore) this.sendPatrol();
       return;
     }
     pt.t++;
@@ -722,7 +818,12 @@ export class World {
       const off = P.halfW + P.riderHalfW + 1.2;
       return Math.abs(s.x + side * off) <= C.EDGE ? s.x + side * off : s.x - side * off;
     };
-    const leave = () => { pt.mode = 'leave'; pt.t = 0; };
+    const leave = () => {
+      // it had them and they never pulled over: word gets round
+      if ((pt.mode === 'squeeze' || pt.mode === 'block') && pt.hold > C.TICK_HZ / 2 && riding && !p.finished) this.addHeat(C.HEAT.flee);
+      pt.mode = 'leave';
+      pt.t = 0;
+    };
     const toBlock = () => {
       pt.mode = 'block';
       pt.laneX = C.LANE_X[nearestLane(s.x, false)];
@@ -820,7 +921,8 @@ export class World {
           pt.side = pt.x >= p.x ? 1 : -1;
           pt.push = -pt.side as Side;
           // never into a car: with one on the shoulder side coming up, it eases off and leaves them a gap
-          want = this.carOnShoulder(pt.push)
+          // (unless the heat is up: then it's their own lookout)
+          want = this.heat < C.HEAT.rough && this.carOnShoulder(pt.push)
             ? f.x + pt.side * (wide + 1)
             : f.x + pt.side * (wide - P.squeezeIn);
           steer = P.pushSteer;
@@ -836,7 +938,10 @@ export class World {
         speed = clamp(s.speed + (s.z + P.halfL + 3 - pt.z) * 1.2, 0, pt.top);
         if (!riding) leave();
         else if (pt.haltT > P.letHold * C.TICK_HZ) {
-          this.events.push({ type: 'patrolLetGo' });
+          const fine = P.fine + Math.floor(this.heat) * P.fineStar;
+          this.fines += fine;
+          this.addHeat(-C.HEAT.comply);
+          this.events.push({ type: 'patrolLetGo', fine });
           leave();
         } else if (s.speed > P.haltSpeed + 5) {
           // took off again before the warning: back at it
@@ -889,7 +994,7 @@ export class World {
     const sec = this.patrolRng.float() < P.pairChance
       ? this.roll(P.pairGap)
       : (P.gapEarly + (P.gapLate - P.gapEarly) * prog) * this.patrolRate * this.roll(P.gapJitter);
-    this.patrol.wait = Math.round(sec * C.TICK_HZ);
+    this.patrol.wait = Math.round(sec / (1 + C.HEAT.gap * this.heat) * C.TICK_HZ);
   }
 
   private roll(r: readonly [number, number]): number {
@@ -908,10 +1013,15 @@ export class World {
     // never turns up in the oncoming lane: it comes from behind in the player's direction of travel
     let x = Math.max(p.x, C.LANE_X[1]);
     let z = p.z - this.roll(P.spawnBack);
-    if (from === 'ahead') {
-      // a same-direction side lane with no car near the spot (lane 0 is oncoming)
-      const clear = (cx: number, cz: number) =>
-        this.cars.every((c) => Math.abs(c.x - cx) > C.CAR.halfW + P.halfW || Math.abs(c.z - cz) > C.CAR.halfL + P.halfL + 6);
+    // no car near the spot it turns up on
+    const clear = (cx: number, cz: number) =>
+      this.cars.every((c) => Math.abs(c.x - cx) > C.CAR.halfW + P.halfW || Math.abs(c.z - cz) > C.CAR.halfL + P.halfL + 6);
+    if (from === 'behind') {
+      const cx = [x, C.LANE_X[1], C.LANE_X[2], C.LANE_X[3]].find((cx) => clear(cx, z));
+      if (cx === undefined) { pt.wait = C.TICK_HZ; return; }
+      x = cx;
+    } else {
+      // a same-direction side lane (lane 0 is oncoming)
       const z0 = p.z + this.roll(P.spawnAhead);
       let spot: { x: number; z: number; side: Side } | null = null;
       for (let dz = 0; dz <= 60 && !spot; dz += 15) {
@@ -928,9 +1038,9 @@ export class World {
     Object.assign(pt, {
       active: true, mode: from === 'ahead' ? 'lurk' : 'chase', t: 0, side, push: -side as Side, hold: 0, x, z,
       speed: from === 'ahead' ? p.top * pace : p.speed,
-      from, move, pace, press: Math.round(this.roll(P.pressSec) * C.TICK_HZ),
+      from, move, pace, press: Math.round(this.roll(P.pressSec) * (1 + C.HEAT.press * this.heat) * C.TICK_HZ),
       blockAhead: this.roll(P.blockAhead), pullOutAt: this.roll(P.pullOutAt),
-      react: Math.round(this.roll(P.react)), top: this.roll(P.top),
+      react: Math.max(3, Math.round(this.roll(P.react) - Math.floor(this.heat) * C.HEAT.react)), top: this.roll(P.top),
       vx: 0, laneX: x, laneT: 0, slowT: 0, haltT: 0, resume: move,
     });
     pt.px = pt.x;

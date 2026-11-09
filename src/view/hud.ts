@@ -15,6 +15,9 @@ export interface RaceResult {
   koBonus: number;
   grudgeKos: number;
   grudgeBonus: number;
+  shoves: number;
+  shoveBonus: number;
+  fines: number;
   earned: number;
   time: number;
   grudges: string[];
@@ -39,11 +42,16 @@ export class Hud {
   private readonly hint: HTMLElement;
   private readonly slapL: HTMLElement;
   private readonly slapR: HTMLElement;
+  private readonly incL: HTMLElement;
+  private readonly incR: HTMLElement;
+  private readonly heatEl: HTMLElement;
+  /** Per rider: seconds left of a swing wound up at the player. */
+  private tellT: number[] = [];
   private readonly results: HTMLElement;
   private readonly pauseEl: HTMLElement;
   readonly pauseBtn: HTMLButtonElement;
   private barW = 200;
-  private last = { place: '', hp: '', cash: -1, slapL: false, slapR: false, chaser: '' };
+  private last = { place: '', hp: '', cash: -1, slapL: false, slapR: false, chaser: '', incL: false, incR: false, heat: '' };
   private bannerT = 0;
   private readonly pt = { x: 0, y: 0 };
 
@@ -53,6 +61,7 @@ export class Hud {
         <div class="top">
           <div class="place"><b>8</b><span>/8</span></div>
           <div class="hp"></div>
+          <div class="heat"></div>
           <div class="grow"></div>
           <div class="cash">$0</div>
           <button class="pausebtn" aria-label="Pause">II</button>
@@ -61,6 +70,8 @@ export class Hud {
         <div class="labels"></div>
         <div class="slap l">◀ SLAP</div>
         <div class="slap r">SLAP ▶</div>
+        <div class="inc l">⚠</div>
+        <div class="inc r">⚠</div>
         <div class="banner"></div>
         <div class="chaser"></div>
         <div class="hint">Drag to steer · Tap to slap</div>
@@ -79,6 +90,9 @@ export class Hud {
     this.hint = $(this.root, '.hint');
     this.slapL = $(this.root, '.slap.l');
     this.slapR = $(this.root, '.slap.r');
+    this.incL = $(this.root, '.inc.l');
+    this.incR = $(this.root, '.inc.r');
+    this.heatEl = $(this.root, '.heat');
     this.results = $(host, '#results');
     this.pauseEl = $(host, '#paused');
     this.pauseBtn = $(this.root, '.pausebtn');
@@ -112,7 +126,8 @@ export class Hud {
       lab.appendChild(l);
       this.labels.push(l);
     }
-    this.last = { place: '', hp: '', cash: -1, slapL: false, slapR: false, chaser: '' };
+    this.last = { place: '', hp: '', cash: -1, slapL: false, slapR: false, chaser: '', incL: false, incR: false, heat: '' };
+    this.tellT = w.riders.map(() => 0);
     this.chaser.classList.remove('on');
     this.banner.className = 'banner';
     this.resize();
@@ -128,6 +143,11 @@ export class Hud {
     void this.banner.offsetWidth; // restart the animation
     this.banner.className = `banner show ${kind}`;
     this.bannerT = 1.4;
+  }
+
+  /** Rider `id` has wound up a swing at the player that lands in `secs`. */
+  tell(id: number, secs: number): void {
+    this.tellT[id] = secs + 0.05;
   }
 
   setPaused(on: boolean): void {
@@ -164,6 +184,10 @@ export class Hud {
       if (l.classList.contains('grudge') !== grudge) l.classList.toggle('grudge', grudge);
       const hunt = r.huntT > 0;
       if (l.classList.contains('hunt') !== hunt) l.classList.toggle('hunt', hunt);
+      const tell = this.tellT[i] > 0;
+      if (l.classList.contains('tell') !== tell) l.classList.toggle('tell', tell);
+      const open = r.openT > 0 && !tell;
+      if (l.classList.contains('open') !== open) l.classList.toggle('open', open);
       l.style.transform = `translate(${this.pt.x.toFixed(1)}px, ${this.pt.y.toFixed(1)}px) translate(-50%, -100%)`;
     }
     // slap reach indicators
@@ -181,6 +205,28 @@ export class Hud {
     }
     if (left !== this.last.slapL) { this.slapL.classList.toggle('on', left); this.last.slapL = left; }
     if (right !== this.last.slapR) { this.slapR.classList.toggle('on', right); this.last.slapR = right; }
+    // a swing coming in: which side to get away from
+    let incL = false;
+    let incR = false;
+    for (let i = 1; i < this.tellT.length; i++) {
+      if (this.tellT[i] <= 0) continue;
+      this.tellT[i] -= dt;
+      const r = w.riders[i];
+      if (r.state !== 'ride' || p.state !== 'ride') { this.tellT[i] = 0; continue; }
+      if (r.x > p.x) incR = true;
+      else incL = true;
+    }
+    if (incL !== this.last.incL) { this.incL.classList.toggle('on', incL); this.last.incL = incL; }
+    if (incR !== this.last.incR) { this.incR.classList.toggle('on', incR); this.last.incR = incR; }
+    // heat: a star per level, the next one filling in
+    const lit = Math.floor(w.heat);
+    const heat = w.heat < 0.05 ? '' : `${lit}:${Math.round((w.heat - lit) * 4)}`;
+    if (heat !== this.last.heat) {
+      this.last.heat = heat;
+      this.heatEl.innerHTML = heat === '' ? '' : Array.from({ length: 3 }, (_, i) =>
+        `<i style="opacity:${i < lit ? 1 : i === lit ? 0.2 + 0.6 * (w.heat - lit) : 0.15}">★</i>`).join('');
+      this.heatEl.classList.toggle('hot', lit >= 2);
+    }
     // a rival hunting the leader from behind: who and how far back
     let chase = '';
     if (p.state !== 'away') {
@@ -221,7 +267,9 @@ export class Hud {
       <div class="rows">
         ${row(`Prize (${ordinal(res.place)})`, `$${res.prize}`)}
         ${row(`Knockouts × ${res.kos}`, `$${res.koBonus}`)}
+        ${res.shoves ? row(`Into traffic or the wall × ${res.shoves}`, `$${res.shoveBonus}`, 'good') : ''}
         ${res.grudgeKos ? row(`Grudges settled × ${res.grudgeKos}`, `$${res.grudgeBonus}`, 'good') : ''}
+        ${res.fines ? row('Security fines', `−$${res.fines}`, 'bad') : ''}
         ${row('Earned', `$${res.earned}`, 'total')}
       </div>
       ${res.grudges.length ? `<div class="grudges">Holding a grudge: <b>${res.grudges.join(', ')}</b><br><small>Knock them off next race for +$150 each</small></div>` : ''}
