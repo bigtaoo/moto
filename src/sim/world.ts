@@ -74,15 +74,24 @@ export interface Pickup {
   kind: C.WeaponKind;
 }
 
+/**
+ * The security buggy on the road right now, if any. Each one makes a single go at the player and then
+ * leaves the race; the next one is a different buggy, from behind or waiting ahead.
+ */
 export interface Patrol {
   active: boolean;
-  /** chase: ride up from behind. block: cut in front and hold the player up. squeeze: ride alongside and lean in. */
-  mode: 'chase' | 'block' | 'squeeze' | 'fall' | 'off';
+  /**
+   * chase: ride up from behind. lurk: cruise slowly in a side lane ahead, waiting. block: get in front and
+   * hold the player up. squeeze: ride alongside and lean in. leave: pull off the player's line and drop out.
+   */
+  mode: 'chase' | 'lurk' | 'block' | 'squeeze' | 'leave';
   t: number;
   /** Which side of the player it works from. */
   side: Side;
-  /** Goes so far, to alternate block and squeeze. */
-  goes: number;
+  /** Buggies sent so far this race; picks how the next one comes. */
+  units: number;
+  /** Ticks until the next buggy, once this one has gone. */
+  wait: number;
   /** Blocking: has it got in front yet? */
   ahead: boolean;
   x: number;
@@ -138,7 +147,7 @@ export class World {
   readonly riders: Rider[] = [];
   readonly cars: Car[] = [];
   readonly pickups: Pickup[] = [];
-  readonly patrol: Patrol = { active: false, mode: 'off', t: 0, side: 1, goes: 0, ahead: false, x: 0, z: 0, px: 0, pz: 0, speed: 0 };
+  readonly patrol: Patrol = { active: false, mode: 'leave', t: 0, side: 1, units: 0, wait: 0, ahead: false, x: 0, z: 0, px: 0, pz: 0, speed: 0 };
   readonly events: SimEvent[] = [];
   readonly grudges: Set<number>;
   readonly input: Input = { targetX: null, steer: 0, brake: false, attack: false };
@@ -474,7 +483,7 @@ export class World {
         }
         // ...and behind the security buggy when it is in their lane
         const pt = this.patrol;
-        if (pt.active && pt.mode !== 'off' && Math.abs(pt.x - c.x) < C.CAR.halfW + C.PATROL.halfW + 0.15 &&
+        if (pt.active && Math.abs(pt.x - c.x) < C.CAR.halfW + C.PATROL.halfW + 0.15 &&
           pt.z > c.z && pt.z - c.z < 10 && pt.speed < c.speed) c.speed = pt.speed;
       }
       c.z += c.speed * C.DT;
@@ -528,39 +537,47 @@ export class World {
     const pt = this.patrol;
     const p = this.player;
     const P = C.PATROL;
+    const riding = p.state === 'ride';
     if (!pt.active) {
-      if (!p.finished && p.z > this.length * P.startAt) {
-        Object.assign(pt, { active: true, mode: 'chase', t: 0, x: p.x, z: p.z - P.spawnBack, speed: p.speed });
-        pt.px = pt.x;
-        pt.pz = pt.z;
-        this.patrolContacts(); // don't appear inside someone
-      }
+      if (pt.wait > 0) pt.wait--;
+      else if (riding && !p.finished && p.z > this.length * P.startAt && p.z < this.length - P.stopBefore) this.sendPatrol();
       return;
     }
-    if (p.finished && pt.mode !== 'fall' && pt.mode !== 'off') { pt.mode = 'fall'; pt.t = 9999; }
     pt.t++;
     const gap = p.z - pt.z;
-    const riding = p.state === 'ride';
     // a lane's width to one side of the player, on a side with room
     const beside = (side: Side): number => {
       const off = P.halfW + P.riderHalfW + 1.2;
       return Math.abs(p.x + side * off) <= C.EDGE ? p.x + side * off : p.x - side * off;
     };
+    const leave = () => { pt.mode = 'leave'; pt.t = 0; };
+    if (p.finished && pt.mode !== 'leave') leave();
     let want = pt.x;
     let speed = pt.speed;
     switch (pt.mode) {
       case 'chase':
-        speed = p.speed + P.chaseGain + Math.max(0, gap - 30) * 0.25;
+        // while the player is down it hangs back and waits for them to get going again
+        speed = riding ? p.speed + P.chaseGain + Math.max(0, gap - 30) * 0.25 : p.speed + clamp(gap - 30, -8, 8);
         // come up a lane over, never into the player's back
         pt.side = pt.x >= p.x ? 1 : -1;
         want = beside(pt.side);
-        if (!riding) { pt.mode = 'fall'; pt.t = 0; }
-        else if (gap < P.warnAt) {
-          pt.mode = pt.goes++ % 2 === 0 ? 'block' : 'squeeze';
+        if (pt.t > P.giveUp * C.TICK_HZ || p.finished) leave();
+        else if (riding && gap < P.warnAt) {
+          pt.mode = pt.units % 3 === 1 ? 'squeeze' : 'block'; // first, fourth ... squeeze; third, sixth ... block from behind
           pt.t = 0;
           pt.ahead = false;
           this.events.push({ type: 'patrolWarn' });
         }
+        break;
+      case 'lurk':
+        // cruise in its lane until the player comes up behind, then pull across in front of them
+        speed = Math.max(6, p.speed * P.lurkPace);
+        if (-gap < P.pullOutAt && riding) {
+          pt.mode = 'block';
+          pt.t = 0;
+          pt.ahead = true;
+          this.events.push({ type: 'patrolWarn' });
+        } else if (-gap < P.halfL || pt.t > P.giveUp * C.TICK_HZ) leave(); // got past it while down, or never came
         break;
       case 'block': {
         const lead = pt.z - p.z;
@@ -571,10 +588,11 @@ export class World {
           if (lead > P.halfL + 2.5) { pt.ahead = true; pt.t = 0; }
         } else {
           // sit in front of the player, a bit slower than they'd like to go
-          speed = Math.min(p.top * P.blockPace, p.speed + (P.blockAhead - lead) * 1.5);
+          speed = clamp(p.speed + (P.blockAhead - lead) * 1.5, p.speed * 0.5, p.top * P.blockPace);
           want = p.x;
+          if (lead > 12) pt.t = 0; // the clock runs once it's actually in their way
         }
-        if (!riding || pt.t > P.pressTicks || (pt.ahead && lead < -2) || (!pt.ahead && pt.t > P.pressTicks)) { pt.mode = 'fall'; pt.t = 0; }
+        if (!riding || pt.t > P.pressTicks || (pt.ahead && lead < -2)) leave();
         break;
       }
       case 'squeeze':
@@ -582,25 +600,57 @@ export class World {
         pt.side = pt.x >= p.x ? 1 : -1;
         speed = p.speed + clamp(gap * 2, -6, 6);
         want = p.x + pt.side * (P.halfW + P.riderHalfW - P.squeezeIn);
-        if (!riding || pt.t > P.pressTicks) { pt.mode = 'fall'; pt.t = 0; }
+        if (!riding || pt.t > P.pressTicks) leave();
         break;
-      case 'fall':
-        // pull off the player's line first; only drop back once it's out of their way
+      case 'leave':
+        // pull off the player's line first, then brake and drop out of the race for good
         want = beside(pt.side);
-        speed = gap < 0.5 && Math.abs(pt.x - p.x) < P.halfW + P.riderHalfW + 0.3 ? p.speed + 3 : Math.max(4, p.speed - 9);
-        if (gap > P.fallBack && pt.t > P.fallTicks) {
-          if (p.finished) pt.mode = 'off';
-          else { pt.mode = 'chase'; pt.t = 0; }
+        speed = gap < 0.5 && Math.abs(pt.x - p.x) < P.halfW + P.riderHalfW + 0.3 ? p.speed + 3 : Math.max(4, p.speed - 15);
+        if (gap > P.goneAt || -gap > P.goneAhead) {
+          pt.active = false;
+          const prog = clamp(p.z / this.length, 0, 1);
+          pt.wait = Math.round((P.gapEarly + (P.gapLate - P.gapEarly) * prog) * C.TICK_HZ);
+          return;
         }
-        break;
-      case 'off':
-        speed = 0;
         break;
     }
     pt.speed = speed > pt.speed ? Math.min(speed, pt.speed + P.accel * C.DT) : Math.max(speed, pt.speed - P.brake * C.DT);
     this.patrolTraffic(want);
     pt.z += pt.speed * C.DT;
     this.patrolContacts();
+  }
+
+  /** A fresh buggy: every third one waits ahead in a side lane, the rest come up from behind. */
+  private sendPatrol(): void {
+    const pt = this.patrol;
+    const p = this.player;
+    const P = C.PATROL;
+    const ahead = pt.units % 3 === 1;
+    let side: Side = p.x >= 0 ? -1 : 1;
+    let x = p.x;
+    let z = p.z - P.spawnBack;
+    if (ahead) {
+      // a same-direction side lane with no car near the spot (lane 0 is oncoming)
+      const clear = (cx: number, cz: number) =>
+        this.cars.every((c) => Math.abs(c.x - cx) > C.CAR.halfW + P.halfW || Math.abs(c.z - cz) > C.CAR.halfL + P.halfL + 6);
+      let spot: { x: number; z: number; side: Side } | null = null;
+      for (let dz = 0; dz <= 60 && !spot; dz += 15) {
+        for (const s of [side, -side as Side]) {
+          const cx = s > 0 ? C.LANE_X[3] : C.LANE_X[1];
+          if (clear(cx, p.z + P.spawnAhead + dz)) { spot = { x: cx, z: p.z + P.spawnAhead + dz, side: s }; break; }
+        }
+      }
+      if (!spot) { pt.wait = C.TICK_HZ; return; } // road's busy up there; try again in a second
+      ({ x, z, side } = spot);
+    }
+    pt.units++;
+    Object.assign(pt, {
+      active: true, mode: ahead ? 'lurk' : 'chase', t: 0, side, ahead: false, x, z,
+      speed: ahead ? p.speed * P.lurkPace : p.speed,
+    });
+    pt.px = pt.x;
+    pt.pz = pt.z;
+    this.patrolContacts(); // don't appear inside someone
   }
 
   /**
@@ -610,7 +660,7 @@ export class World {
    */
   private patrolContacts(): void {
     const pt = this.patrol;
-    if (pt.mode === 'off') return;
+    if (!pt.active) return;
     const P = C.PATROL;
     const wide = P.halfW + P.riderHalfW;
     const long = P.halfL + 0.6;

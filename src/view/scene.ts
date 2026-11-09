@@ -146,7 +146,7 @@ export class RaceView {
       }
     }
     for (const c of w.cars) this.shadows.add(c.x, lerp(c.pz, c.z, alpha), CAR.halfW * 1.25, CAR.halfL * 1.1);
-    if (w.patrol.active && w.patrol.mode !== 'off') this.shadows.add(lerp(w.patrol.px, w.patrol.x, alpha), lerp(w.patrol.pz, w.patrol.z, alpha), 1.2, 1.9);
+    if (w.patrol.active) this.shadows.add(lerp(w.patrol.px, w.patrol.x, alpha), lerp(w.patrol.pz, w.patrol.z, alpha), 1.2, 1.9);
     this.shadows.end();
     this.traffic.update(w, alpha);
     this.patrol.update(w, alpha, dt);

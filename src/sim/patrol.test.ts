@@ -13,7 +13,7 @@ describe('security buggy', () => {
         w.step();
         w.events.length = 0;
         const pt = w.patrol;
-        if (!pt.active || pt.mode === 'off') continue;
+        if (!pt.active) continue;
         for (const c of w.cars) {
           if (Math.abs(c.x - pt.x) < C.CAR.halfW + C.PATROL.halfW && Math.abs(c.z - pt.z) < C.CAR.halfL + C.PATROL.halfL) overlaps++;
         }
@@ -34,7 +34,7 @@ describe('security buggy', () => {
         for (const e of w.events) if (e.type === 'patrolWarn') presses++;
         w.events.length = 0;
         const pt = w.patrol;
-        if (!pt.active || pt.mode === 'off') continue;
+        if (!pt.active) continue;
         if (pt.mode === 'block' || pt.mode === 'squeeze') pressTicks++;
         for (const r of w.riders) {
           if (r.state !== 'ride') continue;
@@ -45,6 +45,33 @@ describe('security buggy', () => {
     expect(inside).toBe(0);
     expect(presses).toBeGreaterThan(4);
     expect(pressTicks).toBeGreaterThan(0);
+  });
+
+  it('each buggy makes one go and leaves: several per race, none tags along', () => {
+    let units = 0;
+    let races = 0;
+    let longest = 0;
+    for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+      const w = new World({ seed, upgrades: { top: 3, steer: 3, hp: 0 } });
+      const warned = new Set<number>();
+      let on = 0;
+      while (!w.over && w.tick < 300 * C.TICK_HZ) {
+        botInput(w, 1, false);
+        w.step();
+        for (const e of w.events) {
+          if (e.type !== 'patrolWarn') continue;
+          expect(warned.has(w.patrol.units)).toBe(false); // a buggy never comes back for a second go
+          warned.add(w.patrol.units);
+        }
+        w.events.length = 0;
+        on = w.patrol.active ? on + 1 : 0;
+        longest = Math.max(longest, on);
+      }
+      units += w.patrol.units;
+      races++;
+    }
+    expect(units / races).toBeGreaterThanOrEqual(3);
+    expect(longest / C.TICK_HZ).toBeLessThan(40); // seconds any one buggy spends on the road
   });
 
   it('slows you while it squeezes you', () => {
@@ -58,7 +85,7 @@ describe('security buggy', () => {
         w.step();
         w.events.length = 0;
         const p = w.player;
-        if (w.patrol.mode === 'squeeze' && p.state === 'ride' && p.rubT === C.CONTACT.rubTicks && Math.abs(p.x - w.patrol.x) < 1.5) {
+        if (w.patrol.active && w.patrol.mode === 'squeeze' && p.state === 'ride' && p.rubT === C.CONTACT.rubTicks && Math.abs(p.x - w.patrol.x) < 1.5) {
           squeezed++;
           lost += before - p.speed;
         }

@@ -163,7 +163,7 @@ export class PatrolView {
 
   update(w: World, alpha: number, dt: number): void {
     const pt = w.patrol;
-    this.root.visible = pt.active && pt.mode !== 'off';
+    this.root.visible = pt.active;
     if (!this.root.visible) return;
     this.t += dt * (pt.mode === 'block' || pt.mode === 'squeeze' ? 14 : 7);
     const on = Math.sin(this.t) > 0;
