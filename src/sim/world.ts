@@ -88,8 +88,16 @@ export interface Patrol {
   t: number;
   /** Which side of the player it works from. */
   side: Side;
-  /** Buggies sent so far this race; picks how the next one comes. */
+  /** Buggies sent so far this race. */
   units: number;
+  /** This buggy's plan, rolled when it is sent: where it comes from and which move it makes. */
+  from: 'behind' | 'ahead';
+  move: 'block' | 'squeeze';
+  /** Its rolled numbers: ticks it presses for, metres ahead it blocks at, where it pulls out, lurking pace. */
+  press: number;
+  blockAhead: number;
+  pullOutAt: number;
+  pace: number;
   /** Ticks until the next buggy, once this one has gone. */
   wait: number;
   /** Blocking: has it got in front yet? */
@@ -147,7 +155,17 @@ export class World {
   readonly riders: Rider[] = [];
   readonly cars: Car[] = [];
   readonly pickups: Pickup[] = [];
-  readonly patrol: Patrol = { active: false, mode: 'leave', t: 0, side: 1, units: 0, wait: 0, ahead: false, x: 0, z: 0, px: 0, pz: 0, speed: 0 };
+  readonly patrol: Patrol = {
+    active: false, mode: 'leave', t: 0, side: 1, units: 0, wait: 0, ahead: false, x: 0, z: 0, px: 0, pz: 0, speed: 0,
+    from: 'behind', move: 'block', press: 0, blockAhead: 0, pullOutAt: 0, pace: 0,
+  };
+  /** Patrol dice: their own stream, so they don't shift traffic or AI. Busy-ness and first arrival are per race. */
+  private readonly patrolRng: Prng;
+  /** Leaving buggies that had to vanish because traffic wedged them in by the player (should be rare). */
+  patrolStuck = 0;
+  private readonly patrolCount: number;
+  private readonly patrolRate: number;
+  private readonly patrolFrom: number;
   readonly events: SimEvent[] = [];
   readonly grudges: Set<number>;
   readonly input: Input = { targetX: null, steer: 0, brake: false, attack: false };
@@ -170,6 +188,13 @@ export class World {
     this.length = opts.length ?? C.RACE_LEN;
     this.traffic = new Prng(opts.seed * 7 + 1);
     this.aiRng = new Prng(opts.seed * 13 + 5);
+    this.patrolRng = new Prng(opts.seed * 17 + 11);
+    const [lo, hi] = C.PATROL.count;
+    this.patrolCount = lo + this.patrolRng.int(hi - lo + 1);
+    this.patrolRate = C.PATROL.busyGap[0] + (C.PATROL.busyGap[1] - C.PATROL.busyGap[0]) * (this.patrolCount - lo) / (hi - lo);
+    const busy = (this.patrolCount - lo) / (hi - lo);
+    const [s0, s1] = C.PATROL.startAt;
+    this.patrolFrom = this.length * clamp(s1 - (s1 - s0) * busy + (this.patrolRng.float() - 0.5) * 0.1, s0, s1);
     this.grudges = new Set(opts.grudges ?? []);
     const up = opts.upgrades ?? { top: 0, steer: 0, hp: 0 };
     const grid = (i: number) => ({ x: C.LANE_X[1 + (i % 3)] + (i >= 3 ? -0.9 : 0.9), z: 14 - Math.floor(i / 3) * 6 });
@@ -540,7 +565,7 @@ export class World {
     const riding = p.state === 'ride';
     if (!pt.active) {
       if (pt.wait > 0) pt.wait--;
-      else if (riding && !p.finished && p.z > this.length * P.startAt && p.z < this.length - P.stopBefore) this.sendPatrol();
+      else if (riding && !p.finished && pt.units < this.patrolCount && p.z > this.patrolFrom && p.z < this.length - P.stopBefore) this.sendPatrol();
       return;
     }
     pt.t++;
@@ -563,21 +588,30 @@ export class World {
         want = beside(pt.side);
         if (pt.t > P.giveUp * C.TICK_HZ || p.finished) leave();
         else if (riding && gap < P.warnAt) {
-          pt.mode = pt.units % 3 === 1 ? 'squeeze' : 'block'; // first, fourth ... squeeze; third, sixth ... block from behind
+          pt.mode = pt.move;
           pt.t = 0;
           pt.ahead = false;
           this.events.push({ type: 'patrolWarn' });
         }
         break;
       case 'lurk':
-        // cruise in its lane until the player comes up behind, then pull across in front of them
-        speed = Math.max(6, p.speed * P.lurkPace);
-        if (-gap < P.pullOutAt && riding) {
-          pt.mode = 'block';
+        // cruise in its lane until the player comes up behind, then pull across in front of them, or wait
+        // until they're level and lean in
+        // a set pace, not the player's: if it matched them it could drag along someone stuck behind it
+        speed = p.top * pt.pace;
+        const inLane = Math.abs(p.x - pt.x) < P.halfW + P.riderHalfW + 0.5;
+        // a squeezer speeds up as the player closes so they draw level slowly instead of running into its back
+        if (pt.move === 'squeeze' && -gap < 25 && riding) speed = Math.max(4, p.speed - clamp(-gap * 0.3, 1.5, 6));
+        if (riding && (pt.move === 'block' ? -gap < pt.pullOutAt : gap > -1 || (inLane && -gap < 8))) {
+          pt.mode = pt.move;
           pt.t = 0;
           pt.ahead = true;
           this.events.push({ type: 'patrolWarn' });
-        } else if (-gap < P.halfL || pt.t > P.giveUp * C.TICK_HZ) leave(); // got past it while down, or never came
+        } else if (gap > P.halfL + 2) leave(); // got past it while down
+        else if (pt.t > P.giveUp * C.TICK_HZ) {
+          if (-gap > 60) return this.patrolGone(); // never came: it turns off far up the road
+          leave();
+        }
         break;
       case 'block': {
         const lead = pt.z - p.z;
@@ -588,30 +622,29 @@ export class World {
           if (lead > P.halfL + 2.5) { pt.ahead = true; pt.t = 0; }
         } else {
           // sit in front of the player, a bit slower than they'd like to go
-          speed = clamp(p.speed + (P.blockAhead - lead) * 1.5, p.speed * 0.5, p.top * P.blockPace);
+          speed = clamp(p.speed + (pt.blockAhead - lead) * 1.5, p.speed * 0.5, p.top * P.blockPace);
           want = p.x;
           if (lead > 12) pt.t = 0; // the clock runs once it's actually in their way
         }
-        if (!riding || pt.t > P.pressTicks || (pt.ahead && lead < -2)) leave();
+        if (!riding || pt.t > pt.press || (pt.ahead && lead < -2)) leave();
         break;
       }
       case 'squeeze':
         // ride level with the player and lean in toward them
         pt.side = pt.x >= p.x ? 1 : -1;
         speed = p.speed + clamp(gap * 2, -6, 6);
-        want = p.x + pt.side * (P.halfW + P.riderHalfW - P.squeezeIn);
-        if (!riding || pt.t > P.pressTicks) leave();
+        // lean in only once level: leaning in from in front would just be a block
+        want = -gap > P.halfL ? beside(pt.side) : p.x + pt.side * (P.halfW + P.riderHalfW - P.squeezeIn);
+        if (!riding || pt.t > pt.press) leave();
         break;
       case 'leave':
-        // pull off the player's line first, then brake and drop out of the race for good
+        // pull off the player's line first, then drop out of the race for good: well ahead, it speeds off;
+        // otherwise it brakes and falls behind
         want = beside(pt.side);
-        speed = gap < 0.5 && Math.abs(pt.x - p.x) < P.halfW + P.riderHalfW + 0.3 ? p.speed + 3 : Math.max(4, p.speed - 15);
-        if (gap > P.goneAt || -gap > P.goneAhead) {
-          pt.active = false;
-          const prog = clamp(p.z / this.length, 0, 1);
-          pt.wait = Math.round((P.gapEarly + (P.gapLate - P.gapEarly) * prog) * C.TICK_HZ);
-          return;
-        }
+        speed = gap < -3 ? p.top + 10 : gap < 0.5 && Math.abs(pt.x - p.x) < P.halfW + P.riderHalfW + 0.3 ? p.speed + 3 : riding ? Math.max(4, p.speed - 15) : 16; // player down: just drive off
+        if (gap > P.goneAt || -gap > P.goneAhead) return this.patrolGone();
+        // wedged in traffic right by the player for a while: it pulls off the road rather than hold them up
+        if (pt.t > P.stuckSec * C.TICK_HZ && Math.abs(gap) < 8 && riding && pt.speed > p.speed - 3 && Math.abs(pt.x - p.x) < P.halfW + P.riderHalfW + 0.3) { this.patrolStuck++; return this.patrolGone(); }
         break;
     }
     pt.speed = speed > pt.speed ? Math.min(speed, pt.speed + P.accel * C.DT) : Math.max(speed, pt.speed - P.brake * C.DT);
@@ -620,33 +653,54 @@ export class World {
     this.patrolContacts();
   }
 
-  /** A fresh buggy: every third one waits ahead in a side lane, the rest come up from behind. */
+  /** This buggy is out of the race; roll when the next one comes. */
+  private patrolGone(): void {
+    const P = C.PATROL;
+    this.patrol.active = false;
+    const prog = clamp(this.player.z / this.length, 0, 1);
+    const sec = this.patrolRng.float() < P.pairChance
+      ? this.roll(P.pairGap)
+      : (P.gapEarly + (P.gapLate - P.gapEarly) * prog) * this.patrolRate * this.roll(P.gapJitter);
+    this.patrol.wait = Math.round(sec * C.TICK_HZ);
+  }
+
+  private roll(r: readonly [number, number]): number {
+    return r[0] + (r[1] - r[0]) * this.patrolRng.float();
+  }
+
+  /** A fresh buggy with its own dice: from behind or waiting ahead, blocking or squeezing, never the same plan twice running. */
   private sendPatrol(): void {
     const pt = this.patrol;
     const p = this.player;
     const P = C.PATROL;
-    const ahead = pt.units % 3 === 1;
-    let side: Side = p.x >= 0 ? -1 : 1;
+    const plans = (['behind block', 'behind squeeze', 'ahead block', 'ahead squeeze'] as const)
+      .filter((k) => pt.units === 0 || k !== `${pt.from} ${pt.move}`);
+    const [from, move] = this.patrolRng.pick(plans).split(' ') as [Patrol['from'], Patrol['move']];
+    let side: Side = this.patrolRng.float() < 0.5 ? -1 : 1;
     let x = p.x;
-    let z = p.z - P.spawnBack;
-    if (ahead) {
+    let z = p.z - this.roll(P.spawnBack);
+    if (from === 'ahead') {
       // a same-direction side lane with no car near the spot (lane 0 is oncoming)
       const clear = (cx: number, cz: number) =>
         this.cars.every((c) => Math.abs(c.x - cx) > C.CAR.halfW + P.halfW || Math.abs(c.z - cz) > C.CAR.halfL + P.halfL + 6);
+      const z0 = p.z + this.roll(P.spawnAhead);
       let spot: { x: number; z: number; side: Side } | null = null;
       for (let dz = 0; dz <= 60 && !spot; dz += 15) {
         for (const s of [side, -side as Side]) {
           const cx = s > 0 ? C.LANE_X[3] : C.LANE_X[1];
-          if (clear(cx, p.z + P.spawnAhead + dz)) { spot = { x: cx, z: p.z + P.spawnAhead + dz, side: s }; break; }
+          if (clear(cx, z0 + dz)) { spot = { x: cx, z: z0 + dz, side: s }; break; }
         }
       }
       if (!spot) { pt.wait = C.TICK_HZ; return; } // road's busy up there; try again in a second
       ({ x, z, side } = spot);
     }
     pt.units++;
+    const pace = this.roll(P.lurkPace);
     Object.assign(pt, {
-      active: true, mode: ahead ? 'lurk' : 'chase', t: 0, side, ahead: false, x, z,
-      speed: ahead ? p.speed * P.lurkPace : p.speed,
+      active: true, mode: from === 'ahead' ? 'lurk' : 'chase', t: 0, side, ahead: false, x, z,
+      speed: from === 'ahead' ? p.top * pace : p.speed,
+      from, move, pace, press: Math.round(this.roll(P.pressSec) * C.TICK_HZ),
+      blockAhead: this.roll(P.blockAhead), pullOutAt: this.roll(P.pullOutAt),
     });
     pt.px = pt.x;
     pt.pz = pt.z;
@@ -717,7 +771,7 @@ export class World {
     const pt = this.patrol;
     const P = C.PATROL;
     const wide = C.CAR.halfW + P.halfW + 0.15;
-    const long = C.CAR.halfL + P.halfL + 0.3;
+    const long = C.CAR.halfL + P.halfL + 0.8; // margin covers the buggy's own move after traffic has moved this tick
     // seconds until the buggy reaches a car along lateral position x (0: one is already beside it)
     const clear = (x: number): number => {
       let best = Infinity;
@@ -747,17 +801,20 @@ export class World {
       (Math.abs(c.z - pt.z) < long || Math.abs(c.z - pt.z - Math.max(0, pt.speed - c.speed) * C.DT) < long);
     if (!this.cars.some(blocked)) pt.x = nx;
     // still boxed in: hang back behind the car ahead (an oncoming one is dodged above)
+    let cap = Infinity;
     for (const c of this.cars) {
       if (Math.abs(c.x - pt.x) >= wide || c.speed <= 0) continue;
       const dist = c.z - pt.z - long;
       if (dist < -long) continue;
-      pt.speed = Math.min(pt.speed, c.speed + Math.max(0, dist) * 1.5);
+      cap = Math.min(cap, Math.max(0, c.speed + dist * 1.5)); // too close already: drop back
     }
-    // and keep ahead of a car coming up right behind it (cars don't see the buggy)
+    pt.speed = Math.min(pt.speed, cap);
+    // and keep ahead of a car coming up right behind it, unless that would run it into the one in front
+    // (the car behind brakes for the buggy then)
     for (const c of this.cars) {
       if (Math.abs(c.x - pt.x) >= wide || c.speed <= 0) continue;
       const dist = pt.z - c.z - long;
-      if (dist < 0.5 && dist > -long) pt.speed = Math.max(pt.speed, c.speed + 0.5);
+      if (dist < 0.5 && dist > -long) pt.speed = Math.max(pt.speed, Math.min(cap, c.speed + 0.5));
     }
   }
 
