@@ -73,7 +73,7 @@ export class RaceView {
   constructor(private readonly stage: Stage, readonly w: World, seed: number) {
     this.track = new Track(w.length, seed);
     this.riders = w.riders.map((r) => new RiderView(r.body, r.ride));
-    this.ragdolls = this.riders.map((rv) => new Ragdoll(rv.bodyMat));
+    this.ragdolls = this.riders.map((rv) => new Ragdoll(rv.body, rv.mat));
     this.group.add(this.track.group, this.traffic.group, this.patrol.root, this.pickups.group, this.shadows.mesh, this.fx.mesh);
     for (const rv of this.riders) this.group.add(rv.root);
     for (const rd of this.ragdolls) this.group.add(rd.group);

@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { ROAD_HALF } from '../sim/config';
 import { toWorld } from './track';
+import { Kit } from './toon';
 
 // head, chest, pelvis, hand L, hand R, foot L, foot R
 const REST: [number, number, number][] = [[0, 1.8, 0], [0, 1.45, 0], [0, 1.08, 0], [-0.32, 1.2, 0.4], [0.32, 1.2, 0.4], [-0.1, 0.25, 0], [0.1, 0.25, 0]];
@@ -31,14 +32,13 @@ export class Ragdoll {
   /** Seconds since the throw. */
   age = 0;
 
-  constructor(bodyMat: THREE.Material) {
-    this.head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), bodyMat);
-    const unit = new THREE.BoxGeometry(1, 1, 1);
-    this.bones = BONES.map(([, , t]) => {
-      const m = new THREE.Mesh(unit, bodyMat);
-      m.scale.set(t, 1, t * 0.8);
-      return m;
-    });
+  /** `mat` is the rider's own vertex-coloured toon material, so a hit flash shows here too. */
+  constructor(body: number, mat: THREE.Material) {
+    const head = new Kit(0.024).add(new THREE.SphereGeometry(0.175, 12, 9), body);
+    for (const s of [-1, 1]) head.decal(0.06, 0xf4d23c, { at: [s * 0.172, 0.01, 0], rot: [0, (s * Math.PI) / 2, 0] });
+    this.head = new THREE.Mesh(head.build(), mat);
+    // Built at unit length and stretched along y to span their two points each frame.
+    this.bones = BONES.map(([, , t]) => new THREE.Mesh(new Kit(0.024).add(new THREE.BoxGeometry(t, 1, t * 0.8), body).build(), mat));
     this.group.add(this.head, ...this.bones);
     this.group.visible = false;
   }

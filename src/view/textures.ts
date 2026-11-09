@@ -29,8 +29,6 @@ export function drawTestSymbol(g: CanvasRenderingContext2D, cx: number, cy: numb
   g.stroke();
 }
 
-let symbol: THREE.CanvasTexture | null = null;
-
 /** A white square board with the test symbol, for roadside signs. */
 export function testSymbolTexture(): THREE.CanvasTexture {
   return makeCanvasTexture(128, 128, (g, w, h) => {
@@ -41,13 +39,4 @@ export function testSymbolTexture(): THREE.CanvasTexture {
     g.fillRect(0, h - 6, w, 6);
     drawTestSymbol(g, w / 2, h / 2, w * 0.36);
   });
-}
-
-/** The round decal on a dummy's head and chest; shared. */
-export function decalTexture(): THREE.CanvasTexture {
-  symbol ??= makeCanvasTexture(64, 64, (g, w, h) => {
-    g.clearRect(0, 0, w, h);
-    drawTestSymbol(g, w / 2, h / 2, w * 0.46, '#f4f4f0');
-  });
-  return symbol;
 }

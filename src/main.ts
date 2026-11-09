@@ -252,6 +252,25 @@ function frame(now: number): void {
   view.update(simDt, Math.min(1, acc / C.DT));
   hud.update(world, view, save.cash, dt);
   hud.showHint(state === 'race' && save.races < 2 && world.time < 6);
+  if (statsEl) showStats(dt);
+}
+
+// ?stats: frame rate and what the GPU is asked to draw, for checking the art budget on a phone.
+const statsEl = params.has('stats') ? document.body.appendChild(document.createElement('pre')) : null;
+if (statsEl) statsEl.style.cssText = 'position:fixed;left:4px;bottom:4px;margin:0;padding:4px 6px;font:11px/1.3 monospace;color:#fff;background:#000a;pointer-events:none;z-index:99';
+let statsT = 0;
+let statsN = 0;
+let statsWorst = 0;
+function showStats(dt: number): void {
+  statsT += dt;
+  statsN++;
+  statsWorst = Math.max(statsWorst, dt);
+  if (statsT < 0.5) return;
+  const r = stage.renderer.info;
+  statsEl!.textContent = `${Math.round(statsN / statsT)} fps  worst ${Math.round(statsWorst * 1000)} ms\n` +
+    `${r.render.calls} calls  ${(r.render.triangles / 1000).toFixed(1)}k tris\n` +
+    `${r.memory.geometries} geos  ${r.memory.textures} tex  ${r.programs?.length ?? 0} progs`;
+  statsT = statsN = statsWorst = 0;
 }
 
 newRace();
