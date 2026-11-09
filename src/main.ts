@@ -116,6 +116,14 @@ function handle(e: SimEvent): void {
       hud.flash('SECURITY!', 'warn');
       sfx.siren();
       break;
+    case 'hunt':
+      hud.flash(`${w.riders[e.rider].name} is hunting you!`, 'warn');
+      sfx.alarm();
+      break;
+    case 'ambush':
+      hud.flash(e.riders.length > 1 ? 'THUGS AHEAD!' : 'THUG AHEAD!', 'warn');
+      sfx.alarm();
+      break;
     case 'grudge':
       hud.flash(`${w.riders[e.rider].name} holds a grudge!`, 'warn');
       break;
@@ -151,7 +159,7 @@ function finishRace(): void {
   save.grudges = [...w.grudges];
   storeSave(save);
   const res: RaceResult = {
-    place, total: w.riders.length, prize, kos: w.kos, koBonus, grudgeKos: w.grudgeKos, grudgeBonus,
+    place, total: w.racers, prize, kos: w.kos, koBonus, grudgeKos: w.grudgeKos, grudgeBonus,
     fines: w.fines, earned, time: w.time, grudges: save.grudges.map((id) => w.riders[id].name),
   };
   state = 'results';
@@ -248,4 +256,4 @@ if (BOT) startRace();
 requestAnimationFrame(frame);
 
 // For poking at the game from the console while testing.
-Object.assign(window, { __game: { get world() { return world; }, get view() { return view; }, get state() { return state; }, save, botInput } });
+Object.assign(window, { __game: { get world() { return world; }, get view() { return view; }, get state() { return state; }, hud, save, botInput } });

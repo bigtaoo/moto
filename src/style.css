@@ -73,6 +73,20 @@ html, body {
 .tag.on { opacity: 1; }
 .tag.grudge { background: var(--red); }
 .tag.grudge::before { content: '😠 '; }
+.tag.hunt { background: #d9480f; }
+.tag.hunt::before { content: '🎯 '; }
+.tag.thug { background: #2b2b31; color: #ff8a7a; }
+.tag.thug::before { content: '☠ '; }
+.prog .dot.hidden { display: none; }
+
+.chaser {
+  position: absolute; left: 50%; bottom: calc(max(14px, env(safe-area-inset-bottom)) + 70px);
+  transform: translate(-50%, 10px); opacity: 0; transition: opacity 0.15s, transform 0.15s;
+  font-size: 15px; font-weight: 900; white-space: nowrap;
+  background: #d9480f; color: var(--paper); border: 3px solid var(--ink); border-radius: 10px; padding: 4px 12px;
+}
+.chaser.on { opacity: 1; transform: translate(-50%, 0); animation: chase 0.8s ease-in-out infinite alternate; }
+@keyframes chase { to { background: #a83208; } }
 
 .slap {
   position: absolute; top: 50%; padding: 8px 12px; font-weight: 900; font-size: 16px;

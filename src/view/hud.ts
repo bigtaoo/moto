@@ -36,6 +36,7 @@ export class Hud {
   private readonly dots: HTMLElement[] = [];
   private readonly labels: HTMLElement[] = [];
   private readonly banner: HTMLElement;
+  private readonly chaser: HTMLElement;
   private readonly hint: HTMLElement;
   private readonly slapL: HTMLElement;
   private readonly slapR: HTMLElement;
@@ -43,7 +44,7 @@ export class Hud {
   private readonly pauseEl: HTMLElement;
   readonly pauseBtn: HTMLButtonElement;
   private barW = 200;
-  private last = { place: '', hp: '', cash: -1, slapL: false, slapR: false };
+  private last = { place: '', hp: '', cash: -1, slapL: false, slapR: false, chaser: '' };
   private bannerT = 0;
   private readonly pt = { x: 0, y: 0 };
 
@@ -62,6 +63,7 @@ export class Hud {
         <div class="slap l">◀ SLAP</div>
         <div class="slap r">SLAP ▶</div>
         <div class="banner"></div>
+        <div class="chaser"></div>
         <div class="hint">Drag to steer · Tap to slap</div>
       </div>
       <div id="results" class="overlay hidden"><div class="card"></div></div>
@@ -74,6 +76,7 @@ export class Hud {
     this.bar = $(this.root, '.prog');
     this.fill = $(this.root, '.prog .fill');
     this.banner = $(this.root, '.banner');
+    this.chaser = $(this.root, '.chaser');
     this.hint = $(this.root, '.hint');
     this.slapL = $(this.root, '.slap.l');
     this.slapR = $(this.root, '.slap.r');
@@ -100,17 +103,18 @@ export class Hud {
     const lab = $(this.root, '.labels');
     for (const r of w.riders) {
       const d = document.createElement('div');
-      d.className = r.isPlayer ? 'dot me' : 'dot';
+      d.className = r.isPlayer ? 'dot me' : r.thug ? 'dot hidden' : 'dot';
       d.style.background = '#' + r.body.toString(16).padStart(6, '0');
       this.bar.appendChild(d);
       this.dots.push(d);
       const l = document.createElement('div');
-      l.className = 'tag';
+      l.className = r.thug ? 'tag thug' : 'tag';
       l.textContent = r.isPlayer ? '' : r.name;
       lab.appendChild(l);
       this.labels.push(l);
     }
-    this.last = { place: '', hp: '', cash: -1, slapL: false, slapR: false };
+    this.last = { place: '', hp: '', cash: -1, slapL: false, slapR: false, chaser: '' };
+    this.chaser.classList.remove('on');
     this.banner.className = 'banner';
     this.resize();
   }
@@ -133,7 +137,7 @@ export class Hud {
 
   update(w: World, view: RaceView, cash: number, dt: number): void {
     const p = w.player;
-    const place = `<b>${w.standing}</b><span>/${w.riders.length}</span>`;
+    const place = `<b>${w.standing}</b><span>/${w.racers}</span>`;
     if (place !== this.last.place) { this.placeEl.innerHTML = place; this.last.place = place; }
     const hp = `${p.state === 'down' ? 0 : p.hp}/${p.maxHp}`;
     if (hp !== this.last.hp) {
@@ -159,6 +163,8 @@ export class Hud {
       if (!show) continue;
       const grudge = w.grudges.has(r.id);
       if (l.classList.contains('grudge') !== grudge) l.classList.toggle('grudge', grudge);
+      const hunt = r.huntT > 0;
+      if (l.classList.contains('hunt') !== hunt) l.classList.toggle('hunt', hunt);
       l.style.transform = `translate(${this.pt.x.toFixed(1)}px, ${this.pt.y.toFixed(1)}px) translate(-50%, -100%)`;
     }
     // slap reach indicators
@@ -176,6 +182,19 @@ export class Hud {
     }
     if (left !== this.last.slapL) { this.slapL.classList.toggle('on', left); this.last.slapL = left; }
     if (right !== this.last.slapR) { this.slapR.classList.toggle('on', right); this.last.slapR = right; }
+    // a rival hunting the leader from behind: who and how far back
+    let chase = '';
+    if (p.state !== 'away') {
+      for (const r of w.riders) {
+        const back = p.z - r.z;
+        if (r.huntT > 0 && r.state === 'ride' && back > 4) { chase = `${r.name} ▲ ${Math.round(back)} m`; break; }
+      }
+    }
+    if (chase !== this.last.chaser) {
+      this.last.chaser = chase;
+      if (chase) this.chaser.textContent = chase;
+      this.chaser.classList.toggle('on', chase !== '');
+    }
     if (this.bannerT > 0) {
       this.bannerT -= dt;
       if (this.bannerT <= 0) this.banner.className = 'banner';

@@ -91,6 +91,11 @@ export const sfx = {
     tone('square', 880, 880, 0.12, 0.12);
     tone('square', 660, 660, 0.12, 0.12, 0.14);
   },
+  /** Rising two-note alarm: someone is coming for the leader. */
+  alarm(): void {
+    tone('sawtooth', 330, 520, 0.16, 0.14);
+    tone('sawtooth', 330, 620, 0.2, 0.16, 0.18);
+  },
   pickup(): void {
     tone('triangle', 520, 1040, 0.12, 0.3);
   },

@@ -25,7 +25,8 @@ export interface Rider {
   maxHp: number;
   wantX: number;
   braking: boolean;
-  state: 'ride' | 'down';
+  /** 'away': a thug not on the road right now. */
+  state: 'ride' | 'down' | 'away';
   downT: number;
   invT: number;
   atkT: number;
@@ -45,6 +46,15 @@ export interface Rider {
   /** Ticks left of shoulder-to-shoulder pressing, and which side the other rider is on. */
   rubT: number;
   rubSide: Side;
+  /** Not in the race: one of the shoulder thugs. */
+  thug: boolean;
+  /** Ticks left of hunting the leader (rivals). */
+  huntT: number;
+  /** Thug plan and ticks spent in it. */
+  gang: 'lurk' | 'attack' | 'leave';
+  gangT: number;
+  /** Thugs' target speed, set by their AI. */
+  pace: number;
 }
 
 export interface Car {
@@ -87,6 +97,8 @@ export type SimEvent =
   | { type: 'finish'; rider: number; place: number }
   | { type: 'grudge'; rider: number }
   | { type: 'rub'; x: number; z: number; side: Side; player: boolean }
+  | { type: 'hunt'; rider: number }
+  | { type: 'ambush'; riders: number[] }
   | { type: 'go' }
   | { type: 'over' };
 
@@ -133,6 +145,8 @@ export class World {
   crashes = 0;
   fines = 0;
   private nextId = 1;
+  private threatCd = Math.round(C.LEADER.firstDelay * C.TICK_HZ);
+  private nextThreat: 'hunt' | 'ambush' = 'hunt';
   private readonly traffic: Prng;
   readonly aiRng: Prng;
 
@@ -155,6 +169,15 @@ export class World {
       const g = grid(i);
       this.addRider({ name: s.name, isPlayer: false, x: g.x, z: g.z, top: s.top, steer: 7, hp: C.RIVAL_HP, aggr: s.aggr, aware: s.aware, body: s.body, ride: s.ride, weapon: s.weapon });
     });
+    // Two thugs, off the road until an ambush calls them.
+    for (let i = 0; i < 2; i++) {
+      const G = C.GANG;
+      this.addRider({ name: G.name, isPlayer: false, x: 0, z: -1000, top: G.top, steer: G.steer, hp: G.hp, aggr: 1, aware: G.aware, body: G.body, ride: G.ride });
+      const t = this.riders[this.riders.length - 1];
+      t.thug = true;
+      t.state = 'away';
+      t.accel = G.accel;
+    }
     for (let z = 70; z < 70 + C.TRAFFIC.ahead; z += 25 + this.traffic.float() * 20) this.spawnCar(z);
     for (const f of C.PICKUP_AT) {
       this.pickups.push({ id: this.nextId++, x: C.LANE_X[1 + this.traffic.int(3)], z: this.length * f, kind: this.traffic.float() < 0.5 ? 'pan' : 'bat' });
@@ -171,6 +194,7 @@ export class World {
       top: o.top, accel: C.PLAYER_BASE.accel, steer: o.steer, hp: o.hp, maxHp: o.hp, wantX: o.x, braking: false,
       state: 'ride', downT: 0, invT: 0, atkT: 0, atkSide: 1, atkCd: 0, hitT: 0, weapon: o.weapon ?? null,
       finished: false, place: 0, aggr: o.aggr, aware: o.aware, stalkT: 0, body: o.body, ride: o.ride, koPlayer: 0, rubT: 0, rubSide: 1,
+      thug: false, huntT: 0, gang: 'lurk', gangT: 0, pace: 0,
     });
   }
 
@@ -179,12 +203,19 @@ export class World {
     return Math.max(0, this.tick - Math.round(C.COUNTDOWN_S * C.TICK_HZ)) / C.TICK_HZ;
   }
 
+  /** Riders in the race (the thugs aren't). */
+  get racers(): number {
+    let n = 0;
+    for (const r of this.riders) if (!r.thug) n++;
+    return n;
+  }
+
   /** Current standing of the player, 1-based. */
   get standing(): number {
     const p = this.player;
     if (p.finished) return p.place;
     let ahead = this.finished;
-    for (const r of this.riders) if (!r.isPlayer && !r.finished && r.z > p.z) ahead++;
+    for (const r of this.riders) if (!r.isPlayer && !r.thug && !r.finished && r.z > p.z) ahead++;
     return ahead + 1;
   }
 
@@ -206,6 +237,7 @@ export class World {
     for (const r of this.riders) this.resolveAttack(r);
     this.updatePickups();
     this.updatePatrol();
+    this.leaderThreats();
     this.checkFinish();
   }
 
@@ -224,6 +256,7 @@ export class World {
     if (r.hitT > 0) r.hitT--;
     if (r.atkCd > 0) r.atkCd--;
     if (r.rubT > 0) r.rubT--;
+    if (r.state === 'away') return;
     if (r.state === 'down') {
       r.speed = Math.max(0, r.speed - 20 * C.DT);
       r.z += r.speed * C.DT;
@@ -249,13 +282,24 @@ export class World {
   /** Rivals rubber-band around the player so fights keep happening; stalkers match the player's pace. */
   private topNow(r: Rider): number {
     if (r.isPlayer) return r.top;
+    if (r.thug) return r.pace;
     const p = this.player;
     const gap = p.z - r.z;
+    if (r.huntT > 0 && gap > 6 && p.state === 'ride') {
+      return p.speed + clamp(C.HUNT.boostMin + gap * C.HUNT.boostPerM, C.HUNT.boostMin, C.HUNT.boostMax);
+    }
     if (r.stalkT > 0 && Math.abs(gap) < 7 && p.state === 'ride') return clamp(p.speed + gap * 0.9, 0, r.top * 1.15);
     return r.top * (1 + clamp(gap / 120, -0.22, 0.16));
   }
 
   private recover(r: Rider): void {
+    if (r.thug) {
+      // Knocked-off thugs limp away instead of rejoining.
+      r.state = 'away';
+      r.weapon = null;
+      this.events.push({ type: 'recover', rider: r.id });
+      return;
+    }
     r.state = 'ride';
     r.hp = r.maxHp;
     r.invT = C.INVULN_TICKS;
@@ -370,7 +414,7 @@ export class World {
       this.kos++;
       if (this.grudges.has(v.id)) { this.grudgeKos++; this.grudges.delete(v.id); }
     }
-    if (v.isPlayer && !by.isPlayer) {
+    if (v.isPlayer && !by.isPlayer && !by.thug) {
       by.koPlayer++;
       if (by.koPlayer >= C.GRUDGE_AT && !this.grudges.has(by.id)) {
         this.grudges.add(by.id);
@@ -386,6 +430,7 @@ export class World {
     r.downT = C.DOWN_TICKS[c];
     r.vx = vx;
     r.atkT = 0;
+    r.huntT = 0;
     if (r.isPlayer) this.crashes++;
     this.events.push({ type: 'crash', rider: r.id, cause: c, vx, speed: r.speed });
     if (r.weapon) {
@@ -450,7 +495,7 @@ export class World {
     for (let i = this.pickups.length - 1; i >= 0; i--) {
       const k = this.pickups[i];
       for (const r of this.riders) {
-        if (r.state !== 'ride' || r.finished) continue;
+        if (r.state !== 'ride' || r.finished || r.thug) continue;
         if (Math.abs(r.x - k.x) < 1.2 && Math.abs(r.z - k.z) < 1.6) {
           r.weapon = k.kind;
           this.pickups.splice(i, 1);
@@ -524,11 +569,87 @@ export class World {
     }
   }
 
+  // --- threats for the leader ---
+
+  private leaderThreats(): void {
+    const p = this.player;
+    const prog = clamp(p.z / this.length, 0, 1);
+    // thugs left far behind drop out
+    for (const r of this.riders) {
+      if (r.thug && r.state === 'ride' && (r.z < p.z - C.GANG.goneAt || p.finished)) r.state = 'away';
+    }
+    const leading = p.state === 'ride' && !p.finished && prog > C.LEADER.startAt && this.standing === 1;
+    if (!leading) {
+      this.threatCd = Math.max(this.threatCd, Math.round(C.LEADER.firstDelay * C.TICK_HZ));
+      return;
+    }
+    // one threat at a time; the calm is counted from when the last one ends
+    if (this.riders.some((r) => r.huntT > 0 || (r.thug && r.state !== 'away'))) return;
+    if (--this.threatCd > 0) return;
+    const first = this.nextThreat;
+    const second = first === 'hunt' ? 'ambush' : 'hunt';
+    const start = (k: 'hunt' | 'ambush') => (k === 'hunt' ? this.startHunt() : this.startAmbush(prog));
+    const done = start(first) ? first : start(second) ? second : null;
+    if (!done) {
+      this.threatCd = C.TICK_HZ; // nobody available; look again in a second
+      return;
+    }
+    this.nextThreat = done === 'hunt' ? 'ambush' : 'hunt';
+    const gap = C.LEADER.gapEarly + (C.LEADER.gapLate - C.LEADER.gapEarly) * prog;
+    this.threatCd = Math.round(gap * (0.8 + 0.4 * this.aiRng.float()) * C.TICK_HZ);
+  }
+
+  /** The keenest rival not too far behind (grudges first) comes for the leader at full tilt. */
+  private startHunt(): boolean {
+    const p = this.player;
+    let best: Rider | null = null;
+    let bestS = -Infinity;
+    for (const r of this.riders) {
+      if (r.isPlayer || r.thug || r.state !== 'ride' || r.finished) continue;
+      const gap = p.z - r.z;
+      if (gap < 8 || gap > C.HUNT.range) continue;
+      const s = (this.grudges.has(r.id) ? 2 : 0) + r.aggr + this.aiRng.float() * 0.6;
+      if (s > bestS) { bestS = s; best = r; }
+    }
+    if (!best) return false;
+    best.huntT = Math.round((C.HUNT.chase + C.HUNT.attack) * C.TICK_HZ);
+    this.events.push({ type: 'hunt', rider: best.id });
+    return true;
+  }
+
+  /** Thugs wait on the shoulder ahead and pull out as the leader arrives. */
+  private startAmbush(prog: number): boolean {
+    const p = this.player;
+    const G = C.GANG;
+    if (p.z + G.spawnAhead > this.length - 60) return false;
+    const free = this.riders.filter((r) => r.thug && r.state === 'away');
+    const n = Math.min(free.length, prog >= G.pairFrom ? 2 : 1);
+    if (n === 0) return false;
+    const first: Side = this.aiRng.float() < 0.5 ? 1 : -1;
+    const ids: number[] = [];
+    for (let k = 0; k < n; k++) {
+      const r = free[k];
+      const side = k === 0 ? first : -first;
+      r.state = 'ride';
+      r.x = r.px = r.wantX = side * C.EDGE;
+      r.z = r.pz = p.z + G.spawnAhead + k * 7;
+      r.vx = 0;
+      r.speed = r.pace = p.speed * G.lurk;
+      r.hp = r.maxHp;
+      r.invT = r.atkT = r.atkCd = r.hitT = r.downT = r.rubT = r.stalkT = r.gangT = 0;
+      r.gang = 'lurk';
+      r.weapon = k === 0 && prog >= G.batFrom ? 'bat' : null;
+      ids.push(r.id);
+    }
+    this.events.push({ type: 'ambush', riders: ids });
+    return true;
+  }
+
   // --- finish ---
 
   private checkFinish(): void {
     for (const r of this.riders) {
-      if (r.finished || r.z < this.length) continue;
+      if (r.finished || r.thug || r.z < this.length) continue;
       r.finished = true;
       r.place = ++this.finished;
       this.events.push({ type: 'finish', rider: r.id, place: r.place });
@@ -537,7 +658,7 @@ export class World {
     const timeUp = this.time >= C.TIME_CAP_S;
     if (!this.over && ((this.overT > 0 && this.tick >= this.overT) || timeUp)) {
       // Riders still on the road get places by distance.
-      const rest = this.riders.filter((r) => !r.finished).sort((a, b) => b.z - a.z);
+      const rest = this.riders.filter((r) => !r.finished && !r.thug).sort((a, b) => b.z - a.z);
       for (const r of rest) r.place = ++this.finished;
       this.over = true;
       this.events.push({ type: 'over' });

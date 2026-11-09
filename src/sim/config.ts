@@ -69,6 +69,44 @@ export const PATROL = {
   fallTicks: 150,
 };
 
+/**
+ * Whoever leads gets company: after a short breather, either a rival hunts them down from behind or
+ * thugs waiting on the shoulder ahead pull out to box them in. One threat at a time, alternating.
+ */
+export const LEADER = {
+  startAt: 0.06, // fraction of the race before any of this starts
+  firstDelay: 4, // seconds in the lead before the first threat
+  gapEarly: 11, // seconds of calm between threats, early in the race ...
+  gapLate: 5, // ... and near the end
+};
+export const HUNT = {
+  chase: 20, // seconds to catch up before giving up ...
+  attack: 8, // ... then seconds on the leader's shoulder
+  range: 260, // only rivals this close behind are picked
+  boostMin: 5, // m/s faster than the leader, plus boostPerM for each metre behind
+  boostPerM: 0.1,
+  boostMax: 15,
+  swing: 2.5, // swing keenness multiplier while hunting
+};
+export const GANG = {
+  name: 'Thug',
+  hp: 2,
+  top: 34,
+  accel: 12,
+  steer: 7.5,
+  aware: 0.7,
+  body: 0x45454e,
+  ride: 0x141418,
+  spawnAhead: 100, // metres ahead of the leader they wait
+  lurk: 0.42, // their speed while waiting, as a fraction of the leader's
+  engageAt: 30, // pull out when the leader is this close behind
+  attackTime: 8, // seconds alongside before they give up
+  swing: 0.09, // per tick while the leader is in reach
+  pairFrom: 0.4, // two of them from this far into the race
+  batFrom: 0.6, // and one carries a bat
+  goneAt: 45, // metres behind the leader where they drop out of the race
+};
+
 export const PRIZE = [600, 420, 300, 220, 160, 120, 90, 70];
 export const KO_BONUS = 60;
 export const GRUDGE_BONUS = 150;

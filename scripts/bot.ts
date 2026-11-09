@@ -1,5 +1,6 @@
-// Headless races: how long a race takes, where the bot finishes, how often it fights and crashes.
-// Usage: npm run bot -- [races] [skill 0..1]
+// Headless races: how long a race takes, where the bot finishes, how often it fights and crashes,
+// and how much pressure it is under while leading.
+// Usage: npm run bot -- [races] [skill 0..1] [fight|race] [upgrade level 0..6 for all three]
 
 import { World } from '../src/sim/world';
 import { TICK_HZ } from '../src/sim/config';
@@ -7,27 +8,45 @@ import { botInput } from '../src/sim/ai';
 
 const races = Number(process.argv[2] ?? 20);
 const skill = Number(process.argv[3] ?? 1);
-const rows: { place: number; time: number; kos: number; crashes: number; fines: number; hits: number; firstHit: number; firstCrash: number }[] = [];
+const fight = process.argv[4] !== 'race';
+const up = Number(process.argv[5] ?? 0);
+interface Row { place: number; time: number; kos: number; crashes: number; fines: number; hits: number; lead: number; leadHits: number; leadCrashes: number; quiet: number; hunts: number; ambushes: number }
+const rows: Row[] = [];
 for (let seed = 1; seed <= races; seed++) {
-  const w = new World({ seed });
+  const w = new World({ seed, upgrades: { top: up, steer: up, hp: up } });
   let hits = 0;
-  let firstHit = -1;
-  let firstCrash = -1;
+  let lead = 0;
+  let leadHits = 0;
+  let leadCrashes = 0;
+  // longest stretch (s) leading with nothing hitting, swinging at or crashing the player
+  let calm = 0;
+  let quiet = 0;
+  let hunts = 0;
+  let ambushes = 0;
   while (!w.over && w.tick < 400 * TICK_HZ) {
-    botInput(w, skill);
+    botInput(w, skill, fight);
     w.step();
+    const leading = w.time > 3 && !w.player.finished && w.standing === 1;
+    let pressure = false;
     for (const e of w.events) {
-      if (e.type === 'hit' && (e.from === 0 || e.to === 0)) {
-        hits++;
-        if (firstHit < 0) firstHit = w.time;
-      }
-      if (e.type === 'crash' && e.rider === 0 && firstCrash < 0) firstCrash = w.time;
+      if (e.type === 'hit' && (e.from === 0 || e.to === 0)) hits++;
+      if (e.type === 'hit' && e.to === 0) { pressure = true; if (leading) leadHits++; }
+      if (e.type === 'swing' && e.rider !== 0 && w.targetFor(w.riders[e.rider], 0.3) === w.player) pressure = true;
+      if (e.type === 'crash' && e.rider === 0) { pressure = true; if (leading) leadCrashes++; }
+      if (e.type === 'patrolWarn') pressure = true;
+      if (e.type === 'hunt') hunts++;
+      if (e.type === 'ambush') ambushes++;
     }
     w.events.length = 0;
+    if (leading) {
+      lead++;
+      calm = pressure ? 0 : calm + 1;
+      quiet = Math.max(quiet, calm);
+    } else calm = 0;
   }
-  const row = { place: w.player.place, time: w.time, kos: w.kos, crashes: w.crashes, fines: w.fines, hits, firstHit, firstCrash };
+  const row: Row = { place: w.player.place, time: w.time, kos: w.kos, crashes: w.crashes, fines: w.fines, hits, lead: lead / TICK_HZ, leadHits, leadCrashes, quiet: quiet / TICK_HZ, hunts, ambushes };
   rows.push(row);
-  console.log(`seed ${seed}: place ${row.place}, ${row.time.toFixed(0)} s, KOs ${row.kos}, crashes ${row.crashes}, fines ${row.fines}, fights ${hits}, first hit ${firstHit.toFixed(1)} s, first crash ${firstCrash.toFixed(1)} s`);
+  console.log(`seed ${seed}: place ${row.place}, ${row.time.toFixed(0)} s, KOs ${row.kos}, crashes ${row.crashes} (${leadCrashes} while 1st), fines ${row.fines}, fights ${hits}, 1st for ${row.lead.toFixed(0)} s, hit ${leadHits}x while 1st, longest calm lead ${row.quiet.toFixed(0)} s, hunts ${hunts}, ambushes ${ambushes}`);
 }
-const avg = (k: keyof (typeof rows)[number]) => rows.reduce((s, r) => s + r[k], 0) / rows.length;
-console.log(`avg: place ${avg('place').toFixed(1)}, ${avg('time').toFixed(0)} s, KOs ${avg('kos').toFixed(1)}, crashes ${avg('crashes').toFixed(1)}, fights ${avg('hits').toFixed(1)}, first hit ${avg('firstHit').toFixed(1)} s`);
+const avg = (k: keyof Row) => rows.reduce((s, r) => s + r[k], 0) / rows.length;
+console.log(`avg: place ${avg('place').toFixed(1)}, ${avg('time').toFixed(0)} s, KOs ${avg('kos').toFixed(1)}, crashes ${avg('crashes').toFixed(1)}, fights ${avg('hits').toFixed(1)}, 1st for ${avg('lead').toFixed(0)} s, hit ${avg('leadHits').toFixed(1)}x / crashed ${avg('leadCrashes').toFixed(1)}x while 1st, longest calm lead ${avg('quiet').toFixed(0)} s, hunts ${avg('hunts').toFixed(1)}, ambushes ${avg('ambushes').toFixed(1)}`);

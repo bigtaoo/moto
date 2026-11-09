@@ -47,9 +47,19 @@ function calm(w: World): boolean {
 
 export function rivalThink(w: World, r: Rider): void {
   if (r.state !== 'ride') return;
+  if (r.thug) return thugThink(w, r);
   const p = w.player;
   const gap = p.z - r.z;
   const rng = w.aiRng;
+  if (r.huntT > 0) {
+    // Hunting the leader: up to HUNT.chase s to close in, then HUNT.attack s on their shoulder.
+    r.huntT--;
+    if (p.state !== 'ride' || p.finished) r.huntT = 0;
+    else if (Math.abs(gap) < 14) {
+      r.huntT = Math.min(r.huntT, Math.round(C.HUNT.attack * C.TICK_HZ));
+      r.stalkT = Math.max(r.stalkT, 2);
+    }
+  }
   if (r.stalkT > 0) {
     if (--r.stalkT === 0) r.stalkT = -Math.round(C.AI.stalkRest * C.TICK_HZ);
   } else if (r.stalkT < 0) r.stalkT++;
@@ -65,20 +75,49 @@ export function rivalThink(w: World, r: Rider): void {
 
   const t = w.targetFor(r);
   if (t && r.atkCd <= 0 && r.atkT <= 0) {
-    const chance = r.aggr * (t.isPlayer ? C.AI.swingAtPlayer : C.AI.swingAtRival);
+    const chance = r.aggr * (t.isPlayer ? C.AI.swingAtPlayer * (r.huntT > 0 ? C.HUNT.swing : 1) : C.AI.swingAtRival);
     if (rng.float() < chance) w.tryAttack(r);
   }
 }
 
-/** Headless player: sit beside the nearest rival ahead, swing whenever someone is in reach, dodge cars. */
-export function botInput(w: World, skill = 1): void {
+/** Shoulder thugs: wait, pull alongside the leader, swing until they give up, then fall away. */
+function thugThink(w: World, r: Rider): void {
+  const p = w.player;
+  const G = C.GANG;
+  const ahead = r.z - p.z;
+  const side = r.x >= p.x ? 1 : -1;
+  r.gangT++;
+  let want = r.x;
+  if (r.gang === 'lurk') {
+    r.pace = p.speed * G.lurk;
+    if (ahead < G.engageAt) { r.gang = 'attack'; r.gangT = 0; }
+  }
+  if (r.gang === 'attack') {
+    // Ride level with the leader, one arm's length to the side.
+    r.pace = Math.max(0, Math.min(r.top, p.speed - ahead * 1.2));
+    want = clampEdge(p.x + side * 1.7);
+    if (r.gangT > G.attackTime * C.TICK_HZ || p.state !== 'ride' || p.finished || ahead < -12) { r.gang = 'leave'; r.gangT = 0; }
+    else if (w.targetFor(r) === p && r.atkCd <= 0 && r.atkT <= 0 && w.aiRng.float() < G.swing) w.tryAttack(r);
+  }
+  if (r.gang === 'leave') {
+    r.pace = Math.max(0, p.speed - 9);
+    want = side * C.EDGE;
+  }
+  r.wantX = dodge(w, r, want, C.AI.lookBase + C.AI.lookAware * r.aware);
+}
+
+/**
+ * Headless player: sit beside the nearest rival ahead, swing whenever someone is in reach, dodge cars.
+ * With `fight` off it just races (holds its lane, dodges, swings only at whoever comes into reach).
+ */
+export function botInput(w: World, skill = 1, fight = true): void {
   const p = w.player;
   w.input.steer = 0;
   w.input.brake = false;
   if (p.state !== 'ride') return;
   let prey: Rider | null = null;
   for (const r of w.riders) {
-    if (r.isPlayer || r.state !== 'ride') continue;
+    if (!fight || r.isPlayer || r.state !== 'ride') continue;
     const gap = r.z - p.z;
     if (gap > -3 && gap < 18 && (!prey || gap < prey.z - p.z)) prey = r;
   }

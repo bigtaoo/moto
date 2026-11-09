@@ -119,6 +119,13 @@ export class RaceView {
     for (let i = 0; i < w.riders.length; i++) {
       const r = w.riders[i];
       const rv = this.riders[i];
+      if (r.state === 'away') {
+        // Off the road (a thug waiting to be sent in): hidden, and its drawn x starts fresh when it returns.
+        rv.root.visible = false;
+        this.drawX[i] = undefined as unknown as number;
+        this.ragdolls[i].update(dt);
+        continue;
+      }
       const x = this.smoothX(i, lerp(r.px, r.x, alpha), dt);
       const z = lerp(r.pz, r.z, alpha);
       place(rv.root, x, 0, z);
