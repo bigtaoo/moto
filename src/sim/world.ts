@@ -50,8 +50,9 @@ export interface Rider {
   aware: number;
   body: number;
   ride: number;
-  /** Times this rival knocked the player off. */
+  /** Times this rival knocked the player off, and the player them. */
   koPlayer: number;
+  koByPlayer: number;
   /** Ticks left of shoulder-to-shoulder pressing, and which side the other rider is on. */
   rubT: number;
   rubSide: Side;
@@ -223,6 +224,8 @@ export interface Input {
   steer: number;
   brake: boolean;
   attack: boolean;
+  /** Down: back on the scooter right now (paid for with a rewarded ad, once a race). */
+  remount: boolean;
 }
 
 export interface WorldOpts {
@@ -230,6 +233,8 @@ export interface WorldOpts {
   upgrades?: Upgrades;
   /** Rival ids that hold a grudge from earlier races. */
   grudges?: number[];
+  /** The player's nemesis (a rival id), if they have one. */
+  nemesis?: number;
   length?: number;
   /** Division (C.DIVISIONS index): where the race is and how hard. */
   div?: number;
@@ -258,7 +263,11 @@ export class World {
   private readonly patrolFrom: number;
   readonly events: SimEvent[] = [];
   readonly grudges: Set<number>;
-  readonly input: Input = { targetX: null, steer: 0, brake: false, attack: false };
+  readonly input: Input = { targetX: null, steer: 0, brake: false, attack: false, remount: false };
+  /** The nemesis' rider id, or -1. */
+  readonly nemesis: number;
+  /** Times the player knocked the nemesis off this race. */
+  revenge = 0;
   countdown = Math.round(C.COUNTDOWN_S * C.TICK_HZ);
   over = false;
   overT = -1;
@@ -306,6 +315,7 @@ export class World {
     const [s0, s1] = C.PATROL.startAt;
     this.patrolFrom = this.length * clamp(s1 - (s1 - s0) * busy + (this.patrolRng.float() - 0.5) * 0.1, s0, s1);
     this.grudges = new Set(opts.grudges ?? []);
+    this.nemesis = opts.nemesis !== undefined && opts.nemesis >= 1 && opts.nemesis <= C.ROSTER.length ? opts.nemesis : -1;
     const up = opts.upgrades ?? { top: 0, steer: 0, hp: 0 };
     const grid = (i: number) => ({ x: C.LANE_X[1 + (i % 3)] + (i >= 3 ? -0.9 : 0.9), z: 14 - Math.floor(i / 3) * 6 });
     // Player starts at the back of the grid so the first fight comes within seconds.
@@ -319,9 +329,10 @@ export class World {
     C.ROSTER.forEach((s, i) => {
       const g = grid(i);
       const d = this.div;
+      const nem = i + 1 === this.nemesis;
       this.addRider({
-        name: s.name, isPlayer: false, x: g.x, z: g.z, top: s.top + d.top, steer: 7, hp: C.RIVAL_HP,
-        aggr: Math.min(1, s.aggr + d.mind), aware: Math.min(1, s.aware + d.mind), body: s.body, ride: s.ride, weapon: s.weapon,
+        name: s.name, isPlayer: false, x: g.x, z: g.z, top: s.top + d.top + (nem ? C.NEMESIS.top : 0), steer: 7, hp: C.RIVAL_HP + (nem ? C.NEMESIS.hp : 0),
+        aggr: Math.min(1, s.aggr + d.mind + (nem ? C.NEMESIS.aggr : 0)), aware: Math.min(1, s.aware + d.mind), body: s.body, ride: s.ride, weapon: s.weapon,
       });
     });
     // Two thugs, off the road until an ambush calls them.
@@ -356,12 +367,17 @@ export class World {
     return this.riders[0];
   }
 
+  /** A rival out to get the player: one holding a grudge, or the nemesis. */
+  hates(id: number): boolean {
+    return id === this.nemesis || this.grudges.has(id);
+  }
+
   private addRider(o: { name: string; isPlayer: boolean; x: number; z: number; top: number; steer: number; hp: number; aggr: number; aware: number; body: number; ride: number; weapon?: C.WeaponKind }): void {
     this.riders.push({
       id: this.riders.length, name: o.name, isPlayer: o.isPlayer, x: o.x, z: o.z, px: o.x, pz: o.z, vx: 0, speed: 0,
       top: o.top, accel: C.PLAYER_BASE.accel, steer: o.steer, hp: o.hp, maxHp: o.hp, wantX: o.x, braking: false,
       state: 'ride', downT: 0, runT: 0, bikeX: o.x, bikeZ: o.z, bikePX: o.x, bikePZ: o.z, bikeV: 0, bikeVx: 0, invT: 0, atkT: 0, atkSide: 1, atkCd: 0, hitT: 0, weapon: o.weapon ?? null,
-      finished: false, place: 0, aggr: o.aggr, aware: o.aware, body: o.body, ride: o.ride, koPlayer: 0, rubT: 0, rubSide: 1,
+      finished: false, place: 0, aggr: o.aggr, aware: o.aware, body: o.body, ride: o.ride, koPlayer: 0, koByPlayer: 0, rubT: 0, rubSide: 1,
       thug: false, huntT: 0, gang: 'lurk', gangT: 0, role: 'strike', pace: 0,
       react: 10, latV: 0, latAcc: 16, intent: 'race', intentT: 0, lane: nearestLane(o.x), escX: o.x, escT: 0,
       foe: -1, foeSide: 1, foeOff: 1.6, wob: 0, wobTo: 0, hitBy: -1, hx: [], hz: [], hv: [],
@@ -456,6 +472,12 @@ export class World {
     p.braking = inp.brake;
     if (inp.attack) this.tryAttack(p);
     inp.attack = false;
+    if (inp.remount && p.state === 'down') {
+      // straight back onto the scooter, with a moment's grace
+      p.bikeX = this.road.clampX(p.bikeX, p.bikeZ);
+      this.recover(p);
+    }
+    inp.remount = false;
   }
 
   private move(r: Rider): void {
@@ -752,9 +774,13 @@ export class World {
   /** Whoever put `v` down gets the credit: the player's settle grudges, a rival's on the player starts one. */
   private credit(v: Rider, by: Rider): void {
     if (by.isPlayer && this.grudges.has(v.id)) { this.grudgeKos++; this.grudges.delete(v.id); }
+    if (by.isPlayer) {
+      v.koByPlayer++;
+      if (v.id === this.nemesis) this.revenge++;
+    }
     if (v.isPlayer && !by.isPlayer && !by.thug) {
       by.koPlayer++;
-      if (by.koPlayer >= C.GRUDGE_AT && !this.grudges.has(by.id)) {
+      if (by.koPlayer >= C.GRUDGE_AT && !this.grudges.has(by.id) && by.id !== this.nemesis) {
         this.grudges.add(by.id);
         this.events.push({ type: 'grudge', rider: by.id });
       }
@@ -1313,7 +1339,7 @@ export class World {
       if (r.isPlayer || r.thug || r.state !== 'ride' || r.finished) continue;
       const gap = p.z - r.z;
       if (gap < 8 || gap > C.HUNT.range) continue;
-      const s = (this.grudges.has(r.id) ? 2 : 0) + r.aggr + this.aiRng.float() * 0.6;
+      const s = (this.hates(r.id) ? 2 : 0) + r.aggr + this.aiRng.float() * 0.6;
       if (s > bestS) { bestS = s; best = r; }
     }
     if (!best) return false;

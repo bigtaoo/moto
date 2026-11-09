@@ -4,7 +4,7 @@ import type { World } from '../sim/world';
 import { ATTACK, WEAPON, UPGRADE_MAX, upgradeCost } from '../sim/config';
 import type { RaceView } from './scene';
 import type { Save } from '../meta';
-import type { CupEnd } from '../career';
+import { BREAK_AT, type CupEnd, type FeudOutcome, type Nemesis } from '../career';
 
 export interface League {
   /** The division this race was in. */
@@ -36,6 +36,12 @@ export interface RaceResult {
   time: number;
   grudges: string[];
   league: League;
+  /** The feuds after this race: what the nemesis paid, and who the nemesis is now. */
+  feud: { out: FeudOutcome; nemesis: Nemesis | null; name: (id: number) => string };
+  /** Cash a rewarded ad would add (doubling this race's earnings); 0: not on offer. */
+  double: number;
+  /** The ad was watched and the cash added. */
+  doubled: boolean;
 }
 
 type UpKey = keyof Save['up'];
@@ -61,6 +67,9 @@ export class Hud {
   private readonly incR: HTMLElement;
   private readonly heatEl: HTMLElement;
   private readonly leagueEl: HTMLElement;
+  private readonly nemEl: HTMLElement;
+  readonly remountBtn: HTMLButtonElement;
+  private remountOn = false;
   /** Per rider: seconds left of a swing wound up at the player. */
   private tellT: number[] = [];
   private readonly results: HTMLElement;
@@ -92,6 +101,8 @@ export class Hud {
         <div class="chaser"></div>
         <div class="hint">Drag to steer · Tap to slap</div>
         <div class="league"></div>
+        <div class="nemcard"></div>
+        <button class="remount hidden">▶ Back on now<small>watch an ad</small></button>
       </div>
       <div id="results" class="overlay hidden"><div class="card"></div></div>
       <div id="paused" class="overlay hidden"><div class="card small"><h2>Paused</h2><button class="primary">Resume</button></div></div>
@@ -111,6 +122,8 @@ export class Hud {
     this.incR = $(this.root, '.inc.r');
     this.heatEl = $(this.root, '.heat');
     this.leagueEl = $(this.root, '.league');
+    this.nemEl = $(this.root, '.nemcard');
+    this.remountBtn = $(this.root, '.remount');
     this.results = $(host, '#results');
     this.pauseEl = $(host, '#paused');
     this.pauseBtn = $(this.root, '.pausebtn');
@@ -157,6 +170,22 @@ export class Hud {
     this.leagueEl.className = 'league';
     void this.leagueEl.offsetWidth;
     this.leagueEl.className = 'league show';
+  }
+
+  /** The nemesis card over the countdown: who, their record against the player, the bounty. */
+  setNemesis(n: Nemesis | null, name: string, bounty: number): void {
+    this.nemEl.className = 'nemcard';
+    if (!n) return;
+    this.nemEl.innerHTML = `<b>☠ NEMESIS: ${name}</b><span>Knocked you off ${n.hurt}× · beaten ${n.paid}/${BREAK_AT}</span><span>$${bounty} every time you knock them off</span>`;
+    void this.nemEl.offsetWidth;
+    this.nemEl.className = 'nemcard show';
+  }
+
+  /** The "back on now" (rewarded ad) button, shown while the player is down. */
+  showRemount(on: boolean): void {
+    if (on === this.remountOn) return;
+    this.remountOn = on;
+    this.remountBtn.classList.toggle('hidden', !on);
   }
 
   showHint(on: boolean): void {
@@ -206,7 +235,9 @@ export class Hud {
       const show = r.state === 'ride' && dz > -6 && dz < 45 && view.projectRider(i, 2.55, this.pt);
       l.classList.toggle('on', show);
       if (!show) continue;
-      const grudge = w.grudges.has(r.id);
+      const nem = r.id === w.nemesis;
+      if (l.classList.contains('nem') !== nem) l.classList.toggle('nem', nem);
+      const grudge = !nem && w.grudges.has(r.id);
       if (l.classList.contains('grudge') !== grudge) l.classList.toggle('grudge', grudge);
       const hunt = r.huntT > 0;
       if (l.classList.contains('hunt') !== hunt) l.classList.toggle('hunt', hunt);
@@ -276,7 +307,7 @@ export class Hud {
     this.results.classList.add('hidden');
   }
 
-  showResults(res: RaceResult, save: Save, onBuy: (k: UpKey) => void, onAgain: () => void): void {
+  showResults(res: RaceResult, save: Save, onBuy: (k: UpKey) => void, onAgain: () => void, onDouble: () => void): void {
     const card = $(this.results, '.card');
     const row = (a: string, b: string, cls = '') => `<div class="row ${cls}"><span>${a}</span><b>${b}</b></div>`;
     const ups = (Object.keys(UP_NAMES) as UpKey[]).map((k) => {
@@ -296,8 +327,12 @@ export class Hud {
         ${res.shoves ? row(`Into traffic or the wall × ${res.shoves}`, `$${res.shoveBonus}`, 'good') : ''}
         ${res.grudgeKos ? row(`Grudges settled × ${res.grudgeKos}`, `$${res.grudgeBonus}`, 'good') : ''}
         ${res.fines ? row('Security fines', `−$${res.fines}`, 'bad') : ''}
+        ${this.feudRows(res, row)}
+        ${res.doubled ? row('Ad bonus ×2', `$${res.earned / 2}`, 'good') : ''}
         ${row('Earned', `$${res.earned}`, 'total')}
       </div>
+      ${res.double > 0 && !res.doubled ? `<button class="double">▶ Double it: +$${res.double}<small>watch an ad</small></button>` : ''}
+      ${this.feudCard(res)}
       ${this.leagueHtml(res.league)}
       ${res.grudges.length ? `<div class="grudges">Holding a grudge: <b>${res.grudges.join(', ')}</b><br><small>Knock them off next race for +$150 each</small></div>` : ''}
       <div class="cashline">Cash <b>$${save.cash}</b></div>
@@ -307,7 +342,31 @@ export class Hud {
       b.onclick = () => onBuy(b.dataset.k as UpKey);
     });
     $<HTMLButtonElement>(card, '.again').onclick = onAgain;
+    const dbl = card.querySelector<HTMLButtonElement>('.double');
+    if (dbl) dbl.onclick = () => { dbl.disabled = true; onDouble(); };
     this.results.classList.remove('hidden');
+  }
+
+  private feudRows(res: RaceResult, row: (a: string, b: string, cls?: string) => string): string {
+    const o = res.feud.out;
+    if (o.vs === null) return '';
+    const name = res.feud.name(o.vs);
+    let html = '';
+    if (o.revenge) html += row(`Revenge on ${name} × ${o.revenge}`, '', 'good');
+    if (o.ahead) html += row(`Beat ${name} home`, '', 'good');
+    if (o.beaten && !o.broken) html += row(`${name} beaten`, `${res.feud.nemesis?.paid ?? 0}/${BREAK_AT}`, 'good');
+    if (o.broken) html += row(`${name} broken!`, '', 'good');
+    if (o.cash) html += row('Nemesis bounty', `$${o.cash}`, 'good');
+    return html;
+  }
+
+  /** A new nemesis, or one just broken: the big news of the race. */
+  private feudCard(res: RaceResult): string {
+    const { out, nemesis, name } = res.feud;
+    if (out.broken) return `<div class="nemres win">☠ ${name(out.vs!)} is BROKEN. They won't bother you again.</div>`;
+    if (out.fresh !== null) return `<div class="nemres">☠ NEW NEMESIS: <b>${name(out.fresh)}</b><small>They're coming for you every race, faster and meaner. Knock them off and beat them home in ${BREAK_AT} races to break them. Bounty for every knockdown.</small></div>`;
+    if (nemesis) return `<div class="nemres small">☠ Nemesis <b>${name(nemesis.id)}</b> · beaten ${nemesis.paid}/${BREAK_AT}<small>Knock them off and beat them home</small></div>`;
+    return '';
   }
 
   /** The cup table after this race (the top 3 and the player), and how the cup ended if it did. */

@@ -8,9 +8,10 @@ import { Recorder } from './sim/replay';
 import { Stage, RaceView } from './view/scene';
 import { Controls } from './view/input';
 import { Hud, type RaceResult } from './view/hud';
-import { sfx, unlockAudio, suspendAudio } from './view/audio';
-import { loadSave, storeSave } from './meta';
-import { CUP_RACES, scoreRace, standings, cupOver, endCup, newCup, riderName } from './career';
+import { sfx, unlockAudio, suspendAudio, setMuted } from './view/audio';
+import { parseSave, storeSave, type Save } from './meta';
+import { CUP_RACES, scoreRace, standings, cupOver, endCup, newCup, riderName, settleFeud, REVENGE_PAY } from './career';
+import * as platform from './platform';
 
 const params = new URLSearchParams(location.search);
 const BOT = params.has('bot');
@@ -21,13 +22,20 @@ const app = document.getElementById('app')!;
 const titleEl = document.getElementById('title')!;
 const stage = new Stage(canvas);
 const hud = new Hud(app);
-const save = loadSave();
+let save!: Save;
 
 let world!: World;
 let view!: RaceView;
 let recorder!: Recorder;
 let state: 'title' | 'race' | 'results' = 'title';
 let paused = false;
+/** The host (or an ad) has the game paused; separate from the player's own pause menu. */
+let hostPaused = false;
+let hostMuted = false;
+/** The rewarded "back on now" was used this race. */
+let remountUsed = false;
+/** Seconds the player has been down (the remount button waits for the tumble to end). */
+let downClock = 0;
 let acc = 0;
 let hitstop = 0;
 let slow = 0;
@@ -55,13 +63,16 @@ const controls = new Controls(canvas, () => (world ? world.player.x : 0), () => 
 function newRace(): void {
   view?.dispose();
   const seed = ((save.races * 7919 + 17) % 99991) + 1;
-  const opts = { seed, upgrades: save.up, grudges: save.grudges, length: LEN, div: save.div };
+  const nem = save.feud.nemesis;
+  const opts = { seed, upgrades: save.up, grudges: save.grudges, length: LEN, div: save.div, nemesis: nem?.id };
   world = new World(opts);
   recorder = new Recorder(opts);
   view = new RaceView(stage, world, seed);
   hud.setup(world);
   hud.hideResults();
-  hud.setLeague(`${world.div.name} · race ${save.cup.race + 1}/${CUP_RACES}`);
+  intro();
+  hud.showRemount(false);
+  remountUsed = false;
   controls.reset();
   acc = 0;
   hitstop = 0;
@@ -71,10 +82,20 @@ function newRace(): void {
   lastGrudgeKos = 0;
 }
 
+/** The division pill and the nemesis card, over the countdown. */
+function intro(): void {
+  const nem = save.feud.nemesis;
+  hud.setLeague(`${world.div.name} · race ${save.cup.race + 1}/${CUP_RACES}`);
+  hud.setNemesis(nem, nem ? riderName(nem.id) : '', Math.round(REVENGE_PAY * world.div.prize));
+}
+
 function startRace(): void {
+  if (!world) return; // still booting
+  intro(); // the first race's ran behind the title
   unlockAudio();
   titleEl.classList.add('hidden');
   state = 'race';
+  platform.lifecycle('level_started', { world: world.div.name, level: String(save.cup.race + 1) });
 }
 
 const near = (id: number) => id === 0 || Math.abs(world.riders[id].z - world.player.z) < 28;
@@ -111,7 +132,8 @@ function handle(e: SimEvent): void {
       if (e.from === 0) {
         slow = 0.6;
         view.shake(0.35);
-        if (w.grudgeKos > lastGrudgeKos) {
+        if (e.to === w.nemesis) hud.flash(`REVENGE! +$${Math.round(REVENGE_PAY * w.div.prize) + C.SHOVE_BONUS}`, 'ko');
+        else if (w.grudgeKos > lastGrudgeKos) {
           lastGrudgeKos = w.grudgeKos;
           hud.flash(`GRUDGE SETTLED +$${C.GRUDGE_BONUS + C.SHOVE_BONUS}`, 'ko');
         } else hud.flash(`${e.into === 'car' ? 'INTO TRAFFIC!' : e.into === 'cones' ? 'INTO THE CONES!' : 'INTO THE WALL!'} +$${C.SHOVE_BONUS}`, 'ko');
@@ -130,7 +152,8 @@ function handle(e: SimEvent): void {
       if (near(e.to)) sfx.thunk(e.ko);
       if (e.from === 0 && e.counter && !e.ko) hud.flash('COUNTER!', 'ko');
       if (e.from === 0 && e.ko) {
-        if (w.grudgeKos > lastGrudgeKos) {
+        if (e.to === w.nemesis) hud.flash(`REVENGE! +$${Math.round(REVENGE_PAY * w.div.prize) + C.KO_BONUS}`, 'ko');
+        else if (w.grudgeKos > lastGrudgeKos) {
           lastGrudgeKos = w.grudgeKos;
           hud.flash(`GRUDGE SETTLED +$${C.GRUDGE_BONUS + C.KO_BONUS}`, 'ko');
         } else hud.flash(`KO! +$${C.KO_BONUS}`, 'ko');
@@ -203,7 +226,7 @@ function handle(e: SimEvent): void {
       if (e.rider === 0) view.shake(e.stomp >= 0 ? 0.5 : 0.2);
       if (e.stomp >= 0 && e.rider === 0) {
         hitstop = 0.1;
-        hud.flash(`STOMPED ${w.riders[e.stomp].name}! +$${C.KO_BONUS}`, 'ko');
+        hud.flash(e.stomp === w.nemesis ? `REVENGE! +$${Math.round(REVENGE_PAY * w.div.prize) + C.KO_BONUS}` : `STOMPED ${w.riders[e.stomp].name}! +$${C.KO_BONUS}`, 'ko');
       } else if (e.stomp === 0) hud.flash(`${w.riders[e.rider].name} LANDED ON YOU!`, 'bad');
       break;
   }
@@ -221,6 +244,13 @@ function finishRace(): void {
   // the cup: points for every finisher; after the last race, the table decides who goes up
   scoreRace(save.cup, w.riders.map((r) => (r.thug ? 0 : r.place)));
   const table = standings(save.cup).map((s) => ({ name: riderName(s.id), pts: s.pts, rank: s.rank, me: s.id === 0 }));
+  // the feuds: the nemesis' bounty, and bad blood towards the next one
+  const fo = settleFeud(save.feud, {
+    koPlayer: w.riders.map((r) => (r.thug ? 0 : r.koPlayer)),
+    koByPlayer: w.riders.map((r) => (r.thug ? 0 : r.koByPlayer)),
+    places: w.riders.map((r) => (r.thug ? 0 : r.place)),
+  }, w.div.prize);
+  earned += fo.cash;
   const cupRace = save.cup.race;
   const end = cupOver(save.cup) ? endCup(save.cup, div) : null;
   if (end) {
@@ -238,9 +268,25 @@ function finishRace(): void {
     place, total: w.racers, prize, kos: w.kos, koBonus, grudgeKos: w.grudgeKos, grudgeBonus, shoves: w.shoves, shoveBonus, fines: w.fines,
     earned, time: w.time, grudges: save.grudges.map((id) => w.riders[id].name),
     league: { div: C.DIVISIONS[div].name, race: cupRace, races: CUP_RACES, table, end, next: C.DIVISIONS[save.div].name },
+    feud: { out: fo, nemesis: save.feud.nemesis, name: riderName },
+    double: earned > 0 && platform.rewardedReady() ? earned : 0,
+    doubled: false,
   };
   state = 'results';
-  const show = () => hud.showResults(res, save, buy, again);
+  platform.lifecycle(place <= C.PROMOTE ? 'level_completed' : 'level_failed', { world: C.DIVISIONS[div].name, level: String(cupRace) });
+  const show = () => hud.showResults(res, save, buy, again, double);
+  const double = () => {
+    void platform.showRewarded('double_cash').then((ok) => {
+      if (ok && !res.doubled) {
+        save.cash += res.earned;
+        res.earned *= 2;
+        res.doubled = true;
+        storeSave(save);
+        sfx.coin();
+      }
+      if (state === 'results') show();
+    });
+  };
   const buy = (k: keyof typeof save.up) => {
     const cost = C.upgradeCost(save.up[k]);
     if (save.cash < cost || save.up[k] >= C.UPGRADE_MAX) return;
@@ -251,8 +297,10 @@ function finishRace(): void {
     show();
   };
   const again = () => {
+    platform.interstitial('race_end');
     newRace();
     state = 'race';
+    platform.lifecycle('level_started', { world: world.div.name, level: String(save.cup.race + 1) });
   };
   show();
 }
@@ -297,13 +345,36 @@ function setPaused(on: boolean): void {
   if (state !== 'race' || paused === on) return;
   paused = on;
   hud.setPaused(on);
-  suspendAudio(on);
+  suspendAudio(on || hostPaused);
+}
+
+platform.host.onPause = (on) => {
+  hostPaused = on;
+  suspendAudio(on || paused);
+};
+platform.host.onAudio = (on) => {
+  hostMuted = !on;
+  setMuted(hostMuted);
+};
+
+/** "Back on now": a rewarded ad puts a downed player straight back on the scooter, once a race. */
+function remount(): void {
+  if (remountUsed || state !== 'race' || world.player.state !== 'down') return;
+  remountUsed = true;
+  hud.showRemount(false);
+  void platform.showRewarded('remount').then((ok) => {
+    if (ok && state === 'race' && world.player.state === 'down') {
+      world.input.remount = true;
+      hud.flash('BACK ON!', 'go');
+    } else if (!ok) remountUsed = false; // no ad, no charge
+  });
 }
 
 controls.onPause = () => setPaused(!paused);
 controls.onAny = () => unlockAudio();
 hud.pauseBtn.addEventListener('click', () => setPaused(true));
 hud.pauseResume.addEventListener('click', () => setPaused(false));
+hud.remountBtn.addEventListener('pointerdown', (e) => { e.stopPropagation(); remount(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) setPaused(true); });
 titleEl.querySelector('button')!.addEventListener('click', startRace);
 window.addEventListener('resize', () => { stage.resize(); hud.resize(); });
@@ -313,7 +384,7 @@ function frame(now: number): void {
   requestAnimationFrame(frame);
   const dt = Math.min(0.1, (now - lastT) / 1000);
   lastT = now;
-  if (paused) return;
+  if (paused || hostPaused) return;
   let simDt = dt;
   if (hitstop > 0) { hitstop -= dt; simDt = 0; }
   else if (slow > 0) { slow -= dt; simDt *= 0.35; }
@@ -325,6 +396,8 @@ function frame(now: number): void {
   view.update(simDt, Math.min(1, acc / C.DT));
   hud.update(world, view, save.cash, dt);
   hud.showHint(state === 'race' && save.races < 2 && world.time < 6);
+  downClock = world.player.state === 'down' ? downClock + dt : 0;
+  hud.showRemount(state === 'race' && !BOT && !remountUsed && downClock > 0.6 && platform.rewardedReady());
   if (statsEl) showStats(dt);
 }
 
@@ -346,15 +419,23 @@ function showStats(dt: number): void {
   statsT = statsN = statsWorst = 0;
 }
 
-newRace();
-const best = document.getElementById('best');
-if (best && save.races > 0) {
-  best.textContent = `${C.DIVISIONS[save.div].name} · race ${save.cup.race + 1}/${CUP_RACES} · cash $${save.cash}` + (save.titles ? ` · ${save.titles}× champion` : '');
+async function boot(): Promise<void> {
+  await platform.initPlatform();
+  save = parseSave(await platform.loadData());
+  hostMuted = !platform.audioEnabled();
+  setMuted(hostMuted);
+  newRace();
+  const best = document.getElementById('best');
+  if (best && save.races > 0) {
+    best.textContent = `${C.DIVISIONS[save.div].name} · race ${save.cup.race + 1}/${CUP_RACES} · cash $${save.cash}` + (save.titles ? ` · ${save.titles}× champion` : '');
+  }
+  if (BOT) startRace();
+  requestAnimationFrame(frame);
+  platform.gameReady();
 }
-if (BOT) startRace();
-requestAnimationFrame(frame);
+void boot();
 
 // For poking at the game from the console while testing.
-Object.assign(window, { __game: { get world() { return world; }, get view() { return view; }, get state() { return state; }, hud, save, botInput,
+Object.assign(window, { __game: { get world() { return world; }, get view() { return view; }, get state() { return state; }, hud, get save() { return save; }, botInput, platform,
   /** Bug report: this race so far as a replay (seed, options, every input), JSON to paste. */
   replay: () => JSON.stringify(recorder.finish(world)) } });

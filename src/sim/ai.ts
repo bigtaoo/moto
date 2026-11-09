@@ -193,7 +193,7 @@ function pickFoe(w: World, r: Rider): Rider | null {
   }
   if (!best) return null;
   let chance = r.aggr * (best.isPlayer ? C.AI.harassPlayer : C.AI.harassRival);
-  if (r.hitBy === best.id || (best.isPlayer && w.grudges.has(r.id))) chance *= C.AI.grudge;
+  if (r.hitBy === best.id || (best.isPlayer && w.hates(r.id))) chance *= C.AI.grudge;
   return w.aiRng.float() < chance ? best : null;
 }
 

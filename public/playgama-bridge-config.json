@@ -1,0 +1,12 @@
+{
+  "advertisement": {
+    "interstitial": {
+      "placements": [{ "id": "race_end" }],
+      "placementFallback": "race_end"
+    },
+    "rewarded": {
+      "placements": [{ "id": "double_cash" }, { "id": "remount" }],
+      "placementFallback": "double_cash"
+    }
+  }
+}

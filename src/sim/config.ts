@@ -4,7 +4,7 @@
  * Bump on any change to the race rules that alters what a seed plus inputs produce, and record the new
  * golden hash in world.test.ts. Replays and (later) online rooms only mix the same version.
  */
-export const SIM_VERSION = 12;
+export const SIM_VERSION = 13;
 
 export const TICK_HZ = 30;
 export const DT = 1 / TICK_HZ;
@@ -249,6 +249,13 @@ export const SHOVE_BONUS = 100;
 export const GRUDGE_BONUS = 150;
 /** Knock the player off this many times and a rival becomes a grudge. */
 export const GRUDGE_AT = 2;
+
+/**
+ * The nemesis (picked by the career, src/career.ts): one rival who comes for the player every race, a
+ * little faster (`top` m/s), keener (`aggr`) and tougher (`hp` more hits) than usual, and hunts them like a
+ * grudge does.
+ */
+export const NEMESIS = { top: 0.6, aggr: 0.2, hp: 2 };
 
 export interface RivalSpec {
   name: string;

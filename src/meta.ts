@@ -1,8 +1,10 @@
-// What carries over between races: cash, upgrades, grudges, the career. Saved in localStorage when it is available.
+// What carries over between races: cash, upgrades, grudges, the career, the feuds. Stored through the
+// platform (src/platform.ts) as one JSON string.
 
 import type { Upgrades } from './sim/world';
 import { DIVISIONS } from './sim/config';
-import { newCup, type Cup } from './career';
+import { newCup, newFeud, type Cup, type Feud } from './career';
+import { saveData } from './platform';
 
 export interface Save {
   cash: number;
@@ -15,14 +17,25 @@ export interface Save {
   cup: Cup;
   /** Times the top division's cup was won. */
   titles: number;
+  feud: Feud;
 }
 
-const KEY = 'dummy-brawl-v1';
+const num = (v: unknown) => Number(v) || 0;
 
-export function loadSave(): Save {
-  const fresh: Save = { cash: 0, up: { top: 0, steer: 0, hp: 0 }, grudges: [], races: 0, best: 0, div: 0, cup: newCup(), titles: 0 };
+function readFeud(f: Partial<Feud> | undefined): Feud {
+  const out = newFeud();
+  if (!f) return out;
+  if (Array.isArray(f.beef)) f.beef.forEach((b, i) => { if (i < out.beef.length) out.beef[i] = Math.max(0, num(b)); });
+  const n = f.nemesis;
+  if (n && n.id >= 1 && n.id < out.beef.length) out.nemesis = { id: Math.floor(n.id), hurt: num(n.hurt), paid: num(n.paid) };
+  out.broken = num(f.broken);
+  return out;
+}
+
+/** The save from its JSON (null or junk: a fresh one). */
+export function parseSave(raw: string | null): Save {
+  const fresh: Save = { cash: 0, up: { top: 0, steer: 0, hp: 0 }, grudges: [], races: 0, best: 0, div: 0, cup: newCup(), titles: 0, feud: newFeud() };
   try {
-    const raw = localStorage.getItem(KEY);
     if (!raw) return fresh;
     const s = JSON.parse(raw) as Partial<Save>;
     const cup = newCup();
@@ -39,6 +52,7 @@ export function loadSave(): Save {
       div: Math.max(0, Math.min(DIVISIONS.length - 1, Math.floor(Number(s.div) || 0))),
       cup,
       titles: Number(s.titles) || 0,
+      feud: readFeud(s.feud),
     };
   } catch {
     return fresh;
@@ -46,9 +60,5 @@ export function loadSave(): Save {
 }
 
 export function storeSave(s: Save): void {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(s));
-  } catch {
-    // private mode or blocked storage: progress lasts for this page only
-  }
+  saveData(JSON.stringify(s));
 }

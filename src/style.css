@@ -73,6 +73,30 @@ html, body {
 .tag.on { opacity: 1; }
 .tag.grudge { background: var(--red); }
 .tag.grudge::before { content: '😠 '; }
+.tag.nem { background: #2a0d12; color: #ff5a4a; }
+.tag.nem::before { content: '☠ '; }
+.nemcard {
+  position: absolute; left: 50%; top: 37%; transform: translate(-50%, 0); opacity: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 2px; white-space: nowrap; pointer-events: none;
+  background: rgba(42, 13, 18, 0.88); color: #ffd9d3; border-radius: 12px; padding: 8px 16px; font-size: 13px;
+}
+.nemcard b { color: #ff5a4a; font-size: 17px; }
+.nemcard.show { animation: league 5s ease-out forwards; }
+.remount, .double {
+  display: flex; flex-direction: column; align-items: center; border: 0; border-radius: 999px; cursor: pointer;
+  background: #1f8a3a; color: #fff; font: 900 18px system-ui, sans-serif; padding: 10px 22px;
+}
+.remount small, .double small { font-size: 11px; font-weight: 600; opacity: 0.8; }
+.remount { position: absolute; left: 50%; bottom: 22%; transform: translateX(-50%); pointer-events: auto; animation: pulse 0.9s ease-in-out infinite alternate; }
+.remount.hidden { display: none; }
+@keyframes pulse { from { transform: translateX(-50%) scale(1); } to { transform: translateX(-50%) scale(1.07); } }
+.double { margin: 6px auto; }
+.double:disabled { opacity: 0.5; }
+.nemres { background: #2a0d12; color: #ffd9d3; border-radius: 10px; padding: 8px; font-size: 15px; margin: 6px 0; }
+.nemres b { color: #ff5a4a; }
+.nemres small { display: block; font-size: 12px; opacity: 0.85; margin-top: 2px; }
+.nemres.win { background: #3a2a00; color: #ffd860; font-weight: 900; }
+.nemres.small { font-size: 13px; padding: 5px 8px; }
 .tag.hunt { background: #d9480f; }
 .tag.hunt::before { content: '🎯 '; }
 .tag.thug { background: #2b2b31; color: #ff8a7a; }
@@ -213,7 +237,7 @@ button.primary:active { transform: translateY(4px); box-shadow: 0 1px 0 var(--in
   .card { max-width: 640px; display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px; align-items: start; padding: 12px 16px; }
   .card > h2, .card > .sub { grid-column: 1; }
   .card .rows { grid-column: 1; margin: 6px 0; }
-  .card .grudges, .card .cashline, .card .cup { grid-column: 1; }
+  .card .grudges, .card .cashline, .card .cup, .card .nemres, .card .double { grid-column: 1; }
   .card .ups { grid-column: 2; grid-row: 1 / span 5; }
   .card .again { grid-column: 2; }
   .card.small, #title .card { display: block; max-width: 300px; }

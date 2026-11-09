@@ -1,6 +1,6 @@
 // Headless races: how long a race takes, where the bot finishes, how often it fights and crashes,
 // and how much pressure it is under while leading.
-// Usage: npm run bot -- [races] [skill 0..1] [fight|race] [upgrade level 0..6 for all three] [stop: pull over for the buggies | go] [division 0..4]
+// Usage: npm run bot -- [races] [skill 0..1] [fight|race] [upgrade level 0..6 for all three] [stop: pull over for the buggies | go] [division 0..4] [nemesis rider id, 0 none]
 
 import { World } from '../src/sim/world';
 import { TICK_HZ } from '../src/sim/config';
@@ -12,12 +12,13 @@ const fight = process.argv[4] !== 'race';
 const up = Number(process.argv[5] ?? 0);
 const comply = process.argv[6] === "stop"; // pulls over for the buggies
 const div = Number(process.argv[7] ?? 0);
+const nemesis = Number(process.argv[8] ?? 0) || undefined;
 interface Row { place: number; time: number; kos: number; crashes: number; hits: number; lead: number; leadHits: number; leadCrashes: number; quiet: number; hunts: number; ambushes: number;
   aiSwings: number; hitP: number; shoves: number; aiShoves: number; took: number; lost: number; whiffs: number; counters: number; fines: number; heat: number; letGo: number;
-  jumps: number; stomps: number; cones: number; aiCones: number; trail: number; aiTrail: number; posts: number }
+  jumps: number; stomps: number; cones: number; aiCones: number; trail: number; aiTrail: number; posts: number; nemKo: number; revenge: number; nemAhead: number }
 const rows: Row[] = [];
 for (let seed = 1; seed <= races; seed++) {
-  const w = new World({ seed, upgrades: { top: up, steer: up, hp: up }, div });
+  const w = new World({ seed, upgrades: { top: up, steer: up, hp: up }, div, nemesis });
   let jumps = 0, stomps = 0, cones = 0, aiCones = 0, trail = 0, aiTrail = 0, posts = 0;
   const onTrail = w.riders.map(() => false);
   let hits = 0;
@@ -71,7 +72,8 @@ for (let seed = 1; seed <= races; seed++) {
   }
   const row: Row = { place: w.player.place, time: w.time, kos: w.kos, crashes: w.crashes, hits, lead: lead / TICK_HZ, leadHits, leadCrashes, quiet: quiet / TICK_HZ, hunts, ambushes,
     aiSwings, hitP, shoves: w.shoves, aiShoves, took, lost, whiffs, counters, fines: w.fines, heat, letGo,
-    jumps, stomps, cones, aiCones, trail, aiTrail, posts };
+    jumps, stomps, cones, aiCones, trail, aiTrail, posts,
+    nemKo: nemesis ? w.riders[nemesis].koPlayer : 0, revenge: w.revenge, nemAhead: nemesis && w.riders[nemesis].place < w.player.place ? 1 : 0 };
   rows.push(row);
   console.log(`seed ${seed}: place ${row.place}, ${row.time.toFixed(0)} s, KOs ${row.kos}, crashes ${row.crashes} (${leadCrashes} while 1st), fights ${hits}, 1st for ${row.lead.toFixed(0)} s, hit ${leadHits}x while 1st, longest calm lead ${row.quiet.toFixed(0)} s, hunts ${hunts}, ambushes ${ambushes}`);
 }
@@ -79,3 +81,4 @@ const avg = (k: keyof Row) => rows.reduce((s, r) => s + r[k], 0) / rows.length;
 console.log(`avg: place ${avg('place').toFixed(1)}, ${avg('time').toFixed(0)} s, KOs ${avg('kos').toFixed(1)}, crashes ${avg('crashes').toFixed(1)}, fights ${avg('hits').toFixed(1)}, 1st for ${avg('lead').toFixed(0)} s, hit ${avg('leadHits').toFixed(1)}x / crashed ${avg('leadCrashes').toFixed(1)}x while 1st, longest calm lead ${avg('quiet').toFixed(0)} s, hunts ${avg('hunts').toFixed(1)}, ambushes ${avg('ambushes').toFixed(1)}`);
 console.log(`     AI swings at player ${avg('aiSwings').toFixed(1)}, player hit ${avg('hitP').toFixed(1)}, shoves ${avg('shoves').toFixed(1)} (AI ${avg('aiShoves').toFixed(1)}), weapons taken ${avg('took').toFixed(1)} / lost ${avg('lost').toFixed(1)}, AI whiffs at player ${avg('whiffs').toFixed(1)}, counters ${avg('counters').toFixed(1)}, max heat ${avg('heat').toFixed(2)}, let go ${avg('letGo').toFixed(1)}, fines $${avg('fines').toFixed(0)}`);
 console.log(`     division ${div}: jumps ${avg('jumps').toFixed(1)}, stomps ${avg('stomps').toFixed(2)}, cone crashes ${avg('cones').toFixed(2)} (AI ${avg('aiCones').toFixed(2)}), trails taken ${avg('trail').toFixed(1)} (AI ${avg('aiTrail').toFixed(1)}), post crashes ${avg('posts').toFixed(2)}, top-3 ${(rows.filter((r) => r.place <= 3).length / rows.length * 100).toFixed(0)}%`);
+if (nemesis) console.log(`     nemesis ${nemesis}: knocked the player off ${avg('nemKo').toFixed(2)}, revenge ${avg('revenge').toFixed(2)}, finished ahead ${(avg('nemAhead') * 100).toFixed(0)}%`);

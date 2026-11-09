@@ -60,3 +60,96 @@ export function endCup(cup: Cup, div: number): CupEnd {
   const bonus = Math.round((CUP_BONUS[rank - 1] ?? 0) * C.DIVISIONS[div].prize);
   return { rank, promoted: top && !last, champion: last && rank === 1, bonus };
 }
+
+// ---- the nemesis -------------------------------------------------------------------------------
+// Every rival keeps a tally of bad blood with the player: knocking them off and beating them home add
+// to it, being knocked off takes it down. The first to reach NEMESIS_AT becomes the player's nemesis
+// (one at a time): faster and keener in every race (C.NEMESIS), and worth a bounty each time the
+// player knocks them off. Beating them outright in a race (knocking them off and finishing ahead) BREAK_AT
+// times breaks them for good.
+
+export const NEMESIS_AT = 6;
+export const BREAK_AT = 3;
+/** Cash, times the division's prize multiplier: per revenge KO, for beating them home, for breaking them. */
+export const REVENGE_PAY = 150;
+export const AHEAD_PAY = 100;
+export const BREAK_PAY = 500;
+
+export interface Nemesis {
+  id: number;
+  /** Times they knocked the player off, since they became the nemesis. */
+  hurt: number;
+  /** Races the player beat them outright in (knocked them off and finished ahead), towards BREAK_AT. */
+  paid: number;
+}
+
+export interface Feud {
+  /** Bad blood per rider id (0 unused). */
+  beef: number[];
+  nemesis: Nemesis | null;
+  /** Nemeses broken. */
+  broken: number;
+}
+
+export const newFeud = (): Feud => ({ beef: Array.from({ length: C.ROSTER.length + 1 }, () => 0), nemesis: null, broken: 0 });
+
+/** One race, per rider id: KOs on the player, KOs by the player, finishing place (0: did not finish). */
+export interface RaceFeud {
+  koPlayer: number[];
+  koByPlayer: number[];
+  places: number[];
+}
+
+export interface FeudOutcome {
+  /** The nemesis this race was against, if any. */
+  vs: number | null;
+  revenge: number;
+  ahead: boolean;
+  /** Knocked them off and beat them home: one towards breaking them. */
+  beaten: boolean;
+  broken: boolean;
+  cash: number;
+  /** A rival who just became the nemesis. */
+  fresh: number | null;
+}
+
+/** Settle one race's feuds into `f` and say what it paid. */
+export function settleFeud(f: Feud, r: RaceFeud, prizeMul: number): FeudOutcome {
+  const out: FeudOutcome = { vs: null, revenge: 0, ahead: false, beaten: false, broken: false, cash: 0, fresh: null };
+  const me = r.places[0] || 99;
+  const n = f.nemesis;
+  if (n) {
+    out.vs = n.id;
+    out.revenge = r.koByPlayer[n.id] ?? 0;
+    out.ahead = (r.places[n.id] || 99) > me;
+    n.hurt += r.koPlayer[n.id] ?? 0;
+    out.beaten = out.revenge > 0 && out.ahead;
+    if (out.beaten) n.paid++;
+    out.cash += out.revenge * REVENGE_PAY + (out.ahead ? AHEAD_PAY : 0);
+    if (n.paid >= BREAK_AT) {
+      out.broken = true;
+      out.cash += BREAK_PAY;
+      f.broken++;
+      f.beef[n.id] = 0;
+      f.nemesis = null;
+    }
+  }
+  for (let id = 1; id < f.beef.length; id++) {
+    if (n && id === n.id) continue;
+    const place = r.places[id] ?? 0;
+    if (!place && !r.koPlayer[id] && !r.koByPlayer[id]) continue;
+    const beat = place > 0 && place < me ? 1 : 0;
+    f.beef[id] = Math.max(0, f.beef[id] + (r.koPlayer[id] ?? 0) * 2 + beat - (r.koByPlayer[id] ?? 0));
+  }
+  if (!f.nemesis && !out.broken) {
+    let best = 0;
+    for (let id = 1; id < f.beef.length; id++) if (f.beef[id] >= NEMESIS_AT && f.beef[id] > (f.beef[best] ?? 0)) best = id;
+    if (best) {
+      f.nemesis = { id: best, hurt: 0, paid: 0 };
+      f.beef[best] = 0;
+      out.fresh = best;
+    }
+  }
+  out.cash = Math.round(out.cash * prizeMul);
+  return out;
+}

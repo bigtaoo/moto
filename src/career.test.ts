@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { newCup, scoreRace, standings, cupOver, endCup, CUP_RACES, POINTS, CUP_BONUS } from './career';
+import { newCup, scoreRace, standings, cupOver, endCup, CUP_RACES, POINTS, CUP_BONUS, newFeud, settleFeud, REVENGE_PAY, AHEAD_PAY, BREAK_PAY } from './career';
 import * as C from './sim/config';
 
 /** Places for the player and the roster: the player at `me`, the rivals filling the rest in id order. */
@@ -45,5 +45,56 @@ describe('career cup', () => {
     const e = endCup(cup, C.DIVISIONS.length - 1);
     expect(e).toMatchObject({ rank: 1, promoted: false, champion: true });
     expect(standings(cup)[0].id).toBe(0);
+  });
+});
+
+describe('nemesis', () => {
+  const z = () => Array.from({ length: C.ROSTER.length + 1 }, () => 0);
+  const race = (o: { ko?: [number, number][]; by?: [number, number][]; places?: number[] }) => {
+    const r = { koPlayer: z(), koByPlayer: z(), places: o.places ?? [5, 1, 2, 3, 4, 6, 7, 8] };
+    for (const [id, n] of o.ko ?? []) r.koPlayer[id] = n;
+    for (const [id, n] of o.by ?? []) r.koByPlayer[id] = n;
+    return r;
+  };
+
+  it('builds bad blood from knockdowns and beating the player home, and names a nemesis', () => {
+    const f = newFeud();
+    let out = settleFeud(f, race({ ko: [[3, 2]] }), 1); // 2 KOs (+4), finished ahead (+1)
+    expect(f.beef[3]).toBe(5);
+    expect(out.fresh).toBeNull();
+    out = settleFeud(f, race({ ko: [[3, 1]], by: [[2, 1]] }), 1);
+    expect(out.fresh).toBe(3);
+    expect(f.nemesis).toEqual({ id: 3, hurt: 0, paid: 0 });
+    expect(f.beef[3]).toBe(0);
+    expect(f.beef[2]).toBe(1); // ahead +1 twice, knocked off once
+  });
+
+  it('pays revenge and beating them home, and breaks them after BREAK_AT', () => {
+    const f = newFeud();
+    f.nemesis = { id: 4, hurt: 0, paid: 0 };
+    const first = [1, 2, 3, 4, 5, 6, 7, 8];
+    let out = settleFeud(f, race({ by: [[4, 2]], ko: [[4, 1]], places: first }), 2);
+    expect(out).toMatchObject({ vs: 4, revenge: 2, ahead: true, beaten: true, broken: false });
+    expect(out.cash).toBe((2 * REVENGE_PAY + AHEAD_PAY) * 2);
+    expect(f.nemesis).toEqual({ id: 4, hurt: 1, paid: 1 });
+    // knocked off but home first: bounty, no progress
+    out = settleFeud(f, race({ by: [[4, 3]], places: [8, 1, 2, 3, 4, 5, 6, 7] }), 1);
+    expect(out).toMatchObject({ revenge: 3, ahead: false, beaten: false, cash: 3 * REVENGE_PAY });
+    // ahead without a knockdown: no progress either
+    expect(settleFeud(f, race({ places: first }), 1).beaten).toBe(false);
+    expect(f.nemesis!.paid).toBe(1);
+    settleFeud(f, race({ by: [[4, 1]], places: first }), 1);
+    out = settleFeud(f, race({ by: [[4, 1]], ko: [[1, 9]], places: first }), 1);
+    expect(out.broken).toBe(true);
+    expect(out.cash).toBe(REVENGE_PAY + AHEAD_PAY + BREAK_PAY);
+    expect(out.fresh).toBeNull(); // not straight after a break, even with plenty of bad blood around
+    expect([f.nemesis, f.broken]).toEqual([null, 1]);
+    expect(settleFeud(f, race({}), 1).fresh).toBe(1);
+  });
+
+  it('never lets bad blood go below zero', () => {
+    const f = newFeud();
+    settleFeud(f, race({ by: [[5, 3]], places: [1, 2, 3, 4, 5, 6, 7, 8] }), 1);
+    expect(f.beef[5]).toBe(0);
   });
 });
