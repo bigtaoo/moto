@@ -4,7 +4,7 @@
  * Bump on any change to the race rules that alters what a seed plus inputs produce, and record the new
  * golden hash in world.test.ts. Replays and (later) online rooms only mix the same version.
  */
-export const SIM_VERSION = 8;
+export const SIM_VERSION = 9;
 
 export const TICK_HZ = 30;
 export const DT = 1 / TICK_HZ;
@@ -78,9 +78,12 @@ export const CAR = { halfW: 0.95, halfL: 2.2, riderHalfW: 0.4, minSpeed: 9, maxS
 export const TRAFFIC = { ahead: 260, behind: 50, spawnFrom: 170, base: 9, extra: 6, gap: 14 };
 
 /**
- * The test-site security buggies. None ever hits anyone, and none sticks around: each one makes a
- * single go at the player (cuts in front and holds them up, or rides alongside and squeezes them toward
- * the barrier), then pulls off and leaves the race. How many come, when, from where and with which move
+ * The test-site security buggies want the player to pull over. None ever rams anyone, and none sticks
+ * around: each one makes a single go at the player, then pulls off and leaves the race. One that catches
+ * up from behind draws level and shoves them onto the shoulder, grinding their speed off; one waiting
+ * ahead either does the same or cuts in front, slows down and shadows their line. The way out is the
+ * traffic: a buggy won't shove anyone into a car (it backs off and leaves a gap), and it can't follow
+ * through a gap it doesn't fit. How many come, when, from where and with which move
  * is random per race and per buggy (ranges are [min, max]). They are solid, so riders bump off them like they do
  * off each other. Brake, steer round them or outlast them.
  */
@@ -99,16 +102,21 @@ export const PATROL = {
   spawnAhead: [120, 190] as const, // a waiting one starts this far ahead ...
   lurkPace: [0.35, 0.55] as const, // ... cruising at this fraction of the player's speed ...
   pullOutAt: [25, 45] as const, // ... and cuts in front when the player is this close behind (or squeezes when level)
+  pressMax: 6, // seconds past its press time before it gives up on a player it can't get to
   giveUp: 20, // seconds before a buggy that never reaches the player leaves anyway
-  steer: 5, // slower than any rider, so you can always slip round it
+  steer: 5, // sideways m/s getting about (slower than any rider) ...
+  pushSteer: 6, // ... shoving a rider toward the shoulder ...
+  blockSteer: 8.5, // ... and shadowing the line of the rider behind it: an upgraded steer just gets round it
   accel: 9,
   brake: 12,
   warnAt: 13, // siren and its move when it gets this close behind
   pressSec: [2.5, 5] as const, // how long it blocks or squeezes
   blockAhead: [5, 8] as const, // metres ahead of the player it settles while blocking ...
-  blockPace: 0.8, // ... driving at this fraction of the player's top speed
+  blockPace: [0.8, 0.55] as const, // ... driving at this fraction of the player's top speed, slowing to the second over its press time
   squeezeIn: 0.5, // metres it keeps leaning in past touching while squeezing
-  rub: 0.993, // speed a rider keeps per tick while grinding against it: being squeezed slows you
+  /** Squeezing: it eases off when a car is in the way on the shoulder side within this many seconds. */
+  carWarn: 1.4,
+  rub: 0.99, // speed a rider keeps per tick while grinding against it: being pulled over slows you hard
   pinned: 0.99, // ... and this on top while pinned on the barrier
   goneAt: 30, // leaving: gone once this far behind the player (off camera) ...
   goneAhead: 45, // ... or this far ahead ...

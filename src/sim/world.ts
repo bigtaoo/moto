@@ -90,8 +90,9 @@ export interface Pickup {
 export interface Patrol {
   active: boolean;
   /**
-   * chase: ride up from behind. lurk: cruise slowly in a side lane ahead, waiting. block: get in front and
-   * hold the player up. squeeze: ride alongside and lean in. leave: pull off the player's line and drop out.
+   * chase: ride up from behind. lurk: cruise slowly in a side lane ahead, waiting. block: sit in front of
+   * the player, slowing and shadowing their line. squeeze: draw level and shove them toward the shoulder.
+   * leave: pull off the player's line and drop out.
    */
   mode: 'chase' | 'lurk' | 'block' | 'squeeze' | 'leave';
   t: number;
@@ -109,8 +110,10 @@ export interface Patrol {
   pace: number;
   /** Ticks until the next buggy, once this one has gone. */
   wait: number;
-  /** Blocking: has it got in front yet? */
-  ahead: boolean;
+  /** Squeezing: which way it shoves the player (away from its own side). */
+  push: Side;
+  /** Ticks it has actually been at it (level with them, or in front of them); its press time counts these. */
+  hold: number;
   x: number;
   z: number;
   px: number;
@@ -165,7 +168,7 @@ export class World {
   readonly cars: Car[] = [];
   readonly pickups: Pickup[] = [];
   readonly patrol: Patrol = {
-    active: false, mode: 'leave', t: 0, side: 1, units: 0, wait: 0, ahead: false, x: 0, z: 0, px: 0, pz: 0, speed: 0,
+    active: false, mode: 'leave', t: 0, side: 1, units: 0, wait: 0, push: 1, hold: 0, x: 0, z: 0, px: 0, pz: 0, speed: 0,
     from: 'behind', move: 'block', press: 0, blockAhead: 0, pullOutAt: 0, pace: 0,
   };
   /** Patrol dice: their own stream, so they don't shift traffic or AI. Busy-ness and first arrival are per race. */
@@ -623,18 +626,19 @@ export class World {
     if (p.finished && pt.mode !== 'leave') leave();
     let want = pt.x;
     let speed = pt.speed;
+    let steer = P.steer;
     switch (pt.mode) {
       case 'chase':
         // while the player is down it hangs back and waits for them to get going again
         speed = riding ? p.speed + P.chaseGain + Math.max(0, gap - 30) * 0.25 : p.speed + clamp(gap - 30, -8, 8);
-        // come up a lane over, never into the player's back
-        pt.side = pt.x >= p.x ? 1 : -1;
+        // come up a lane over, never into the player's back: on their left to shove them right onto the
+        // shoulder, unless they're out in the oncoming lane
+        pt.side = p.x < -3.5 ? 1 : -1;
         want = beside(pt.side);
         if (pt.t > P.giveUp * C.TICK_HZ || p.finished) leave();
         else if (riding && gap < P.warnAt) {
-          pt.mode = pt.move;
-          pt.t = 0;
-          pt.ahead = false;
+          pt.mode = 'squeeze';
+          pt.t = pt.hold = 0;
           this.events.push({ type: 'patrolWarn' });
         }
         break;
@@ -648,8 +652,7 @@ export class World {
         if (pt.move === 'squeeze' && -gap < 25 && riding) speed = Math.max(4, p.speed - clamp(-gap * 0.3, 1.5, 6));
         if (riding && (pt.move === 'block' ? -gap < pt.pullOutAt : gap > -1 || (inLane && -gap < 8))) {
           pt.mode = pt.move;
-          pt.t = 0;
-          pt.ahead = true;
+          pt.t = pt.hold = 0;
           this.events.push({ type: 'patrolWarn' });
         } else if (gap > P.halfL + 2) leave(); // got past it while down
         else if (pt.t > P.giveUp * C.TICK_HZ) {
@@ -658,29 +661,40 @@ export class World {
         }
         break;
       case 'block': {
+        // sit in front of the player and slow down, shadowing their line: get round it where it can't follow
         const lead = pt.z - p.z;
-        if (!pt.ahead) {
-          // overtake a lane over, then cut in
-          speed = p.speed + 8;
-          want = beside(pt.side);
-          if (lead > P.halfL + 2.5) { pt.ahead = true; pt.t = 0; }
-        } else {
-          // sit in front of the player, a bit slower than they'd like to go
-          speed = clamp(p.speed + (pt.blockAhead - lead) * 1.5, p.speed * 0.5, p.top * P.blockPace);
-          want = p.x;
-          if (lead > 12) pt.t = 0; // the clock runs once it's actually in their way
-        }
-        if (!riding || pt.t > pt.press || (pt.ahead && lead < -2)) leave();
+        if (lead < 12) pt.hold++; // the clock runs once it's actually in their way
+        const k = clamp(pt.hold / pt.press, 0, 1);
+        const pace = P.blockPace[0] + (P.blockPace[1] - P.blockPace[0]) * k;
+        speed = clamp(p.speed + (pt.blockAhead - lead) * 1.5, p.speed * 0.5, p.top * pace);
+        want = p.x;
+        steer = P.blockSteer;
+        if (!riding || pt.hold > pt.press || pt.t > pt.press + P.pressMax * C.TICK_HZ || lead < -2) leave();
         break;
       }
-      case 'squeeze':
-        // ride level with the player and lean in toward them
-        pt.side = pt.x >= p.x ? 1 : -1;
-        speed = p.speed + clamp(gap * 2, -6, 6);
-        // lean in only once level: leaning in from in front would just be a block
-        want = -gap > P.halfL ? beside(pt.side) : p.x + pt.side * (P.halfW + P.riderHalfW - P.squeezeIn);
-        if (!riding || pt.t > pt.press) leave();
+      case 'squeeze': {
+        // pull the player over: draw level on one side, then lean in and shove them toward the other
+        const wide = P.halfW + P.riderHalfW;
+        const level = Math.abs(gap) < P.halfL;
+        speed = p.speed + clamp(gap * 2, -6, 8);
+        if (!level || Math.abs(pt.x - p.x) > wide + 1.5) {
+          // still getting there: a lane over (leaning in from behind would just run into their back), on
+          // their left to shove them right onto the shoulder unless they're out in the oncoming lane
+          pt.side = p.x < -3.5 ? 1 : -1;
+          want = beside(pt.side);
+        } else {
+          pt.hold++;
+          pt.side = pt.x >= p.x ? 1 : -1;
+          pt.push = -pt.side as Side;
+          // never into a car: with one on the shoulder side coming up, it eases off and leaves them a gap
+          want = this.carOnShoulder(pt.push)
+            ? p.x + pt.side * (wide + 1)
+            : p.x + pt.side * (wide - P.squeezeIn);
+          steer = P.pushSteer;
+        }
+        if (!riding || pt.hold > pt.press || pt.t > pt.press + P.pressMax * C.TICK_HZ) leave();
         break;
+      }
       case 'leave':
         // pull off the player's line first, then drop out of the race for good: well ahead, it speeds off;
         // otherwise it brakes and falls behind
@@ -691,10 +705,28 @@ export class World {
         if (pt.t > P.stuckSec * C.TICK_HZ && Math.abs(gap) < 8 && riding && pt.speed > p.speed - 3 && Math.abs(pt.x - p.x) < P.halfW + P.riderHalfW + 0.3) { this.patrolStuck++; return this.patrolGone(); }
         break;
     }
+    speed = Math.max(0, speed);
     pt.speed = speed > pt.speed ? Math.min(speed, pt.speed + P.accel * C.DT) : Math.max(speed, pt.speed - P.brake * C.DT);
-    this.patrolTraffic(want);
+    this.patrolTraffic(want, steer);
     pt.z += pt.speed * C.DT;
     this.patrolContacts();
+  }
+
+  /**
+   * Is there a car the player would be shoved into: on their `push` side (alongside or within
+   * C.PATROL.carWarn seconds ahead, oncoming ones included)?
+   */
+  private carOnShoulder(push: Side): boolean {
+    const p = this.player;
+    for (const c of this.cars) {
+      const off = (c.x - p.x) * push;
+      if (off < 0.3 || off > 3.5 + C.CAR.halfW) continue;
+      const dist = c.z - p.z;
+      if (Math.abs(dist) < C.CAR.halfL + 1.5) return true;
+      const closing = p.speed - c.speed;
+      if (dist > 0 && closing > 0.1 && (dist - C.CAR.halfL - 1.5) / closing < C.PATROL.carWarn) return true;
+    }
+    return false;
   }
 
   /** This buggy is out of the race; roll when the next one comes. */
@@ -717,7 +749,7 @@ export class World {
     const pt = this.patrol;
     const p = this.player;
     const P = C.PATROL;
-    const plans = (['behind block', 'behind squeeze', 'ahead block', 'ahead squeeze'] as const)
+    const plans = (['behind squeeze', 'ahead block', 'ahead squeeze'] as const)
       .filter((k) => pt.units === 0 || k !== `${pt.from} ${pt.move}`);
     const [from, move] = this.patrolRng.pick(plans).split(' ') as [Patrol['from'], Patrol['move']];
     let side: Side = this.patrolRng.float() < 0.5 ? -1 : 1;
@@ -730,7 +762,7 @@ export class World {
       const z0 = p.z + this.roll(P.spawnAhead);
       let spot: { x: number; z: number; side: Side } | null = null;
       for (let dz = 0; dz <= 60 && !spot; dz += 15) {
-        for (const s of [side, -side as Side]) {
+        for (const s of move === 'squeeze' ? [-1, 1] as Side[] : [side, -side as Side]) {
           const cx = s > 0 ? C.LANE_X[3] : C.LANE_X[1];
           if (clear(cx, z0 + dz)) { spot = { x: cx, z: z0 + dz, side: s }; break; }
         }
@@ -741,7 +773,7 @@ export class World {
     pt.units++;
     const pace = this.roll(P.lurkPace);
     Object.assign(pt, {
-      active: true, mode: from === 'ahead' ? 'lurk' : 'chase', t: 0, side, ahead: false, x, z,
+      active: true, mode: from === 'ahead' ? 'lurk' : 'chase', t: 0, side, push: -side as Side, hold: 0, x, z,
       speed: from === 'ahead' ? p.top * pace : p.speed,
       from, move, pace, press: Math.round(this.roll(P.pressSec) * C.TICK_HZ),
       blockAhead: this.roll(P.blockAhead), pullOutAt: this.roll(P.pullOutAt),
@@ -811,7 +843,7 @@ export class World {
    * Keeps the buggy out of traffic: it steers toward `want` but changes lane when a car is in the
    * way, never slides sideways into a car beside it, and slows behind a car it cannot get round.
    */
-  private patrolTraffic(want: number): void {
+  private patrolTraffic(want: number, steerRate: number): void {
     const pt = this.patrol;
     const P = C.PATROL;
     const wide = C.CAR.halfW + P.halfW + 0.15;
@@ -838,7 +870,7 @@ export class World {
         if (s > score) { score = s; target = x; }
       }
     }
-    const step = P.steer * (target === want ? 1 : 1.6) * C.DT;
+    const step = (target === want ? steerRate : P.steer * 1.6) * C.DT;
     const nx = clamp(pt.x + clamp(target - pt.x, -step, step), -C.EDGE, C.EDGE);
     // judged where the buggy will be after this tick's move, so it can't slip in beside a slower car's tail
     const blocked = (c: Car) => Math.abs(c.x - nx) < wide &&

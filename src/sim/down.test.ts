@@ -27,8 +27,8 @@ describe('knocked off', () => {
           bike = { x: p.bikeX, z: p.bikeZ };
         } else if (down > 0) {
           longest = Math.max(longest, down);
-          // back on where the scooter lay
-          expect(p.z).toBeGreaterThanOrEqual(bike.z - 0.01);
+          // back on where the scooter lay (a shove on that same tick may nudge them a little)
+          expect(p.z).toBeGreaterThanOrEqual(bike.z - 0.5);
           expect(Math.abs(p.x - bike.x)).toBeLessThan(1);
           down = 0;
         }
