@@ -4,7 +4,7 @@
  * Bump on any change to the race rules that alters what a seed plus inputs produce, and record the new
  * golden hash in world.test.ts. Replays and (later) online rooms only mix the same version.
  */
-export const SIM_VERSION = 2;
+export const SIM_VERSION = 3;
 
 export const TICK_HZ = 30;
 export const DT = 1 / TICK_HZ;
@@ -47,7 +47,9 @@ export const ATTACK = {
   windup: 4, // ticks before the blow lands
   cooldown: 13, // ticks between swings
   push: 4.5, // sideways m/s given to the target
-  slow: 0.93,
+  slow: 0.86, // the target's speed is cut to this
+  /** Swinging costs the swinger speed too, hit or miss: a landed blow still gains ground, a wild one loses it. */
+  selfSlow: 0.9,
 };
 export const WEAPON = {
   pan: { dmg: 2, reach: 0.2 },

@@ -8,17 +8,17 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import type { WeaponKind } from '../sim/config';
 import { Kit, kitMaterial, toonMaterial } from './toon';
 
-const JOINT = 0x34343c;
+export const JOINT = 0x34343c;
 const TYRE = 0x232327;
 const HUB = 0xa8aeb6;
 const STEEL = 0x8c939c;
-const TARGET = 0xf4d23c;
-const INK_W = 0.024;
+export const TARGET = 0xf4d23c;
+export const INK_W = 0.024;
 
-const rbox = (w: number, h: number, d: number, r = Math.min(w, h, d) * 0.3) => new RoundedBoxGeometry(w, h, d, 1, r);
-const ball = (r: number, seg = 8) => new THREE.SphereGeometry(r, seg, Math.round(seg * 0.75));
+export const rbox = (w: number, h: number, d: number, r = Math.min(w, h, d) * 0.3) => new RoundedBoxGeometry(w, h, d, 1, r);
+export const ball = (r: number, seg = 8) => new THREE.SphereGeometry(r, seg, Math.round(seg * 0.75));
 /** A capsule along z. */
-const rod = (r: number, len: number) => new THREE.CapsuleGeometry(r, Math.max(0.001, len - 2 * r), 2, 8).rotateX(Math.PI / 2);
+export const rod = (r: number, len: number) => new THREE.CapsuleGeometry(r, Math.max(0.001, len - 2 * r), 2, 8).rotateX(Math.PI / 2);
 const wheel = (r: number, w: number) => new THREE.CylinderGeometry(r, r, w, 12).rotateZ(Math.PI / 2);
 
 const weaponGeo = new Map<WeaponKind, THREE.BufferGeometry>();
@@ -57,12 +57,19 @@ export class RiderView {
   private weaponKind: WeaponKind | null = null;
   private swingT = 0;
   private swingSide: 1 | -1 = 1;
+  /** The swoosh drawn along the swing, one per side (mirrored). */
+  private readonly trail: THREE.Mesh;
+  private readonly trailMat: THREE.MeshBasicMaterial;
   private flash = 0;
+  /** Knock-back lean from a blow, as a spring, and its velocity. */
+  private kick = 0;
+  private kickV = 0;
+  private squash = 0;
   private bank = 0;
   private down = false;
   private tip = 0;
 
-  constructor(readonly body: number, ride: number) {
+  constructor(readonly body: number, readonly ride: number) {
     this.mat = toonMaterial({ vertexColors: true, emissive: 0xffffff, emissiveIntensity: 0 });
     const mesh = (k: Kit) => new THREE.Mesh(k.build(), this.mat);
 
@@ -123,7 +130,11 @@ export class RiderView {
     const [r, rh] = mkArm(1);
     this.arms = [l, r];
     this.hands = [lh, rh];
-    this.dummy.add(mesh(legs), this.torso);
+    // Swing swoosh: a flat arc round the right shoulder from in front out to the side, at hand height.
+    this.trailMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false });
+    this.trail = new THREE.Mesh(new THREE.RingGeometry(0.35, 1.5, 14, 1, Math.PI - 0.35, Math.PI / 2 + 0.75).rotateX(-Math.PI / 2), this.trailMat);
+    this.trail.visible = false;
+    this.dummy.add(mesh(legs), this.torso, this.trail);
     this.lean.add(mesh(sc), this.dummy);
     this.root.add(this.lean);
     this.restArms();
@@ -147,8 +158,12 @@ export class RiderView {
     if (this.weapon) this.hands[side === 1 ? 1 : 0].add(this.weapon);
   }
 
-  hit(): void {
+  /** Struck from the other side and shoved towards `side`. */
+  hit(side: 1 | -1 = 1, ko = false): void {
     this.flash = 1;
+    this.kick = side * (ko ? 0.75 : 0.5);
+    this.kickV = 0;
+    this.squash = 1;
   }
 
   setDown(down: boolean): void {
@@ -162,24 +177,66 @@ export class RiderView {
     const target = this.down ? 0 : Math.max(-0.4, Math.min(0.4, lateral * 0.06 + rub * 0.24));
     this.bank += (target - this.bank) * Math.min(1, dt * 8);
     if (this.down) this.tip = Math.min(1.45, this.tip + dt * 5);
-    this.lean.rotation.z = this.bank + this.tip;
-    // Swing: wind out to the side, snap back.
+    // Swing (0.42 s): wind up across the body, whip out to the side (the sim lands the blow 4 ticks in,
+    // late in the whip), follow through.
+    const sw = this.swingSide;
+    let twist = 0;
+    let lunge = 0;
     if (this.swingT > 0) {
-      this.swingT += dt / 0.3;
-      const p = this.swingT < 0.45 ? this.swingT / 0.45 : Math.max(0, 1 - (this.swingT - 0.45) / 0.55);
-      const arm = this.arms[this.swingSide === 1 ? 1 : 0];
-      arm.rotation.set(0.55 - 0.7 * p, -this.swingSide * 1.5 * p, 0, 'YXZ');
-      this.torso.rotation.y = -this.swingSide * 0.35 * p;
-      if (this.swingT >= 1) {
+      this.swingT += dt / 0.42;
+      const t = this.swingT;
+      const arm = this.arms[sw === 1 ? 1 : 0];
+      let ax: number, ay: number;
+      if (t < 0.2) {
+        const k = easeOut(t / 0.2);
+        ax = 0.55 - 1.25 * k;
+        ay = sw * 0.6 * k;
+        twist = sw * 0.45 * k;
+      } else if (t < 0.36) {
+        const k = easeOut((t - 0.2) / 0.16);
+        ax = -0.7 + 0.6 * k;
+        ay = sw * (0.6 - 2.5 * k);
+        twist = sw * (0.45 - 1.05 * k);
+        lunge = k;
+      } else {
+        const k = easeInOut(Math.min(1, (t - 0.36) / 0.64));
+        ax = -0.1 + 0.65 * k;
+        ay = sw * (-1.9 + 2.02 * k);
+        twist = sw * -0.6 * (1 - k);
+        lunge = 1 - k;
+      }
+      arm.rotation.set(ax, ay, 0, 'YXZ');
+      // swoosh: shown from the whip until shortly after, fading
+      const tr = (t - 0.2) / 0.45;
+      this.trail.visible = tr > 0 && tr < 1;
+      if (this.trail.visible) {
+        this.trailMat.opacity = 0.75 * (1 - tr) * Math.min(1, tr * 6);
+        this.trail.position.set(-sw * 0.27, 1.6, 0.02);
+        this.trail.scale.set(sw, 1, 1);
+        this.trail.rotation.y = twist;
+      }
+      if (t >= 1) {
         this.swingT = 0;
-        this.torso.rotation.y = 0;
+        this.trail.visible = false;
         this.restArms();
         if (this.weapon) this.hands[1].add(this.weapon);
       }
     }
+    this.torso.rotation.y = twist;
+    // knock-back: a stiff spring so the dummy rocks away from the blow and wobbles back
+    this.kickV += (-170 * this.kick - 11 * this.kickV) * dt;
+    this.kick += this.kickV * dt;
+    this.squash = Math.max(0, this.squash - dt * 7);
+    const sq = this.squash * this.squash;
+    this.dummy.scale.set(1 + 0.16 * sq, 1 - 0.2 * sq, 1 + 0.16 * sq);
+    this.torso.rotation.x = 0.18 - 0.4 * sq + 0.12 * lunge;
+    this.lean.rotation.z = this.bank + this.tip + this.kick - sw * 0.12 * lunge;
     if (this.flash > 0) {
       this.flash = Math.max(0, this.flash - dt * 6);
       this.mat.emissiveIntensity = this.flash * 0.8;
     }
   }
 }
+
+const easeOut = (t: number) => 1 - (1 - t) * (1 - t);
+const easeInOut = (t: number) => (t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t));

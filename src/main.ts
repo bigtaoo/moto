@@ -77,8 +77,9 @@ function handle(e: SimEvent): void {
       break;
     case 'hit': {
       const v = w.riders[e.to];
-      view.riders[e.to].hit();
+      view.riders[e.to].hit(e.side, e.ko);
       view.fx.sparks(v.x - e.side * 0.3, 1.5, v.z, e.side, e.ko, rnd);
+      view.fx.pow(v.x - e.side * 0.35, 1.55, v.z, e.ko);
       const mine = e.from === 0 || e.to === 0;
       if (mine) {
         hitstop = e.ko ? 0.1 : 0.055;
@@ -96,7 +97,7 @@ function handle(e: SimEvent): void {
     case 'crash': {
       const r = w.riders[e.rider];
       view.riders[e.rider].setDown(true);
-      view.ragdolls[e.rider].throw(r.x, r.z, e.speed, e.vx, rnd);
+      view.ragdolls[e.rider].throw(r.x, r.z, e.speed, e.vx, rnd, e.cause === 'car' ? 1.45 : e.cause === 'patrol' ? 1.25 : 1);
       view.fx.dust(r.x, r.z, e.speed, rnd);
       if (e.rider === 0) {
         slow = 0.55;

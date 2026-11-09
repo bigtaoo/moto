@@ -383,6 +383,7 @@ export class World {
     r.atkSide = t ? (t.x >= r.x ? 1 : -1) : r.atkSide === 1 ? -1 : 1;
     r.atkT = C.ATTACK.windup;
     r.atkCd = C.ATTACK.cooldown;
+    r.speed *= C.ATTACK.selfSlow;
     this.events.push({ type: 'swing', rider: r.id, side: r.atkSide });
     return true;
   }
@@ -463,6 +464,10 @@ export class World {
         for (const o of this.cars) {
           if (o !== c && o.lane === c.lane && o.z > c.z && o.z - c.z < 9 && o.speed < c.speed) c.speed = o.speed;
         }
+        // ...and behind the security buggy when it is in their lane
+        const pt = this.patrol;
+        if (pt.active && pt.mode !== 'off' && Math.abs(pt.x - c.x) < C.CAR.halfW + C.PATROL.halfW + 0.15 &&
+          pt.z > c.z && pt.z - c.z < 10 && pt.speed < c.speed) c.speed = pt.speed;
       }
       c.z += c.speed * C.DT;
     }

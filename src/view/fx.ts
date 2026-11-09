@@ -1,9 +1,35 @@
-// Hit sparks and crash dust: one instanced mesh of small cubes moving in sim space.
+// Hit sparks and crash dust: one instanced mesh of small cubes moving in sim space. Plus the comic
+// "pow" burst where a blow lands: a flat spiky star facing the camera that pops and fades.
 
 import * as THREE from 'three';
 import { toWorld } from './track';
+import { Kit, INK } from './toon';
 
 const MAX = 160;
+const POWS = 6;
+const POW_LIFE = 0.3;
+
+/** A spiky burst in the xy plane: ink rim, colour, white core. */
+function burst(fill: number): THREE.BufferGeometry {
+  const star = (r: number, z: number) => {
+    const sh = new THREE.Shape();
+    const spikes = [1, 0.78, 0.95, 0.7, 1, 0.85, 0.92, 0.74, 1, 0.8];
+    for (let i = 0; i < spikes.length * 2; i++) {
+      const a = (i / (spikes.length * 2)) * Math.PI * 2;
+      const l = i % 2 ? r * 0.5 : r * spikes[i / 2];
+      if (i) sh.lineTo(Math.cos(a) * l, Math.sin(a) * l);
+      else sh.moveTo(Math.cos(a) * l, Math.sin(a) * l);
+    }
+    return new THREE.ShapeGeometry(sh).translate(0, 0, z);
+  };
+  return new Kit(0)
+    .add(star(1.18, 0), INK, { ink: false })
+    .add(star(1, 0.01), fill, { ink: false })
+    .add(star(0.45, 0.02), 0xffffff, { ink: false })
+    .build();
+}
+
+interface Pow { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; life: number; size: number; spin: number }
 
 interface Bit {
   x: number; y: number; z: number;
@@ -17,8 +43,21 @@ export class Fx {
   private readonly o = new THREE.Object3D();
   private readonly col = new THREE.Color();
   private readonly colors: number[] = [];
+  readonly pows = new THREE.Group();
+  private readonly powList: Pow[] = [];
+  private readonly powGeo: [THREE.BufferGeometry, THREE.BufferGeometry];
+  private nextPow = 0;
 
   constructor() {
+    this.powGeo = [burst(0xffd23a), burst(0xff5a2a)];
+    for (let i = 0; i < POWS; i++) {
+      const mat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthTest: false, side: THREE.DoubleSide });
+      const mesh = new THREE.Mesh(this.powGeo[0], mat);
+      mesh.renderOrder = 10;
+      mesh.visible = false;
+      this.pows.add(mesh);
+      this.powList.push({ mesh, mat, life: POW_LIFE, size: 1, spin: 0 });
+    }
     this.mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial(), MAX);
     this.mesh.count = 0;
     this.mesh.frustumCulled = false;
@@ -35,6 +74,31 @@ export class Fx {
         vx: side * sp * (0.4 + rnd()), vy: 1 + rnd() * 5, vz: (rnd() - 0.3) * 6,
         life: 0, max: 0.25 + rnd() * 0.3, size: 0.09 + rnd() * 0.08,
       }, rnd() < 0.5 ? 0xffe066 : 0xffffff);
+    }
+  }
+
+  /** Comic burst where a blow lands; bigger and red-orange for a knock-out. */
+  pow(x: number, y: number, z: number, ko: boolean): void {
+    const p = this.powList[this.nextPow++ % POWS];
+    p.mesh.geometry = this.powGeo[ko ? 1 : 0];
+    toWorld(x, y, z, p.mesh.position);
+    p.life = 0;
+    p.size = ko ? 0.95 : 0.6;
+    p.spin = Math.random() * Math.PI;
+    p.mesh.visible = true;
+  }
+
+  /** Small puff where a thrown dummy slams into the road. */
+  puff(x: number, z: number, impact: number, rnd: () => number): void {
+    const n = Math.min(10, Math.round(impact * 0.8));
+    for (let i = 0; i < n; i++) {
+      const a = rnd() * Math.PI * 2;
+      const sp = 1.5 + rnd() * 2.5;
+      this.add({
+        x, y: 0.15, z,
+        vx: Math.cos(a) * sp, vy: 1 + rnd() * 2, vz: Math.sin(a) * sp,
+        life: 0, max: 0.35 + rnd() * 0.3, size: 0.2 + rnd() * 0.2,
+      }, rnd() < 0.5 ? 0xc9c4b8 : 0xa8a49a);
     }
   }
 
@@ -66,7 +130,19 @@ export class Fx {
     this.colors.push(color);
   }
 
-  update(dt: number): void {
+  update(dt: number, cam: THREE.Camera): void {
+    for (const p of this.powList) {
+      if (!p.mesh.visible) continue;
+      p.life += dt;
+      if (p.life >= POW_LIFE) { p.mesh.visible = false; continue; }
+      const t = p.life;
+      // pop past full size, settle, then shrink away
+      const k = t < 0.05 ? (t / 0.05) * 1.3 : t < 0.12 ? 1.3 - ((t - 0.05) / 0.07) * 0.3 : 1 - ((t - 0.12) / (POW_LIFE - 0.12)) * 0.6;
+      p.mesh.scale.setScalar(p.size * k);
+      p.mat.opacity = t < 0.16 ? 1 : 1 - (t - 0.16) / (POW_LIFE - 0.16);
+      p.mesh.quaternion.copy(cam.quaternion);
+      p.mesh.rotateZ(p.spin + t * 2);
+    }
     const { o } = this;
     let n = 0;
     for (let i = this.bits.length - 1; i >= 0; i--) {

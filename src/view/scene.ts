@@ -73,8 +73,12 @@ export class RaceView {
   constructor(private readonly stage: Stage, readonly w: World, seed: number) {
     this.track = new Track(w.length, seed);
     this.riders = w.riders.map((r) => new RiderView(r.body, r.ride));
-    this.ragdolls = this.riders.map((rv) => new Ragdoll(rv.body, rv.mat));
-    this.group.add(this.track.group, this.traffic.group, this.patrol.root, this.pickups.group, this.shadows.mesh, this.fx.mesh);
+    this.ragdolls = this.riders.map((rv) => {
+      const rd = new Ragdoll(rv.body, rv.ride, rv.mat);
+      rd.onImpact = (x, z, v) => this.fx.puff(x, z, v, Math.random);
+      return rd;
+    });
+    this.group.add(this.track.group, this.traffic.group, this.patrol.root, this.pickups.group, this.shadows.mesh, this.fx.mesh, this.fx.pows);
     for (const rv of this.riders) this.group.add(rv.root);
     for (const rd of this.ragdolls) this.group.add(rd.group);
     stage.scene.add(this.group);
@@ -147,7 +151,7 @@ export class RaceView {
     this.traffic.update(w, alpha);
     this.patrol.update(w, alpha, dt);
     this.pickups.update(w, dt);
-    this.fx.update(dt);
+    this.fx.update(dt, this.stage.camera);
     this.updateCamera(dt, alpha);
     this.stage.renderer.render(this.stage.scene, this.stage.camera);
   }
