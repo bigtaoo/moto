@@ -4,7 +4,7 @@
  * Bump on any change to the race rules that alters what a seed plus inputs produce, and record the new
  * golden hash in world.test.ts. Replays and (later) online rooms only mix the same version.
  */
-export const SIM_VERSION = 9;
+export const SIM_VERSION = 10;
 
 export const TICK_HZ = 30;
 export const DT = 1 / TICK_HZ;
@@ -126,7 +126,30 @@ export const PATROL = {
   halfL: 1.7,
   riderHalfW: 0.45,
   /** Change lane when a car is closer than this many seconds along the wanted line. */
-  dodgeT: 1.4,
+  dodgeT: 2,
+  /** A driver at the wheel: it sees the player this many ticks late (rolled per buggy) ... */
+  react: [8, 14] as const,
+  /** ... can't go faster than this (rolled; a fully upgraded scooter outruns the slow ones) ... */
+  top: [33, 38] as const,
+  /** ... and has to build up and kill its sideways speed (m/s²) */
+  latAcc: 11,
+  /** Rubbing against the player it feels them: then it reacts within this many ticks. */
+  feel: 3,
+  /** Gave up the chase: the player got this far ahead of it. */
+  outrun: 80,
+  /**
+   * Pulling the player over works: once they are down to haltSpeed for haltSec it draws ahead a lane
+   * over, holds there letHold seconds (the warning), then waves them on and leaves.
+   */
+  haltSpeed: 9,
+  haltSec: 0.4,
+  letHold: 1.0,
+  /** Blocking: it only follows a lane change it is sure of, the player this far past the lane line, ... */
+  laneCommit: 0.3,
+  /** ... sticks with a lane at least this long, ... */
+  laneHold: 12,
+  /** ... and inside its lane it shades toward the player's side by up to this much. */
+  laneShade: 0.6,
 };
 
 /**
@@ -165,6 +188,10 @@ export const GANG = {
   lurk: 0.42, // their speed while waiting, as a fraction of the leader's
   engageAt: 30, // pull out when the leader is this close behind
   attackTime: 8, // seconds alongside before they give up
+  /** A pair either comes from both sides at once, or one gets in front and slows while the other strikes. */
+  pincerChance: 0.5,
+  blockAhead: 3.5, // metres in front of the leader the blocker rides ...
+  blockPace: 0.92, // ... at this share of their speed, so they ride up into the fight
   pairFrom: 0.4, // two of them from this far into the race
   batFrom: 0.5, // frying pans before this, then the first one carries a bat
   goneAt: 45, // metres behind the leader where they drop out of the race
@@ -197,15 +224,46 @@ export const ROSTER: RivalSpec[] = [
 ];
 
 export const RIVAL_HP = 3;
+/**
+ * How rivals and thugs ride. None of them sees the others as they are now: each one reacts to where they
+ * were a reaction time ago (carried forward a little), has to build up and kill its sideways speed, and
+ * sticks with what it decided for a while. So nobody copies the player's moves the same tick, and a
+ * feint or a hard brake can fool them.
+ */
 export const AI = {
-  calmStart: 3, // seconds after the start with no stalking
-  stalkChance: 0.012, // per tick, times aggression
-  stalkTime: 4,
-  stalkRest: 6,
-  swingAtPlayer: 0.05, // per tick while in reach, times aggression
+  calmStart: 3, // seconds after the start with no picking fights
+  /** Ticks of the others' past positions each rider remembers (longest reaction it can have). */
+  memory: 24,
+  /** Reaction in ticks, sharpest to slowest (by awareness, plus 0..2 ticks rolled per race). */
+  react: [6, 15] as const,
+  /** Share of the others' sideways speed they carry forward over their reaction time. */
+  predict: 0.5,
+  /** Sideways acceleration m/s², clumsiest to slickest (by awareness). */
+  latAcc: [13, 22] as const,
+  /** Seconds between rethinking what to do while just racing. */
+  think: [0.8, 1.8] as const,
+  /** Each rethink near someone: chance to go after them, times aggression (the player, a rival). */
+  harassPlayer: 1.1,
+  harassRival: 0.12,
+  /** ... doubled for someone who hit them last. */
+  grudge: 2,
+  /** Seconds they stick with someone, times 0.6 + aggression ... */
+  harassTime: [4, 7] as const,
+  /** ... and leave them alone afterwards. */
+  harassRest: [2, 4] as const,
+  /** How far out to the side they ride while harassing (plus some of their weapon's reach), and the drift on top. */
+  sideOff: [1.2, 1.65] as const,
+  wander: 0.35,
+  /** Back off this long after a blow leaves them on their last hit point. */
+  backTime: 2,
+  swingAtPlayer: 0.065, // per tick while in reach, times aggression
   swingAtRival: 0.02,
+  /** Swing keenness when the other is level and just swung (open), or still lining up. */
+  swingOpen: 1.8,
   lookBase: 1.4, // seconds of traffic look-ahead
   lookAware: 2,
+  /** Seconds a line picked to get round traffic is kept. */
+  escHold: 0.7,
 };
 
 export const PLAYER_BODY = 0xf2c230;

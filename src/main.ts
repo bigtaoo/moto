@@ -121,6 +121,9 @@ function handle(e: SimEvent): void {
       hud.flash('SECURITY!', 'warn');
       sfx.siren();
       break;
+    case 'patrolLetGo':
+      hud.flash('WARNING! MOVE ALONG', 'warn');
+      break;
     case 'hunt':
       hud.flash(`${w.riders[e.rider].name} is hunting you!`, 'warn');
       sfx.alarm();

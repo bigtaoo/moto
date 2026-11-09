@@ -3,7 +3,7 @@
 
 import { Prng } from './rng';
 import * as C from './config';
-import { rivalThink, laneClearance } from './ai';
+import { rivalThink, laneClearance, nearestLane } from './ai';
 
 export type Side = -1 | 1;
 export type CrashCause = 'ko' | 'car';
@@ -47,7 +47,6 @@ export interface Rider {
   place: number;
   aggr: number;
   aware: number;
-  stalkT: number;
   body: number;
   ride: number;
   /** Times this rival knocked the player off. */
@@ -59,11 +58,45 @@ export interface Rider {
   thug: boolean;
   /** Ticks left of hunting the leader (rivals). */
   huntT: number;
-  /** Thug plan and ticks spent in it. */
-  gang: 'lurk' | 'attack' | 'leave';
+  /** Thug plan and ticks spent in it; its part when two come together. */
+  gang: 'lurk' | 'attack' | 'back' | 'leave';
   gangT: number;
-  /** Thugs' target speed, set by their AI. */
+  role: 'strike' | 'block' | 'pincer';
+  /** Target speed the AI sets while riding with someone (thugs always, rivals while harassing). */
   pace: number;
+  // --- how an AI rider sees and moves (unused for the player) ---
+  /** Ticks late it sees the others: everyone reacts to where you were, not where you are. */
+  react: number;
+  /** Sideways speed and how fast it can change: an AI rider has to start and stop a lane change. */
+  latV: number;
+  latAcc: number;
+  /** What it is up to, for how many more ticks before it thinks again, and the lane (C.LANE_X index) it rides in. */
+  intent: 'race' | 'harass' | 'back';
+  intentT: number;
+  lane: number;
+  /** Line picked to get round traffic, held this many more ticks so it doesn't flip-flop. */
+  escX: number;
+  escT: number;
+  /** Harassing: whom, from which side, how far out, and a slow drift so it never sits dead still. */
+  foe: number;
+  foeSide: Side;
+  foeOff: number;
+  wob: number;
+  wobTo: number;
+  /** Who landed the last blow on this rider (-1: nobody yet). */
+  hitBy: number;
+  /** Where it was over the last C.AI.memory ticks (ring buffer, indexed by tick), for the others' late view of it. */
+  hx: number[];
+  hz: number[];
+  hv: number[];
+}
+
+/** What an AI makes of another rider: where they were a reaction time ago, carried forward. */
+export interface Seen {
+  x: number;
+  z: number;
+  speed: number;
+  vx: number;
 }
 
 export interface Car {
@@ -92,9 +125,10 @@ export interface Patrol {
   /**
    * chase: ride up from behind. lurk: cruise slowly in a side lane ahead, waiting. block: sit in front of
    * the player, slowing and shadowing their line. squeeze: draw level and shove them toward the shoulder.
+   * halt: the player did pull over; it draws up beside them, warns them and lets them go.
    * leave: pull off the player's line and drop out.
    */
-  mode: 'chase' | 'lurk' | 'block' | 'squeeze' | 'leave';
+  mode: 'chase' | 'lurk' | 'block' | 'squeeze' | 'halt' | 'leave';
   t: number;
   /** Which side of the player it works from. */
   side: Side;
@@ -114,6 +148,17 @@ export interface Patrol {
   push: Side;
   /** Ticks it has actually been at it (level with them, or in front of them); its press time counts these. */
   hold: number;
+  /** The driver: ticks late it sees the player, top speed, sideways speed. */
+  react: number;
+  top: number;
+  vx: number;
+  /** Blocking: the lane it holds and ticks since it last switched. */
+  laneX: number;
+  laneT: number;
+  /** Ticks the player has looked stopped; ticks spent pulled up beside them; what it goes back to if they take off. */
+  slowT: number;
+  haltT: number;
+  resume: 'block' | 'squeeze';
   x: number;
   z: number;
   px: number;
@@ -129,6 +174,7 @@ export type SimEvent =
   | { type: 'pickup'; rider: number; kind: C.WeaponKind }
   | { type: 'drop'; pickup: number }
   | { type: 'patrolWarn' }
+  | { type: 'patrolLetGo' }
   | { type: 'finish'; rider: number; place: number }
   | { type: 'grudge'; rider: number }
   | { type: 'rub'; x: number; z: number; side: Side; player: boolean }
@@ -170,6 +216,7 @@ export class World {
   readonly patrol: Patrol = {
     active: false, mode: 'leave', t: 0, side: 1, units: 0, wait: 0, push: 1, hold: 0, x: 0, z: 0, px: 0, pz: 0, speed: 0,
     from: 'behind', move: 'block', press: 0, blockAhead: 0, pullOutAt: 0, pace: 0,
+    react: 10, top: 32, vx: 0, laneX: 0, laneT: 0, slowT: 0, haltT: 0, resume: 'block',
   };
   /** Patrol dice: their own stream, so they don't shift traffic or AI. Busy-ness and first arrival are per race. */
   private readonly patrolRng: Prng;
@@ -231,6 +278,14 @@ export class World {
       t.state = 'away';
       t.accel = G.accel;
     }
+    // each AI rider's reflexes: the more aware, the quicker it sees and the slicker it changes line
+    for (const r of this.riders) {
+      if (r.isPlayer) continue;
+      const A = C.AI;
+      r.react = Math.round(A.react[1] - (A.react[1] - A.react[0]) * r.aware) + this.aiRng.int(3);
+      r.latAcc = A.latAcc[0] + (A.latAcc[1] - A.latAcc[0]) * r.aware;
+      r.intentT = this.aiRng.int(C.TICK_HZ);
+    }
     for (let z = 70; z < 70 + C.TRAFFIC.ahead; z += 25 + this.traffic.float() * 20) this.spawnCar(z);
     for (const f of C.PICKUP_AT) {
       this.pickups.push({ id: this.nextId++, x: C.LANE_X[1 + this.traffic.int(3)], z: this.length * f, kind: this.traffic.float() < 0.5 ? 'pan' : 'bat' });
@@ -246,9 +301,41 @@ export class World {
       id: this.riders.length, name: o.name, isPlayer: o.isPlayer, x: o.x, z: o.z, px: o.x, pz: o.z, vx: 0, speed: 0,
       top: o.top, accel: C.PLAYER_BASE.accel, steer: o.steer, hp: o.hp, maxHp: o.hp, wantX: o.x, braking: false,
       state: 'ride', downT: 0, runT: 0, bikeX: o.x, bikeZ: o.z, bikePX: o.x, bikePZ: o.z, bikeV: 0, bikeVx: 0, invT: 0, atkT: 0, atkSide: 1, atkCd: 0, hitT: 0, weapon: o.weapon ?? null,
-      finished: false, place: 0, aggr: o.aggr, aware: o.aware, stalkT: 0, body: o.body, ride: o.ride, koPlayer: 0, rubT: 0, rubSide: 1,
-      thug: false, huntT: 0, gang: 'lurk', gangT: 0, pace: 0,
+      finished: false, place: 0, aggr: o.aggr, aware: o.aware, body: o.body, ride: o.ride, koPlayer: 0, rubT: 0, rubSide: 1,
+      thug: false, huntT: 0, gang: 'lurk', gangT: 0, role: 'strike', pace: 0,
+      react: 10, latV: 0, latAcc: 16, intent: 'race', intentT: 0, lane: nearestLane(o.x), escX: o.x, escT: 0,
+      foe: -1, foeSide: 1, foeOff: 1.6, wob: 0, wobTo: 0, hitBy: -1, hx: [], hz: [], hv: [],
     });
+    this.resetMemory(this.riders[this.riders.length - 1]);
+  }
+
+  /** Forget where a rider was: it has always been where it is now (a thug pulling onto the road). */
+  resetMemory(r: Rider): void {
+    for (let i = 0; i < C.AI.memory; i++) { r.hx[i] = r.x; r.hz[i] = r.z; r.hv[i] = r.speed; }
+  }
+
+  /** Note where everyone ended this tick, for the others' late view of them. */
+  private remember(): void {
+    const i = this.tick % C.AI.memory;
+    for (const r of this.riders) { r.hx[i] = r.x; r.hz[i] = r.z; r.hv[i] = r.speed; }
+  }
+
+  /**
+   * Rider `o` as someone who reacts `lag` ticks late sees them: where they were then, carried forward
+   * by their speed and part of their sideways speed (C.AI.predict). A sudden swerve or a hard brake only
+   * shows up a reaction time later, and a feint draws them the wrong way.
+   */
+  seen(o: Rider, lag: number, predict: number = C.AI.predict): Seen {
+    const M = C.AI.memory;
+    const l = clamp(lag, 1, M - 4);
+    const at = (k: number) => (((this.tick - k) % M) + M) % M;
+    const i = at(l);
+    const x = o.hx[i];
+    const z = o.hz[i];
+    const speed = o.hv[i];
+    const vx = (x - o.hx[at(l + 3)]) * (C.TICK_HZ / 3);
+    const t = l * C.DT;
+    return { x: clamp(x + vx * t * predict, -C.EDGE, C.EDGE), z: z + speed * t, speed, vx };
   }
 
   /** Progress in seconds since the start signal. */
@@ -280,6 +367,7 @@ export class World {
     this.patrol.pz = this.patrol.z;
     if (this.countdown > 0) {
       if (--this.countdown === 0) this.events.push({ type: 'go' });
+      this.remember();
       return;
     }
     this.controlPlayer();
@@ -292,6 +380,7 @@ export class World {
     this.updatePatrol();
     this.leaderThreats();
     this.checkFinish();
+    this.remember();
   }
 
   private controlPlayer(): void {
@@ -347,28 +436,29 @@ export class World {
     const target = r.braking || (r.finished && r.isPlayer) ? 0 : this.topNow(r);
     if (r.speed < target) r.speed = Math.min(target, r.speed + r.accel * C.DT);
     else r.speed = Math.max(target, r.speed - (r.braking ? C.BRAKE : C.COAST) * C.DT);
-    const step = r.steer * C.DT;
-    r.x += clamp(r.wantX - r.x, -step, step) + r.vx * C.DT;
+    if (r.isPlayer) {
+      const step = r.steer * C.DT;
+      r.x += clamp(r.wantX - r.x, -step, step);
+    } else {
+      // an AI rider has to build up and kill its sideways speed instead of snapping onto its line
+      const v = clamp((r.wantX - r.x) * 2.6, -r.steer, r.steer);
+      const dv = r.latAcc * C.DT;
+      r.latV += clamp(v - r.latV, -dv, dv);
+      r.x += r.latV * C.DT;
+    }
+    r.x += r.vx * C.DT;
     r.vx *= 0.82;
     if (Math.abs(r.x) > C.EDGE) {
       r.x = Math.sign(r.x) * C.EDGE;
-      r.vx = 0;
+      r.vx = r.latV = 0;
       r.speed *= 0.985; // scraping the barrier
     }
     r.z += r.speed * C.DT;
   }
 
-  /** Rivals rubber-band around the player so fights keep happening; stalkers match the player's pace. */
+  /** The player rides flat out; an AI rider goes at the pace its AI picked this tick (src/sim/ai.ts). */
   private topNow(r: Rider): number {
-    if (r.isPlayer) return r.top;
-    if (r.thug) return r.pace;
-    const p = this.player;
-    const gap = p.z - r.z;
-    if (r.huntT > 0 && gap > 6 && p.state === 'ride') {
-      return p.speed + clamp(C.HUNT.boostMin + gap * C.HUNT.boostPerM, C.HUNT.boostMin, C.HUNT.boostMax);
-    }
-    if (r.stalkT > 0 && Math.abs(gap) < 7 && p.state === 'ride') return clamp(p.speed + gap * 0.9, 0, r.top * 1.15);
-    return r.top * (1 + clamp(gap / 120, -0.22, 0.16));
+    return r.isPlayer ? r.top : r.pace;
   }
 
   private recover(r: Rider): void {
@@ -388,6 +478,7 @@ export class World {
     r.invT = C.INVULN_TICKS;
     r.speed = Math.max(r.speed, r.top * C.RECOVER_SPEED);
     r.wantX = r.x;
+    r.latV = 0;
     this.events.push({ type: 'recover', rider: r.id });
   }
 
@@ -488,6 +579,7 @@ export class World {
     victim.vx += r.atkSide * C.ATTACK.push;
     victim.speed *= C.ATTACK.slow;
     victim.hitT = 6;
+    victim.hitBy = r.id;
     const ko = victim.hp <= 0;
     this.events.push({ type: 'hit', from: r.id, to: victim.id, side: r.atkSide, dmg, ko });
     if (ko) this.knockOff(victim, r);
@@ -520,6 +612,8 @@ export class World {
     r.bikeVx = vx * C.DOWN.bikeSide;
     r.atkT = 0;
     r.huntT = 0;
+    r.latV = 0;
+    if (!r.thug) { r.intent = 'race'; r.intentT = 0; }
     if (r.isPlayer) {
       this.crashes++;
       this.threatCd = Math.max(this.threatCd, Math.round(C.LEADER.mercy * C.TICK_HZ));
@@ -538,6 +632,9 @@ export class World {
     const lane = this.traffic.int(4);
     const x = C.LANE_X[lane];
     for (const c of this.cars) if (c.lane === lane && Math.abs(c.z - z) < C.TRAFFIC.gap) return;
+    // nor on top of (or right on the tail of) the security buggy
+    const pt = this.patrol;
+    if (pt.active && Math.abs(pt.x - x) < C.CAR.halfW + C.PATROL.halfW + 0.5 && Math.abs(pt.z - z) < C.TRAFFIC.gap) return;
     const oncoming = lane === C.ONCOMING_LANE;
     const speed = oncoming ? C.CAR.oncoming : C.CAR.minSpeed + this.traffic.float() * (C.CAR.maxSpeed - C.CAR.minSpeed);
     this.cars.push({ id: this.nextId++, x, z, pz: z, speed, lane, color: this.traffic.pick(CAR_COLORS) });
@@ -617,24 +714,41 @@ export class World {
     }
     pt.t++;
     const gap = p.z - pt.z;
+    // the driver goes by what it saw a moment ago, not by where the player is this very tick
+    const s = this.seen(p, pt.react);
+    const sGap = s.z - pt.z;
     // a lane's width to one side of the player, on a side with room
     const beside = (side: Side): number => {
       const off = P.halfW + P.riderHalfW + 1.2;
-      return Math.abs(p.x + side * off) <= C.EDGE ? p.x + side * off : p.x - side * off;
+      return Math.abs(s.x + side * off) <= C.EDGE ? s.x + side * off : s.x - side * off;
     };
     const leave = () => { pt.mode = 'leave'; pt.t = 0; };
+    const toBlock = () => {
+      pt.mode = 'block';
+      pt.laneX = C.LANE_X[nearestLane(s.x, false)];
+      pt.laneT = P.laneHold;
+    };
     if (p.finished && pt.mode !== 'leave') leave();
+    // pulling over works: once the player (as far as it can tell) has slowed right down, it lets them off
+    if ((pt.mode === 'squeeze' || pt.mode === 'block') && riding) {
+      pt.slowT = s.speed < P.haltSpeed ? pt.slowT + 1 : 0;
+      if (pt.slowT > P.haltSec * C.TICK_HZ) {
+        pt.resume = pt.mode;
+        pt.mode = 'halt';
+      }
+    }
     let want = pt.x;
     let speed = pt.speed;
     let steer = P.steer;
     switch (pt.mode) {
       case 'chase':
         // while the player is down it hangs back and waits for them to get going again
-        speed = riding ? p.speed + P.chaseGain + Math.max(0, gap - 30) * 0.25 : p.speed + clamp(gap - 30, -8, 8);
+        speed = riding ? s.speed + P.chaseGain + Math.max(0, sGap - 30) * 0.25 : s.speed + clamp(sGap - 30, -8, 8);
         // come up a lane over, never into the player's back: on their left to shove them right onto the
         // shoulder, unless they're out in the oncoming lane
-        pt.side = p.x < -3.5 ? 1 : -1;
+        pt.side = s.x < -3.5 ? 1 : -1;
         want = beside(pt.side);
+        if (gap > P.outrun) return this.patrolGone(); // too quick for it: it never catches up
         if (pt.t > P.giveUp * C.TICK_HZ || p.finished) leave();
         else if (riding && gap < P.warnAt) {
           pt.mode = 'squeeze';
@@ -649,9 +763,10 @@ export class World {
         speed = p.top * pt.pace;
         const inLane = Math.abs(p.x - pt.x) < P.halfW + P.riderHalfW + 0.5;
         // a squeezer speeds up as the player closes so they draw level slowly instead of running into its back
-        if (pt.move === 'squeeze' && -gap < 25 && riding) speed = Math.max(4, p.speed - clamp(-gap * 0.3, 1.5, 6));
+        if (pt.move === 'squeeze' && -sGap < 25 && riding) speed = Math.max(4, s.speed - clamp(-sGap * 0.3, 1.5, 6));
         if (riding && (pt.move === 'block' ? -gap < pt.pullOutAt : gap > -1 || (inLane && -gap < 8))) {
-          pt.mode = pt.move;
+          if (pt.move === 'block') toBlock();
+          else pt.mode = 'squeeze';
           pt.t = pt.hold = 0;
           this.events.push({ type: 'patrolWarn' });
         } else if (gap > P.halfL + 2) leave(); // got past it while down
@@ -661,26 +776,44 @@ export class World {
         }
         break;
       case 'block': {
-        // sit in front of the player and slow down, shadowing their line: get round it where it can't follow
-        const lead = pt.z - p.z;
+        // sit in front of the player and slow down. It follows their lane, not their every twitch: only
+        // a lane change it is sure of (they are well over the line), and not straight back again, so a
+        // feint pulls it the wrong way and a real one leaves it a beat behind
+        const lead = pt.z - s.z;
         if (lead < 12) pt.hold++; // the clock runs once it's actually in their way
         const k = clamp(pt.hold / pt.press, 0, 1);
         const pace = P.blockPace[0] + (P.blockPace[1] - P.blockPace[0]) * k;
-        speed = clamp(p.speed + (pt.blockAhead - lead) * 1.5, p.speed * 0.5, p.top * pace);
-        want = p.x;
+        speed = clamp(s.speed + (pt.blockAhead - lead) * 1.5, s.speed * 0.5, p.top * pace);
+        pt.laneT++;
+        // it switches lane on what it saw them actually do, not on a guess where they're heading
+        const at = this.seen(p, pt.react, 0).x;
+        if (Math.abs(at - pt.laneX) > 1.75 + P.laneCommit && pt.laneT >= P.laneHold) {
+          pt.laneX = C.LANE_X[nearestLane(at, false)];
+          pt.laneT = 0;
+        }
+        want = pt.laneX + clamp(s.x - pt.laneX, -P.laneShade, P.laneShade);
         steer = P.blockSteer;
-        if (!riding || pt.hold > pt.press || pt.t > pt.press + P.pressMax * C.TICK_HZ || lead < -2) leave();
+        if (!riding || pt.hold > pt.press || pt.t > pt.press + P.pressMax * C.TICK_HZ || gap > 2) leave();
         break;
       }
       case 'squeeze': {
         // pull the player over: draw level on one side, then lean in and shove them toward the other
         const wide = P.halfW + P.riderHalfW;
-        const level = Math.abs(gap) < P.halfL;
-        speed = p.speed + clamp(gap * 2, -6, 8);
-        if (!level || Math.abs(pt.x - p.x) > wide + 1.5) {
+        // right up against them it feels them through the bodywork and keeps level as they slow
+        const touching = Math.abs(gap) < P.halfL + 1 && Math.abs(pt.x - p.x) < wide + 0.4;
+        const f = touching ? this.seen(p, P.feel) : s;
+        const fGap = f.z - pt.z;
+        speed = f.speed + clamp(fGap * 2, -6, 8);
+        if (fGap < -(P.halfL + 3)) {
+          // they braked harder than it could tell and it shot past: cut in front if it has time left
+          if (pt.hold < pt.press) toBlock();
+          else leave();
+          break;
+        }
+        if (Math.abs(fGap) >= P.halfL || Math.abs(pt.x - f.x) > wide + 1.5) {
           // still getting there: a lane over (leaning in from behind would just run into their back), on
           // their left to shove them right onto the shoulder unless they're out in the oncoming lane
-          pt.side = p.x < -3.5 ? 1 : -1;
+          pt.side = s.x < -3.5 ? 1 : -1;
           want = beside(pt.side);
         } else {
           pt.hold++;
@@ -688,24 +821,43 @@ export class World {
           pt.push = -pt.side as Side;
           // never into a car: with one on the shoulder side coming up, it eases off and leaves them a gap
           want = this.carOnShoulder(pt.push)
-            ? p.x + pt.side * (wide + 1)
-            : p.x + pt.side * (wide - P.squeezeIn);
+            ? f.x + pt.side * (wide + 1)
+            : f.x + pt.side * (wide - P.squeezeIn);
           steer = P.pushSteer;
         }
         if (!riding || pt.hold > pt.press || pt.t > pt.press + P.pressMax * C.TICK_HZ) leave();
+        else if (gap > 25 && pt.speed > pt.top - 0.5) leave(); // they're getting away and it's flat out
         break;
       }
+      case 'halt':
+        // they've pulled over: it draws up a lane over, just ahead of them, warns them and waves them on
+        pt.haltT++;
+        want = beside(pt.side);
+        speed = clamp(s.speed + (s.z + P.halfL + 3 - pt.z) * 1.2, 0, pt.top);
+        if (!riding) leave();
+        else if (pt.haltT > P.letHold * C.TICK_HZ) {
+          this.events.push({ type: 'patrolLetGo' });
+          leave();
+        } else if (s.speed > P.haltSpeed + 5) {
+          // took off again before the warning: back at it
+          pt.mode = pt.resume;
+          pt.slowT = 0;
+          if (pt.mode === 'block') toBlock();
+        }
+        break;
       case 'leave':
         // pull off the player's line first, then drop out of the race for good: well ahead, it speeds off;
-        // otherwise it brakes and falls behind
+        // otherwise it brakes and falls behind. It keeps out of the oncoming lane doing that: with its
+        // weight it can't dart back out of a car's way there
         want = beside(pt.side);
+        if (want < C.LANE_X[1] && s.x > -3.5) want = beside(-pt.side as Side);
         speed = gap < -3 ? p.top + 10 : gap < 0.5 && Math.abs(pt.x - p.x) < P.halfW + P.riderHalfW + 0.3 ? p.speed + 3 : riding ? Math.max(4, p.speed - 15) : 16; // player down: just drive off
         if (gap > P.goneAt || -gap > P.goneAhead) return this.patrolGone();
         // wedged in traffic right by the player for a while: it pulls off the road rather than hold them up
         if (pt.t > P.stuckSec * C.TICK_HZ && Math.abs(gap) < 8 && riding && pt.speed > p.speed - 3 && Math.abs(pt.x - p.x) < P.halfW + P.riderHalfW + 0.3) { this.patrolStuck++; return this.patrolGone(); }
         break;
     }
-    speed = Math.max(0, speed);
+    speed = Math.max(0, pt.mode === 'leave' ? speed : Math.min(speed, pt.top));
     pt.speed = speed > pt.speed ? Math.min(speed, pt.speed + P.accel * C.DT) : Math.max(speed, pt.speed - P.brake * C.DT);
     this.patrolTraffic(want, steer);
     pt.z += pt.speed * C.DT;
@@ -753,7 +905,8 @@ export class World {
       .filter((k) => pt.units === 0 || k !== `${pt.from} ${pt.move}`);
     const [from, move] = this.patrolRng.pick(plans).split(' ') as [Patrol['from'], Patrol['move']];
     let side: Side = this.patrolRng.float() < 0.5 ? -1 : 1;
-    let x = p.x;
+    // never turns up in the oncoming lane: it comes from behind in the player's direction of travel
+    let x = Math.max(p.x, C.LANE_X[1]);
     let z = p.z - this.roll(P.spawnBack);
     if (from === 'ahead') {
       // a same-direction side lane with no car near the spot (lane 0 is oncoming)
@@ -777,6 +930,8 @@ export class World {
       speed: from === 'ahead' ? p.top * pace : p.speed,
       from, move, pace, press: Math.round(this.roll(P.pressSec) * C.TICK_HZ),
       blockAhead: this.roll(P.blockAhead), pullOutAt: this.roll(P.pullOutAt),
+      react: Math.round(this.roll(P.react)), top: this.roll(P.top),
+      vx: 0, laneX: x, laneT: 0, slowT: 0, haltT: 0, resume: move,
     });
     pt.px = pt.x;
     pt.pz = pt.z;
@@ -870,12 +1025,20 @@ export class World {
         if (s > score) { score = s; target = x; }
       }
     }
-    const step = (target === want ? steerRate : P.steer * 1.6) * C.DT;
-    const nx = clamp(pt.x + clamp(target - pt.x, -step, step), -C.EDGE, C.EDGE);
+    // a buggy has weight: it builds up its sideways speed and has to kill it again
+    const dodging = target !== want;
+    const rate = dodging ? P.steer * 1.6 : steerRate;
+    const v = clamp((target - pt.x) * 2.5, -rate, rate);
+    // swerving out of a car's way it yanks the wheel harder than it steers to hunt the player
+    const dv = P.latAcc * (dodging ? 1.8 : 1) * C.DT;
+    pt.vx += clamp(v - pt.vx, -dv, dv);
+    const nx = clamp(pt.x + pt.vx * C.DT, -C.EDGE, C.EDGE);
     // judged where the buggy will be after this tick's move, so it can't slip in beside a slower car's tail
-    const blocked = (c: Car) => Math.abs(c.x - nx) < wide &&
+    // (moving away from a car it is already alongside is always allowed)
+    const blocked = (c: Car) => Math.abs(c.x - nx) < wide && Math.abs(c.x - nx) <= Math.abs(c.x - pt.x) &&
       (Math.abs(c.z - pt.z) < long || Math.abs(c.z - pt.z - Math.max(0, pt.speed - c.speed) * C.DT) < long);
     if (!this.cars.some(blocked)) pt.x = nx;
+    else pt.vx = 0;
     // still boxed in: hang back behind the car ahead (an oncoming one is dodged above)
     let cap = Infinity;
     for (const c of this.cars) {
@@ -951,19 +1114,29 @@ export class World {
     const n = Math.min(free.length, prog >= G.pairFrom ? 2 : 1);
     if (n === 0) return false;
     const first: Side = this.aiRng.float() < 0.5 ? 1 : -1;
+    // a pair works together: from both sides at once, or the far one cuts in front while the near one strikes
+    const pincer = n === 1 || this.aiRng.float() < G.pincerChance;
     const ids: number[] = [];
     for (let k = 0; k < n; k++) {
       const r = free[k];
-      const side = k === 0 ? first : -first;
+      const side: Side = k === 0 ? first : (-first as Side);
       r.state = 'ride';
       r.x = r.px = r.wantX = side * C.EDGE;
       r.z = r.pz = p.z + G.spawnAhead + k * 7;
-      r.vx = 0;
+      r.vx = r.latV = 0;
       r.speed = r.pace = p.speed * G.lurk;
       r.hp = r.maxHp;
-      r.invT = r.atkT = r.atkCd = r.hitT = r.downT = r.runT = r.rubT = r.stalkT = r.gangT = 0;
+      r.invT = r.atkT = r.atkCd = r.hitT = r.downT = r.runT = r.rubT = r.gangT = r.intentT = r.escT = 0;
       r.gang = 'lurk';
+      r.role = n === 1 ? 'strike' : pincer ? 'pincer' : k === 0 ? 'strike' : 'block';
       r.weapon = k === 0 && prog >= G.batFrom ? 'bat' : 'pan';
+      r.foe = p.id;
+      r.foeSide = side;
+      r.foeOff = C.AI.sideOff[0] + (C.AI.sideOff[1] - C.AI.sideOff[0]) * this.aiRng.float() + C.WEAPON[r.weapon].reach * 0.6;
+      r.wob = r.wobTo = 0;
+      r.lane = nearestLane(r.x);
+      r.hitBy = -1;
+      this.resetMemory(r);
       ids.push(r.id);
     }
     this.events.push({ type: 'ambush', riders: ids });
@@ -994,3 +1167,4 @@ export class World {
 export function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v;
 }
+
