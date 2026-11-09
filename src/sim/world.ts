@@ -93,7 +93,7 @@ export type SimEvent =
   | { type: 'pickup'; rider: number; kind: C.WeaponKind }
   | { type: 'drop'; pickup: number }
   | { type: 'patrolWarn' }
-  | { type: 'caught' }
+  | { type: 'caught'; side: Side }
   | { type: 'finish'; rider: number; place: number }
   | { type: 'grudge'; rider: number }
   | { type: 'rub'; x: number; z: number; side: Side; player: boolean }
@@ -434,7 +434,10 @@ export class World {
     r.vx = vx;
     r.atkT = 0;
     r.huntT = 0;
-    if (r.isPlayer) this.crashes++;
+    if (r.isPlayer) {
+      this.crashes++;
+      this.threatCd = Math.max(this.threatCd, Math.round(C.LEADER.mercy * C.TICK_HZ));
+    }
     this.events.push({ type: 'crash', rider: r.id, cause: c, vx, speed: r.speed });
     if (r.weapon) {
       const p: Pickup = { id: this.nextId++, x: clamp(r.x + Math.sign(vx || 1) * 1.2, -C.EDGE, C.EDGE), z: r.z + 6, kind: r.weapon };
@@ -544,9 +547,13 @@ export class World {
       case 'dash':
         pt.speed = p.speed + C.PATROL.dash;
         if (p.state === 'ride' && p.invT <= 0 && Math.abs(p.x - pt.x) < 1.25 && Math.abs(gap) < 2.6) {
+          // Pulled over, not wiped out: a fine and a shunt that costs speed.
+          const side: Side = p.x >= pt.x ? 1 : -1;
           this.fines += C.FINE;
-          this.events.push({ type: 'caught' });
-          this.crash(p, 'patrol', (p.x >= pt.x ? 1 : -1) * 5);
+          p.speed *= C.PATROL.bumpSlow;
+          p.vx += side * C.PATROL.bumpPush;
+          p.hitT = 6;
+          this.events.push({ type: 'caught', side });
           pt.mode = 'fall';
           pt.t = 0;
         } else if (pt.t >= C.PATROL.dashTicks || gap < -8) {

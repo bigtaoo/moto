@@ -145,7 +145,18 @@ function handle(e: SimEvent): void {
       view.fx.scrape(e.x, e.z, rnd);
       if (e.player || Math.abs(e.z - w.player.z) < 20) sfx.scrape(e.player);
       break;
-    case 'caught':
+    case 'caught': {
+      // Pulled over: a shunt from the buggy and a fine, but you stay on the scooter.
+      const p = w.player;
+      view.riders[0].hit(e.side, false);
+      view.fx.pow(p.x - e.side * 0.5, 1.2, p.z - 0.6, true);
+      view.fx.sparks(p.x - e.side * 0.4, 0.6, p.z - 0.8, e.side, true, rnd);
+      hitstop = 0.08;
+      view.shake(0.6);
+      hud.flash(`BUSTED −$${C.FINE}`, 'bad');
+      sfx.crash();
+      break;
+    }
     case 'drop':
       break;
   }

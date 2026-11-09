@@ -4,7 +4,7 @@
  * Bump on any change to the race rules that alters what a seed plus inputs produce, and record the new
  * golden hash in world.test.ts. Replays and (later) online rooms only mix the same version.
  */
-export const SIM_VERSION = 3;
+export const SIM_VERSION = 4;
 
 export const TICK_HZ = 30;
 export const DT = 1 / TICK_HZ;
@@ -70,11 +70,14 @@ export const PATROL = {
   chaseGain: 4,
   steer: 5,
   warnAt: 13,
-  warnTicks: 20,
-  dash: 13,
-  dashTicks: 40,
-  fallBack: 75,
-  fallTicks: 150,
+  warnTicks: 36, // siren to lunge: long enough to see it coming and swerve
+  dash: 11,
+  dashTicks: 36,
+  fallBack: 110,
+  fallTicks: 330, // 11 s of peace after each lunge, caught or not
+  /** A catch is a fine and a shunt, not a crash: speed is cut to this and you're shoved aside. */
+  bumpSlow: 0.6,
+  bumpPush: 4,
   /** Buggy footprint, for keeping it out of traffic. */
   halfW: 1.0,
   halfL: 1.7,
@@ -89,17 +92,19 @@ export const PATROL = {
 export const LEADER = {
   startAt: 0.06, // fraction of the race before any of this starts
   firstDelay: 4, // seconds in the lead before the first threat
-  gapEarly: 11, // seconds of calm between threats, early in the race ...
-  gapLate: 5, // ... and near the end
+  gapEarly: 16, // seconds of calm between threats, early in the race ...
+  gapLate: 9, // ... and near the end
+  /** After the player goes down for any reason, no new threat for at least this long. */
+  mercy: 10,
 };
 export const HUNT = {
   chase: 20, // seconds to catch up before giving up ...
-  attack: 8, // ... then seconds on the leader's shoulder
+  attack: 6, // ... then seconds on the leader's shoulder
   range: 260, // only rivals this close behind are picked
   boostMin: 5, // m/s faster than the leader, plus boostPerM for each metre behind
   boostPerM: 0.1,
   boostMax: 15,
-  swing: 2.5, // swing keenness multiplier while hunting
+  swing: 1.5, // swing keenness multiplier while hunting
 };
 export const GANG = {
   name: 'Thug',
@@ -113,17 +118,17 @@ export const GANG = {
   spawnAhead: 100, // metres ahead of the leader they wait
   lurk: 0.42, // their speed while waiting, as a fraction of the leader's
   engageAt: 30, // pull out when the leader is this close behind
-  attackTime: 8, // seconds alongside before they give up
-  swing: 0.09, // per tick while the leader is in reach
-  pairFrom: 0.4, // two of them from this far into the race
-  batFrom: 0.6, // and one carries a bat
+  attackTime: 5, // seconds alongside before they give up
+  swing: 0.035, // per tick while the leader is in reach
+  pairFrom: 0.6, // two of them from this far into the race
+  batFrom: 0.8, // and one carries a bat
   goneAt: 45, // metres behind the leader where they drop out of the race
 };
 
 export const PRIZE = [600, 420, 300, 220, 160, 120, 90, 70];
 export const KO_BONUS = 60;
 export const GRUDGE_BONUS = 150;
-export const FINE = 120;
+export const FINE = 60;
 /** Knock the player off this many times and a rival becomes a grudge. */
 export const GRUDGE_AT = 2;
 
