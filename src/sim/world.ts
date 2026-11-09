@@ -149,8 +149,10 @@ export class World {
   private nextThreat: 'hunt' | 'ambush' = 'hunt';
   private readonly traffic: Prng;
   readonly aiRng: Prng;
+  readonly seed: number;
 
   constructor(opts: WorldOpts) {
+    this.seed = opts.seed;
     this.length = opts.length ?? C.RACE_LEN;
     this.traffic = new Prng(opts.seed * 7 + 1);
     this.aiRng = new Prng(opts.seed * 13 + 5);
@@ -658,7 +660,7 @@ export class World {
     const timeUp = this.time >= C.TIME_CAP_S;
     if (!this.over && ((this.overT > 0 && this.tick >= this.overT) || timeUp)) {
       // Riders still on the road get places by distance.
-      const rest = this.riders.filter((r) => !r.finished && !r.thug).sort((a, b) => b.z - a.z);
+      const rest = this.riders.filter((r) => !r.finished && !r.thug).sort((a, b) => b.z - a.z || a.id - b.id);
       for (const r of rest) r.place = ++this.finished;
       this.over = true;
       this.events.push({ type: 'over' });

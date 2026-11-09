@@ -4,6 +4,7 @@ import './style.css';
 import { World, type SimEvent } from './sim/world';
 import * as C from './sim/config';
 import { botInput } from './sim/ai';
+import { Recorder } from './sim/replay';
 import { Stage, RaceView } from './view/scene';
 import { Controls } from './view/input';
 import { Hud, type RaceResult } from './view/hud';
@@ -23,6 +24,7 @@ const save = loadSave();
 
 let world!: World;
 let view!: RaceView;
+let recorder!: Recorder;
 let state: 'title' | 'race' | 'results' = 'title';
 let paused = false;
 let acc = 0;
@@ -38,7 +40,9 @@ const controls = new Controls(canvas, () => (world ? world.player.x : 0));
 function newRace(): void {
   view?.dispose();
   const seed = ((save.races * 7919 + 17) % 99991) + 1;
-  world = new World({ seed, upgrades: save.up, grudges: save.grudges, length: LEN });
+  const opts = { seed, upgrades: save.up, grudges: save.grudges, length: LEN };
+  world = new World(opts);
+  recorder = new Recorder(opts);
   view = new RaceView(stage, world, seed);
   hud.setup(world);
   hud.hideResults();
@@ -195,6 +199,7 @@ function tick(): void {
     inp.brake = false;
     inp.attack = false;
   }
+  recorder.capture(world);
   world.step();
   let swung = false;
   for (const e of world.events) {
@@ -256,4 +261,6 @@ if (BOT) startRace();
 requestAnimationFrame(frame);
 
 // For poking at the game from the console while testing.
-Object.assign(window, { __game: { get world() { return world; }, get view() { return view; }, get state() { return state; }, hud, save, botInput } });
+Object.assign(window, { __game: { get world() { return world; }, get view() { return view; }, get state() { return state; }, hud, save, botInput,
+  /** Bug report: this race so far as a replay (seed, options, every input), JSON to paste. */
+  replay: () => JSON.stringify(recorder.finish(world)) } });

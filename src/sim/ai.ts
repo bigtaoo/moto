@@ -2,6 +2,10 @@
 
 import * as C from './config';
 import type { Rider, World } from './world';
+import { Prng } from './rng';
+
+/** The bot is an input source, not part of the race: its dice must not come from the world's streams. */
+const botRngs = new WeakMap<World, Prng>();
 
 /** Seconds until `r` would run into a car if it rode along lateral position x (Infinity when clear). */
 export function laneClearance(w: World, r: Rider, x: number): number {
@@ -126,7 +130,9 @@ export function botInput(w: World, skill = 1, fight = true): void {
   // Ease toward the pick like a finger would, instead of jumping each tick when the choice flips.
   const prev = w.input.targetX ?? p.x;
   w.input.targetX = prev + (want - prev) * 0.25;
-  if (w.targetFor(p) && w.aiRng.float() < 0.25 * skill) w.input.attack = true;
+  let rng = botRngs.get(w);
+  if (!rng) botRngs.set(w, (rng = new Prng(w.seed * 31 + 11)));
+  if (w.targetFor(p) && rng.float() < 0.25 * skill) w.input.attack = true;
 }
 
 function clampEdge(x: number): number {

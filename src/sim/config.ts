@@ -1,5 +1,11 @@
 // Every tuning number for the race lives here. Units: metres, seconds, m/s.
 
+/**
+ * Bump on any change to the race rules that alters what a seed plus inputs produce, and record the new
+ * golden hash in world.test.ts. Replays and (later) online rooms only mix the same version.
+ */
+export const SIM_VERSION = 1;
+
 export const TICK_HZ = 30;
 export const DT = 1 / TICK_HZ;
 
