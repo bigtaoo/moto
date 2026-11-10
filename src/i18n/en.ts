@@ -126,6 +126,7 @@ export const EN = {
   music: "Music",
   effects: "Sound effects",
   graphics: "Graphics",
+  vibration: "Vibration",
   qAuto: "Auto",
   qLow: "Low",
   qHigh: "High",

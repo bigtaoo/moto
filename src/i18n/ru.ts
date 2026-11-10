@@ -121,6 +121,7 @@ export const RU: Table = {
   music: "Музыка",
   effects: "Звуки",
   graphics: "Графика",
+  vibration: "Вибрация",
   qAuto: "Авто",
   qLow: "Низкая",
   qHigh: "Высокая",

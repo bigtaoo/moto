@@ -32,6 +32,8 @@ export interface Save {
   /** The pause menu's switches: music and effects apart (under the sound switch), and the graphics setting. */
   musicOff: boolean;
   sfxOff: boolean;
+  /** Phone vibration switched off (src/haptics.ts). */
+  hapticsOff: boolean;
   quality: QualityMode;
   /** Today's challenges and first win (src/daily.ts). */
   daily: Daily;
@@ -53,7 +55,7 @@ function readFeud(f: Partial<Feud> | undefined): Feud {
 export function parseSave(raw: string | null): Save {
   const fresh: Save = {
     cash: 0, up: { top: 0, steer: 0, hp: 0 }, grudges: [], races: 0, best: 0, div: 0, cup: newCup(), titles: 0, feud: newFeud(), tier: 0,
-    garage: { cur: 0, owned: [0] }, muted: false, sessions: 0, firstDay: 0, musicOff: false, sfxOff: false, quality: 'auto', daily: readDaily(null, today()),
+    garage: { cur: 0, owned: [0] }, muted: false, sessions: 0, firstDay: 0, musicOff: false, sfxOff: false, hapticsOff: false, quality: 'auto', daily: readDaily(null, today()),
   };
   try {
     if (!raw) return fresh;
@@ -88,6 +90,7 @@ export function parseSave(raw: string | null): Save {
       firstDay: count(s.firstDay),
       musicOff: s.musicOff === true,
       sfxOff: s.sfxOff === true,
+      hapticsOff: s.hapticsOff === true,
       quality: s.quality === 'low' || s.quality === 'high' ? s.quality : 'auto',
       daily: readDaily(s.daily, today()),
     };

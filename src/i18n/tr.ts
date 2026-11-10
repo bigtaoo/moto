@@ -121,6 +121,7 @@ export const TR: Table = {
   music: "Müzik",
   effects: "Ses efektleri",
   graphics: "Grafik",
+  vibration: "Titreşim",
   qAuto: "Otomatik",
   qLow: "Düşük",
   qHigh: "Yüksek",

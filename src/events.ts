@@ -9,6 +9,7 @@ import { sfx } from './view/audio';
 import * as tele from './telemetry';
 import { REVENGE_PAY } from './career';
 import { t, ord } from './i18n';
+import { buzz } from './haptics';
 
 /** The game-feel state the events set and the frame loop runs down. */
 export interface Feel {
@@ -53,6 +54,7 @@ export function react(e: SimEvent, w: World, view: RaceView, hud: Hud, feel: Fee
       if (e.from === 0) {
         feel.slow = 0.6;
         view.shake(0.35);
+        buzz(35);
         if (e.to === w.nemesis) hud.flash(t('revenge', { n: Math.round(REVENGE_PAY * w.div.prize) + C.SHOVE_BONUS }), 'ko');
         else if (w.grudgeKos > feel.lastGrudgeKos) {
           feel.lastGrudgeKos = w.grudgeKos;
@@ -69,7 +71,10 @@ export function react(e: SimEvent, w: World, view: RaceView, hud: Hud, feel: Fee
       if (mine) {
         feel.hitstop = e.ko ? 0.1 : 0.055;
         view.shake(e.to === 0 ? 0.45 : 0.22);
+        buzz(e.to === 0 ? (e.ko ? 70 : 30) : e.ko ? 45 : 15);
       }
+      // the nemesis going down is the race's moment: let it play slowly
+      if (e.from === 0 && e.ko && e.to === w.nemesis) feel.slow = 0.5;
       if (near(e.to)) sfx.thunk(e.ko);
       if (e.from === 0 && e.counter && !e.ko) hud.flash(t('counter'), 'ko');
       if (e.from === 0 && e.ko) {
@@ -90,6 +95,7 @@ export function react(e: SimEvent, w: World, view: RaceView, hud: Hud, feel: Fee
       if (e.rider === 0) {
         tele.crashed(e.cause);
         feel.slow = 0.55;
+        buzz([45, 40, 90]);
         view.shake(0.8);
         hud.flash(t(e.cause === 'car' ? 'wipeout' : e.cause === 'wall' ? 'slammed' : e.cause === 'cones' ? 'cones' : 'knockedOff'), 'bad');
       }
@@ -128,6 +134,8 @@ export function react(e: SimEvent, w: World, view: RaceView, hud: Hud, feel: Fee
       if (e.rider === 0) {
         hud.flash(t('finished', { o: ord(e.place) }), e.place === 1 ? 'go' : '');
         sfx.coin();
+        // a photo finish: someone right on the player's wheel as they cross
+        if (w.riders.some((r) => r.id !== 0 && !r.finished && w.player.z - r.z < 5)) feel.slow = 0.6;
       }
       break;
     case 'rub':
@@ -145,8 +153,13 @@ export function react(e: SimEvent, w: World, view: RaceView, hud: Hud, feel: Fee
       if (e.rider === 0) view.shake(e.stomp >= 0 ? 0.5 : 0.2);
       if (e.stomp >= 0 && e.rider === 0) {
         feel.hitstop = 0.1;
+        buzz(45);
+        if (e.stomp === w.nemesis) feel.slow = 0.5;
         hud.flash(e.stomp === w.nemesis ? t('revenge', { n: Math.round(REVENGE_PAY * w.div.prize) + C.KO_BONUS }) : t('stomped', { name: w.riders[e.stomp].name, n: C.KO_BONUS }), 'ko');
-      } else if (e.stomp === 0) hud.flash(t('landedOn', { name: w.riders[e.rider].name }), 'bad');
+      } else if (e.stomp === 0) {
+        buzz(60);
+        hud.flash(t('landedOn', { name: w.riders[e.rider].name }), 'bad');
+      }
       break;
   }
 }

@@ -21,6 +21,7 @@ import { CUP_RACES, riderName, settleRace, buyUpgrade, chooseRide, REVENGE_PAY, 
 import { dailyFor, scoreDaily, today } from './daily';
 import * as platform from './platform';
 import { setLang, t } from './i18n';
+import { setHaptics } from './haptics';
 
 const params = new URLSearchParams(location.search);
 // English until the platform says otherwise (3.4.2: the language comes from the Bridge only); ?lang=xx wins
@@ -260,7 +261,7 @@ function setPaused(on: boolean): void {
   if (state !== 'race' || paused === on) return;
   paused = on;
   if (on && !document.hidden) tele.paused();
-  hud.menu.show(on, { music: !save.musicOff, sfx: !save.sfxOff, quality: save.quality });
+  hud.menu.show(on, { music: !save.musicOff, sfx: !save.sfxOff, haptics: !save.hapticsOff, quality: save.quality });
   hold('pause', on);
 }
 
@@ -295,6 +296,7 @@ hud.menu.on = {
   },
   music: (on) => { save.musicOff = !on; setChannel('music', on); setting('music', on); },
   sfx: (on) => { save.sfxOff = !on; setChannel('sfx', on); setting('sfx', on); },
+  haptics: (on) => { save.hapticsOff = !on; setHaptics(on); setting('haptics', on); },
   quality: (q) => { save.quality = q; stage.setQualityMode(q); setting('quality', q); },
 };
 
@@ -445,6 +447,7 @@ async function boot(): Promise<void> {
   setMuted('player', save.muted);
   setChannel('music', !save.musicOff);
   setChannel('sfx', !save.sfxOff);
+  setHaptics(!save.hapticsOff);
   hud.setSound(!save.muted);
   newRace();
   // every shader built before the first frame, so the race doesn't hitch on its first hits

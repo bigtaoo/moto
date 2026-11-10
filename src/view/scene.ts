@@ -63,7 +63,8 @@ export class Stage {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: !dev.touch && !isSoftware(dev.gpu), powerPreference: 'high-performance' });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.start = startTier(dev);
-    this.forced = forcedTier(location.search);
+    // the dev server shows the best picture (a hidden preview pane would talk the governor down); ?quality=auto there still lets it run
+    this.forced = forcedTier(location.search) ?? (import.meta.env.DEV && !/[?&]quality=auto/.test(location.search) ? TOP : null);
     // two tiers are the same here when both caps are above the screen's own ratio (and fx and view match)
     const cap = (t: number) => Math.min(TIERS[t].dpr, window.devicePixelRatio || 1);
     this.gov = new Governor(this.forced ?? this.start, (a, b) => cap(a) === cap(b) && TIERS[a].fx === TIERS[b].fx && TIERS[a].view === TIERS[b].view);

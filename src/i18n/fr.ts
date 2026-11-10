@@ -121,6 +121,7 @@ export const FR: Table = {
   music: "Musique",
   effects: "Effets sonores",
   graphics: "Graphismes",
+  vibration: "Vibration",
   qAuto: "Auto",
   qLow: "Basse",
   qHigh: "Haute",

@@ -2,17 +2,19 @@
 
 import { icon } from './icons';
 import { DESKTOP } from './input';
+import { CAN_BUZZ } from '../haptics';
 import type { QualityMode } from './quality';
 import { CUP_RACES } from '../career';
 import { t, type Key } from '../i18n';
 
-export interface MenuSettings { music: boolean; sfx: boolean; quality: QualityMode; }
+export interface MenuSettings { music: boolean; sfx: boolean; haptics: boolean; quality: QualityMode; }
 
 export interface MenuActions {
   resume: () => void;
   restart: () => void;
   music: (on: boolean) => void;
   sfx: (on: boolean) => void;
+  haptics: (on: boolean) => void;
   quality: (q: QualityMode) => void;
 }
 
@@ -21,8 +23,8 @@ const Q_NAMES: Record<QualityMode, Key> = { auto: 'qAuto', low: 'qLow', high: 'q
 
 export class Menu {
   /** Set by the game; the menu calls these. */
-  on: MenuActions = { resume() {}, restart() {}, music() {}, sfx() {}, quality() {} };
-  private settings: MenuSettings = { music: true, sfx: true, quality: 'auto' };
+  on: MenuActions = { resume() {}, restart() {}, music() {}, sfx() {}, haptics() {}, quality() {} };
+  private settings: MenuSettings = { music: true, sfx: true, haptics: true, quality: 'auto' };
   private help = false;
 
   constructor(private readonly el: HTMLElement) {
@@ -55,6 +57,7 @@ export class Menu {
       case 'restart': this.on.restart(); return;
       case 'music': s.music = !s.music; this.on.music(s.music); break;
       case 'sfx': s.sfx = !s.sfx; this.on.sfx(s.sfx); break;
+      case 'haptics': s.haptics = !s.haptics; this.on.haptics(s.haptics); break;
       case 'quality': s.quality = QUALITIES[(QUALITIES.indexOf(s.quality) + 1) % QUALITIES.length]; this.on.quality(s.quality); break;
       case 'help': this.help = true; break;
       case 'back': this.help = false; break;
@@ -79,6 +82,7 @@ export class Menu {
       <div class="opts">
         ${sw('music', t('music'), t(s.music ? 'on' : 'off'), s.music)}
         ${sw('sfx', t('effects'), t(s.sfx ? 'on' : 'off'), s.sfx)}
+        ${CAN_BUZZ ? sw('haptics', t('vibration'), t(s.haptics ? 'on' : 'off'), s.haptics) : ''}
         ${sw('quality', t('graphics'), t(Q_NAMES[s.quality]))}
         <button class="opt" data-a="help"><span>${t('howTo')}</span><b>?</b></button>
         <button class="opt" data-a="restart"><span>${t('restart')}</span><b>${icon('left')}</b></button>
