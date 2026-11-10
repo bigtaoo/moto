@@ -2,6 +2,7 @@
 // standings go up a division. Pure functions over the save, so it can be tested without the game.
 
 import * as C from './sim/config';
+import { MUTATOR } from './sim/fun';
 import type { Save } from './meta';
 import { t } from './i18n';
 
@@ -75,6 +76,10 @@ export interface RaceSummary {
   /** Flair cash (src/sim/flair.ts): near misses and KO chains. */
   nearPay: number;
   chainPay: number;
+  /** Bowling, taunts and the boss' bounty (src/sim/stunts.ts). */
+  stuntPay?: number;
+  /** The weekly mutator was on: the prize is MUTATOR.prize times. */
+  mutator?: boolean;
   fines: number;
   places: number[];
   koPlayer: number[];
@@ -90,6 +95,7 @@ export interface Settlement {
   shoveBonus: number;
   nearPay: number;
   chainPay: number;
+  stuntPay: number;
   fines: number;
   feud: FeudOutcome;
   /** The race of the cup this was (1-based), and the cup's division and tier. */
@@ -108,11 +114,12 @@ export interface Settlement {
 export function settleRace(save: Save, s: RaceSummary): Settlement {
   const { div, tier } = save;
   const st = C.stage(div, tier, save.endless);
-  const prize = Math.round((C.PRIZE[s.place - 1] ?? 0) * st.prize);
+  const prize = Math.round((C.PRIZE[s.place - 1] ?? 0) * st.prize * (s.mutator ? MUTATOR.prize : 1));
+  const stuntPay = s.stuntPay ?? 0;
   const koBonus = s.kos * C.KO_BONUS;
   const grudgeBonus = s.grudgeKos * C.GRUDGE_BONUS;
   const shoveBonus = s.shoves * C.SHOVE_BONUS;
-  let earned = Math.max(0, prize + koBonus + grudgeBonus + shoveBonus + s.nearPay + s.chainPay - s.fines);
+  let earned = Math.max(0, prize + koBonus + grudgeBonus + shoveBonus + s.nearPay + s.chainPay + stuntPay - s.fines);
   scoreRace(save.cup, s.places);
   const table = standings(save.cup);
   const feud = settleFeud(save.feud, s, st.prize);
@@ -136,7 +143,7 @@ export function settleRace(save: Save, s: RaceSummary): Settlement {
   if (save.best === 0 || s.place < save.best) save.best = s.place;
   save.grudges = [...s.grudges];
   save.carry = null;
-  return { prize, koBonus, grudgeBonus, shoveBonus, nearPay: s.nearPay, chainPay: s.chainPay, fines: s.fines, feud, cupRace, div, tier, table, end, earned };
+  return { prize, koBonus, grudgeBonus, shoveBonus, nearPay: s.nearPay, chainPay: s.chainPay, stuntPay, fines: s.fines, feud, cupRace, div, tier, table, end, earned };
 }
 
 // ---- the garage --------------------------------------------------------------------------------

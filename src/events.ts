@@ -21,6 +21,10 @@ export interface Feel {
   lastGrudgeKos: number;
 }
 
+const WEAPON = { pan: ['stolePan', 'tookPan', 'fryingPan'], bat: ['stoleBat', 'tookBat', 'baseballBat'], oil: ['stoleOil', 'tookOil', 'oilCan'] } as const;
+const INTO = { car: 'intoTraffic', cones: 'intoCones', wall: 'intoWall', oil: 'intoOil', cow: 'intoCow' } as const;
+const FELL = { ko: 'knockedOff', car: 'wipeout', wall: 'slammed', cones: 'cones', oil: 'slipped', cow: 'moo' } as const;
+
 export const newFeel = (): Feel => ({ hitstop: 0, slow: 0, lastGrudgeKos: 0 });
 
 export function react(e: SimEvent, w: World, view: RaceView, hud: Hud, feel: Feel): void {
@@ -46,9 +50,9 @@ export function react(e: SimEvent, w: World, view: RaceView, hud: Hud, feel: Fee
       break;
     case 'steal':
       if (e.from === 0) {
-        hud.flash(t(!e.took ? 'knockedLoose' : e.kind === 'pan' ? 'stolePan' : 'stoleBat'), 'go');
+        hud.flash(t(!e.took ? 'knockedLoose' : WEAPON[e.kind][0]), 'go');
         sfx.pickup();
-      } else if (e.to === 0) hud.flash(t(!e.took ? 'weaponLoose' : e.kind === 'pan' ? 'tookPan' : 'tookBat', { name: w.riders[e.from].name }), 'bad');
+      } else if (e.to === 0) hud.flash(t(!e.took ? 'weaponLoose' : WEAPON[e.kind][1], { name: w.riders[e.from].name }), 'bad');
       break;
     case 'shove':
       if (e.from === 0) {
@@ -59,7 +63,7 @@ export function react(e: SimEvent, w: World, view: RaceView, hud: Hud, feel: Fee
         else if (w.grudgeKos > feel.lastGrudgeKos) {
           feel.lastGrudgeKos = w.grudgeKos;
           hud.flash(t('grudgeSettled', { n: C.GRUDGE_BONUS + C.SHOVE_BONUS }), 'ko');
-        } else if (!w.chase) hud.flash(t(e.into === 'car' ? 'intoTraffic' : e.into === 'cones' ? 'intoCones' : 'intoWall', { n: C.SHOVE_BONUS }), 'ko');
+        } else if (!w.chase) hud.flash(t(INTO[e.into], { n: C.SHOVE_BONUS }), 'ko');
       }
       break;
     case 'hit': {
@@ -104,7 +108,7 @@ export function react(e: SimEvent, w: World, view: RaceView, hud: Hud, feel: Fee
         feel.slow = 0.55;
         buzz([45, 40, 90]);
         view.shake(0.8);
-        hud.flash(t(e.cause === 'car' ? 'wipeout' : e.cause === 'wall' ? 'slammed' : e.cause === 'cones' ? 'cones' : 'knockedOff'), 'bad');
+        hud.flash(t(FELL[e.cause]), 'bad');
       }
       if (near(e.rider)) sfx.crash();
       break;
@@ -115,7 +119,7 @@ export function react(e: SimEvent, w: World, view: RaceView, hud: Hud, feel: Fee
       break;
     case 'pickup':
       if (e.rider === 0) {
-        hud.flash(t(e.kind === 'pan' ? 'fryingPan' : 'baseballBat'), 'go');
+        hud.flash(t(WEAPON[e.kind][2]), 'go');
         sfx.pickup();
       }
       break;
@@ -154,6 +158,41 @@ export function react(e: SimEvent, w: World, view: RaceView, hud: Hud, feel: Fee
       if (e.player || Math.abs(e.z - w.player.z) < 20) sfx.scrape(e.player);
       break;
     case 'drop':
+      break;
+    case 'bowl': {
+      const v = w.riders[e.rider];
+      view.fx.pow(v.x, 1.2, v.z, true);
+      feel.hitstop = 0.07;
+      view.shake(0.35);
+      buzz(35);
+      sfx.thunk(true);
+      hud.pop(t('bowled', { n: e.pay }), 'big');
+      break;
+    }
+    case 'oil':
+      if (near(e.rider)) sfx.scrape(e.rider === 0);
+      if (e.rider === 0) hud.flash(t('oilPoured'), 'go');
+      break;
+    case 'weed': {
+      const r = w.riders[e.rider];
+      view.fx.dust(r.x, r.z, 10, Math.random);
+      if (near(e.rider)) sfx.thunk(false);
+      if (e.rider === 0) {
+        view.shake(0.25);
+        buzz(20);
+        hud.flash(t('tumbleweed'), 'bad');
+      }
+      break;
+    }
+    case 'taunt':
+      sfx.coin();
+      buzz(15);
+      hud.pop(t('taunted', { n: e.pay }), 'big');
+      break;
+    case 'boss':
+      feel.slow = 0.6;
+      sfx.coin();
+      hud.flash(t('bossDown', { n: e.pay }), 'ko');
       break;
     case 'nearMiss':
       hud.pop(t('closeCall', { n: e.pay }));

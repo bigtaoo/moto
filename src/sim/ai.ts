@@ -6,6 +6,7 @@
 import * as C from './config';
 import type { Rider, Side, World } from './world';
 import { Prng } from './rng';
+import { cowAhead } from './hazards';
 
 /** The bot is an input source, not part of the race: its dice must not come from the world's streams. */
 const botRngs = new WeakMap<World, Prng>();
@@ -28,6 +29,8 @@ export function laneClearance(w: World, r: Rider, x: number): number {
     const t = dist <= 0 ? 0 : closing <= 0.1 ? Infinity : dist / closing;
     if (t < best) best = t;
   }
+  const cow = cowAhead(w, x, r.z);
+  if (cow < Infinity && r.speed > 0.1) best = Math.min(best, cow / r.speed);
   const cones = w.road.conesAhead(x, 0.4, r.z);
   if (cones < Infinity && r.speed > 0.1) best = Math.min(best, cones / r.speed);
   return best;

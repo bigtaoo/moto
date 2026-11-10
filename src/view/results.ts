@@ -8,6 +8,7 @@ import type { Save } from '../meta';
 import { BREAK_AT, rideState, upgradeLock, upgradePrice, type CupEnd, type FeudOutcome, type Nemesis, type UpKey } from '../career';
 import type { DailyOutcome, DailyRow, Kind } from '../daily';
 import type { Flair } from '../sim/flair';
+import type { Mutator } from '../sim/fun';
 import { t, ord, money, type Key } from '../i18n';
 import { shopHtml, bindShop } from './shop';
 import type { Unlocked } from '../rewards';
@@ -50,6 +51,8 @@ export interface RaceResult {
   daily: DailyOutcome;
   /** Achievements this race (or a purchase after it) won, each paid once. */
   ach: Unlocked[];
+  /** The weekly mutator this race ran under (its prize was raised). */
+  mutator: Mutator | null;
   /** Cash a rewarded ad would add (doubling this race's earnings); 0: not on offer. */
   double: number;
   /** The ad was watched and the cash added. */
@@ -60,6 +63,7 @@ export interface ResultActions {
   buy: (k: UpKey) => void;
   ride: (v: number) => void;
   paint: (i: number) => void;
+  hat: (i: number) => void;
   carry: (k: WeaponKind) => void;
   double: () => void;
   again: () => void;
@@ -174,11 +178,14 @@ export class Results {
       <h2 class="${res.place === 1 ? 'win' : ''}">${t('place', { o: ord(res.place) })}</h2>
       <div class="sub">${res.time.toFixed(1)} s</div>
       <div class="rows">
-        ${row(t('prize', { o: ord(res.place) }), money(res.prize))}
+        ${row(t('prize', { o: ord(res.place) }) + (res.mutator ? ` · ${t('mutRow', { name: t(`mut_${res.mutator}`) })} ×1.25` : ''), money(res.prize))}
         ${row(t('kos', { n: res.kos }), money(res.koBonus))}
         ${res.shoves ? row(t('shoves', { n: res.shoves }), money(res.shoveBonus), 'good') : ''}
         ${res.flair.near ? row(t('nearMisses', { n: res.flair.near }), money(res.flair.nearPay), 'good') : ''}
         ${res.flair.chainPay ? row(t('koChains', { n: res.flair.best }), money(res.flair.chainPay), 'good') : ''}
+        ${res.flair.bowls ? row(t('bowlRow', { n: res.flair.bowls }), money(res.flair.bowlPay), 'good') : ''}
+        ${res.flair.taunts ? row(t('tauntRow', { n: res.flair.taunts }), money(res.flair.tauntPay), 'good') : ''}
+        ${res.flair.bossPay ? row(`${icon('star')} ${t('bossRow')}`, money(res.flair.bossPay), 'good') : ''}
         ${res.grudgeKos ? row(t('grudgeKos', { n: res.grudgeKos }), money(res.grudgeBonus), 'good') : ''}
         ${res.fines ? row(t('fines'), money(-res.fines), 'bad') : ''}
         ${feudRows(res)}

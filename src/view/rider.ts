@@ -6,7 +6,8 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import type { WeaponKind } from '../sim/config';
-import { Kit, kitMaterial, shared, toonMaterial } from './toon';
+import { Kit, cached, kitMaterial, shared, toonMaterial } from './toon';
+import { Wobble } from './hats';
 
 export const JOINT = 0x34343c;
 const TYRE = 0x232327;
@@ -152,6 +153,13 @@ function buildRide(v: number, ride: number): { kit: Kit; seat: number | null } {
 const weaponGeo = new Map<WeaponKind, THREE.BufferGeometry>();
 
 /** A weapon as held: the grip at the origin, pointing along +z. */
+/** The head on its own (the ragdoll's, and the big-heads week's), centred on the origin. */
+export function headKit(body: number, mark: number): Kit {
+  const head = new Kit(INK_W).add(ball(0.175, 12), body, { scale: [0.95, 1.06, 1] });
+  for (const s of [-1, 1]) head.decal(0.06, mark, { at: [s * 0.172, 0.01, 0], rot: [0, (s * Math.PI) / 2, 0] });
+  return head;
+}
+
 export function makeWeapon(kind: WeaponKind): THREE.Group {
   let geo = weaponGeo.get(kind);
   if (!geo) {
@@ -160,6 +168,12 @@ export function makeWeapon(kind: WeaponKind): THREE.Group {
       k.add(new THREE.CylinderGeometry(0.2, 0.17, 0.06, 14), 0x3a3e46, { at: [0, 0, 0.44], rot: [Math.PI / 2, 0, 0] })
         .add(new THREE.CylinderGeometry(0.15, 0.15, 0.065, 14), 0x5a606a, { at: [0, 0, 0.44], rot: [Math.PI / 2, 0, 0], ink: false })
         .add(rbox(0.05, 0.05, 0.34), 0x7a4a2a, { at: [0, 0, 0.12] });
+    } else if (kind === 'oil') {
+      // an oil can, spout forward
+      k.add(new THREE.CylinderGeometry(0.13, 0.13, 0.3, 12), 0x3f8a3a, { at: [0, 0, 0.2] })
+        .add(new THREE.CylinderGeometry(0.135, 0.135, 0.05, 12), 0xd8c23a, { at: [0, 0.06, 0.2], ink: false })
+        .add(new THREE.CylinderGeometry(0.02, 0.035, 0.32, 6), 0x9aa0a8, { at: [0, 0.2, 0.32], rot: [0.9, 0, 0] })
+        .add(new THREE.TorusGeometry(0.08, 0.018, 4, 10, Math.PI), 0x2a2a30, { at: [0, 0.15, 0.13], rot: [0, Math.PI / 2, 0], ink: false });
     } else {
       k.add(new THREE.CylinderGeometry(0.06, 0.032, 0.82, 10).rotateX(Math.PI / 2), 0xd0a060, { at: [0, 0, 0.4] })
         .add(new THREE.CylinderGeometry(0.036, 0.036, 0.16, 8).rotateX(Math.PI / 2), 0x2a2a30, { at: [0, 0, 0.06], ink: false });
@@ -306,6 +320,28 @@ export class RiderView {
     this.restArms();
   }
 
+  private wobble: Wobble | null = null;
+  private lastLat = 0;
+  private lastSpeed = 0;
+
+  /** A hat (wobbling on its spring) and a head `scale` times the size (the big-heads week, the boss' crown). */
+  dress(hat: THREE.Object3D | null, scale = 1): void {
+    if (!hat && scale === 1) return;
+    // where the head is, in the torso's frame
+    const g = new THREE.Group();
+    g.position.set(0, 0.76, 0.01);
+    if (scale !== 1) {
+      g.add(new THREE.Mesh(cached(`rag-head:${this.body}:${this.mark}`, () => headKit(this.body, this.mark).build()), this.mat));
+      g.scale.setScalar(scale);
+    }
+    if (hat) {
+      hat.position.y = 0.17;
+      g.add(hat);
+      this.wobble = new Wobble(hat);
+    }
+    this.torso.add(g);
+  }
+
   private restArms(): void {
     for (const [i, a] of this.arms.entries()) a.rotation.set(0.55, (i ? 1 : -1) * 0.12, 0, 'YXZ');
   }
@@ -345,7 +381,12 @@ export class RiderView {
   }
 
   /** `rub` is the side (-1/1) of a rider being pressed shoulder to shoulder, 0 when clear. */
-  update(dt: number, _speed: number, lateral: number, rub = 0): void {
+  update(dt: number, speed: number, lateral: number, rub = 0): void {
+    if (this.wobble && dt > 0) {
+      this.wobble.update(dt, (lateral - this.lastLat) / dt + this.kickV * 3, (speed - this.lastSpeed) / dt);
+      this.lastLat = lateral;
+      this.lastSpeed = speed;
+    }
     const target = this.down ? 0 : Math.max(-0.4, Math.min(0.4, lateral * 0.06 + rub * 0.24));
     this.bank += (target - this.bank) * Math.min(1, dt * 8);
     if (this.down) {

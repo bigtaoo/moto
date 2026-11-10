@@ -5,9 +5,14 @@ import { Prng } from './rng';
 import * as C from './config';
 import { rivalThink, laneClearance, nearestLane } from './ai';
 import { Road } from './road';
-import { clamp, type Rider, type Side, type Car, type Pickup, type Patrol, type SimEvent, type Input, type WorldOpts, type Seen } from './types';
-import { targetFor, tryAttack, playerAttack, resolveAttack, knockOff, crash, updatePickups } from './combat';
-import { chaseSetup, chaseEnd, nabbed } from './chase';
+import { clamp, type Rider, type Car, type Pickup, type Patrol, type SimEvent, type Input, type WorldOpts, type Seen, type Hazard, type Slick } from './types';
+import { targetFor, tryAttack, playerAttack, resolveAttack, crash, updatePickups } from './combat';
+import { chaseSetup, chaseEnd } from './chase';
+import { moveDown, recover } from './down';
+import { contacts } from './contacts';
+import { land, taunt, crownBoss } from './stunts';
+import { placeHazards, updateHazards, grip } from './hazards';
+import { MUTATOR, type Mutator } from './fun';
 import { spawnCar, updateTraffic } from './traffic';
 import { updatePatrol } from './patrol';
 import { leaderThreats } from './threats';
@@ -36,7 +41,7 @@ export class World {
   readonly patrolFrom: number;
   readonly events: SimEvent[] = [];
   readonly grudges: Set<number>;
-  readonly input: Input = { targetX: null, steer: 0, brake: false, attack: false, charge: false, remount: false };
+  readonly input: Input = { targetX: null, steer: 0, brake: false, attack: false, charge: false, remount: false, taunt: false };
   /** The nemesis' rider id, or -1. */
   readonly nemesis: number;
   /** Times the player knocked the nemesis off this race. */
@@ -73,26 +78,39 @@ export class World {
   /** A security shift (src/sim/chase.ts): the player hunts the field down; runners knocked off are caught. */
   readonly chase: boolean;
   caught = 0;
+  /** Roadside hazards and oil slicks (src/sim/hazards.ts), from their own dice. */
+  readonly hazards: Hazard[] = [];
+  readonly slicks: Slick[] = [];
+  readonly funRng: Prng;
+  /** Ticks left to taunt after a takedown; the boss' rider id (-1: none); this race's mutator. */
+  tauntT = 0;
+  boss = -1;
+  readonly mutator: Mutator | null;
 
   constructor(opts: WorldOpts) {
     this.seed = opts.seed;
     this.chase = opts.chase === true;
+    this.mutator = opts.mutator ?? null;
+    const mut = this.mutator;
+    const bats = mut === 'bats';
     this.divIndex = clamp(Math.floor(opts.div ?? 0), 0, C.DIVISIONS.length - 1);
     this.div = C.stage(this.divIndex, Math.floor(opts.tier ?? 0), opts.endless ?? 0);
     this.length = opts.length ?? Math.round(C.RACE_LEN * this.div.len);
     this.vehicle = clamp(Math.floor(opts.vehicle ?? 0), 0, C.VEHICLES.length - 1);
     this.road = new Road(this.length, this.div, new Prng(opts.seed * 23 + 7));
-    this.trafficBase = Math.round(C.TRAFFIC.base * this.div.traffic);
-    this.trafficExtra = Math.round(C.TRAFFIC.extra * this.div.traffic);
+    const busier = this.div.traffic * (mut === 'traffic' ? MUTATOR.traffic : 1);
+    this.trafficBase = Math.round(C.TRAFFIC.base * busier);
+    this.trafficExtra = Math.round(C.TRAFFIC.extra * busier);
     this.traffic = new Prng(opts.seed * 7 + 1);
     this.aiRng = new Prng(opts.seed * 13 + 5);
     this.patrolRng = new Prng(opts.seed * 17 + 11);
     this.combatRng = new Prng(opts.seed * 19 + 3);
+    this.funRng = new Prng(opts.seed * 29 + 13);
     const [lo, hi] = C.PATROL.count;
     const count = lo + this.patrolRng.int(hi - lo + 1);
     this.patrolRate = C.PATROL.busyGap[0] + (C.PATROL.busyGap[1] - C.PATROL.busyGap[0]) * (count - lo) / (hi - lo);
     const busy = (count - lo) / (hi - lo);
-    this.patrolCount = count + this.div.patrol;
+    this.patrolCount = count + this.div.patrol + (mut === 'police' ? MUTATOR.patrol : 0);
     const [s0, s1] = C.PATROL.startAt;
     this.patrolFrom = this.length * clamp(s1 - (s1 - s0) * busy + (this.patrolRng.float() - 0.5) * 0.1, s0, s1);
     this.grudges = new Set(opts.grudges ?? []);
@@ -106,7 +124,7 @@ export class World {
       top: C.PLAYER_BASE.top + v.top + up.top * C.UPGRADE_STEP.top,
       steer: C.PLAYER_BASE.steer + v.steer + up.steer * C.UPGRADE_STEP.steer,
       hp: C.PLAYER_BASE.hp + v.hp + up.hp * C.UPGRADE_STEP.hp, accel: C.PLAYER_BASE.accel + v.accel,
-      aggr: 0, aware: 1, body: C.PLAYER_BODY, ride: C.PLAYER_RIDE, weapon: opts.weapon,
+      aggr: 0, aware: 1, body: C.PLAYER_BODY, ride: C.PLAYER_RIDE, weapon: opts.weapon ?? (bats ? 'bat' : undefined),
     });
     C.ROSTER.forEach((s, i) => {
       const g = grid(i);
@@ -114,7 +132,7 @@ export class World {
       const nem = i + 1 === this.nemesis;
       this.addRider({
         name: s.name, isPlayer: false, x: g.x, z: g.z, top: s.top + d.top + (nem ? C.NEMESIS.top : 0), steer: 7, hp: C.RIVAL_HP + d.hp + (nem ? C.NEMESIS.hp : 0),
-        aggr: Math.min(1, s.aggr + d.mind + (nem ? C.NEMESIS.aggr : 0)), aware: Math.min(1, s.aware + d.mind), body: s.body, ride: s.ride, weapon: s.weapon,
+        aggr: Math.min(1, s.aggr + d.mind + (nem ? C.NEMESIS.aggr : 0)), aware: Math.min(1, s.aware + d.mind), body: s.body, ride: s.ride, weapon: bats ? 'bat' : s.weapon,
       });
     });
     // Two thugs, off the road until an ambush calls them.
@@ -135,6 +153,7 @@ export class World {
       r.intentT = this.aiRng.int(C.TICK_HZ);
     }
     if (this.chase) chaseSetup(this);
+    if (opts.boss && !this.chase) crownBoss(this);
     for (let z = 70; z < 70 + C.TRAFFIC.ahead; z += 25 + this.traffic.float() * 20) spawnCar(this, z);
     for (const f of C.PICKUP_AT) {
       let x: number = C.LANE_X[1 + this.traffic.int(3)];
@@ -142,8 +161,10 @@ export class World {
       // not behind the cones, nor right in front of a ramp
       if (this.road.worksHi(z) < x + 0.5) x = C.LANE_X[2];
       for (const r of this.road.ramps) if (!r.trail && Math.abs(r.x - x) < 1 && Math.abs(r.z - z) < 15) z = r.z - 20;
-      this.pickups.push({ id: this.nextId++, x, z, kind: this.traffic.float() < 0.5 ? 'pan' : 'bat' });
+      const roll = this.traffic.float();
+      this.pickups.push({ id: this.nextId++, x, z, kind: bats ? 'bat' : roll < 0.4 ? 'pan' : roll < 0.8 ? 'bat' : 'oil' });
     }
+    placeHazards(this);
   }
 
   get player(): Rider {
@@ -165,7 +186,7 @@ export class World {
       react: 10, latV: 0, latAcc: 16, intent: 'race', intentT: 0, lane: nearestLane(o.x), escX: o.x, escT: 0,
       foe: -1, foeSide: 1, foeOff: 1.6, wob: 0, wobTo: 0, hitBy: -1, hx: [], hz: [], hv: [],
       stagT: 0, shoveT: 0, openT: 0, aim: -1, aimX: 0, aimZ: 0, aimVx: 0, aimV: 0,
-      lo: -C.EDGE, hi: C.EDGE, airT: 0, airMax: 0, cutId: -1, cutTake: false,
+      lo: -C.EDGE, hi: C.EDGE, airT: 0, airMax: 0, cutId: -1, cutTake: false, boss: false, slide: 0, bowled: 0,
     });
     this.resetMemory(this.riders[this.riders.length - 1]);
   }
@@ -234,11 +255,12 @@ export class World {
     this.controlPlayer();
     for (const r of this.riders) if (!r.isPlayer) rivalThink(this, r);
     for (const r of this.riders) this.move(r);
-    this.contacts();
+    contacts(this);
     updateTraffic(this);
     updateFlair(this);
     for (const r of this.riders) resolveAttack(this, r);
     updatePickups(this);
+    updateHazards(this);
     // on a security shift the player is the security: no buggies, hunters or thugs
     if (!this.chase) { updatePatrol(this); leaderThreats(this); }
     this.checkFinish();
@@ -255,10 +277,11 @@ export class World {
     else p.wantX = clamp(p.x + inp.steer * 3, lo, hi);
     p.braking = inp.brake || (this.chase && this.time < C.CHASE.hold);
     playerAttack(this, p);
+    taunt(this, p);
     if (inp.remount && p.state === 'down') {
       // straight back onto the scooter, with a moment's grace
       p.bikeX = this.road.clampX(p.bikeX, p.bikeZ);
-      this.recover(p);
+      recover(this, p);
     }
     inp.remount = false;
   }
@@ -272,57 +295,27 @@ export class World {
     if (r.shoveT > 0) r.shoveT--;
     if (r.openT > 0) r.openT--;
     if (r.state === 'away') return;
-    if (r.state === 'down') {
-      const D = C.DOWN;
-      // the scooter slides on by itself
-      r.bikeV = Math.max(0, r.bikeV - D.bike * C.DT);
-      r.bikeZ += r.bikeV * C.DT;
-      r.bikeVx *= 0.88;
-      r.bikeX = this.road.clampX(r.bikeX + r.bikeVx * C.DT, r.bikeZ);
-      if (r.runT === 0) {
-        // tumbling to a stop, then a moment on the ground
-        r.speed = Math.max(0, r.speed - D.body * C.DT);
-        r.z += r.speed * C.DT;
-        r.vx *= 0.85;
-        r.x = this.road.clampX(r.x + r.vx * C.DT, r.z);
-        if (r.downT > 0) r.downT--;
-        if (r.downT === 0 && r.speed < 2) {
-          if (r.thug || nabbed(this, r)) return this.recover(r); // thugs and caught runners limp off instead
-          r.runT = 1;
-          r.speed = 0;
-        }
-        return;
-      }
-      // up and running back to the scooter
-      const dx = r.bikeX - r.x;
-      const dz = r.bikeZ - r.z;
-      if (dx * dx + dz * dz < D.reach * D.reach || r.runT > D.maxRun * C.TICK_HZ) return this.recover(r);
-      // along the road at running pace, across at a bit less (no square roots in the sim)
-      const s = D.run * Math.min(1, r.runT / (D.runUp * C.TICK_HZ)) * C.DT;
-      const sz = clamp(dz, -s, s);
-      r.z += sz;
-      r.x += clamp(dx, -s * 0.7, s * 0.7);
-      r.speed = Math.max(0, sz / C.DT);
-      r.runT++;
-      return;
-    }
+    if (r.state === 'down') return moveDown(this, r);
     const R = this.road;
-    if (r.airT > 0 && --r.airT === 0) this.land(r);
+    if (r.airT > 0 && --r.airT === 0) land(this, r);
     const air = r.airT > 0;
     // out on a trail: a bumpier ride, but it cuts the corner
     const trail = R.trailAt(r.x, r.z) !== 0;
+    // leaves and ice: less grip to steer with, and a shove carries further
+    const slip = air ? null : grip(this, r);
+    const g = slip ? slip.grip : 1;
     if (!air) {
       const target = r.braking || (r.finished && r.isPlayer) ? 0 : this.topNow(r) * (trail ? C.CUT.top : 1);
       if (r.speed < target) r.speed = Math.min(target, r.speed + r.accel * C.DT);
       else r.speed = Math.max(target, r.speed - (r.braking ? C.BRAKE : C.COAST) * C.DT);
       // a blow carries the rider sideways for a moment before they can steer against it
       if (r.isPlayer) {
-        const step = r.steer * C.DT;
+        const step = r.steer * g * C.DT;
         if (r.stagT === 0) r.x += clamp(r.wantX - r.x, -step, step);
       } else {
         // an AI rider has to build up and kill its sideways speed instead of snapping onto its line
         const v = clamp((r.wantX - r.x) * 2.6, -r.steer, r.steer);
-        const dv = r.latAcc * C.DT;
+        const dv = r.latAcc * g * C.DT;
         if (r.stagT === 0) r.latV += clamp(v - r.latV, -dv, dv);
         r.x += r.latV * C.DT;
       }
@@ -342,7 +335,7 @@ export class World {
       r.vx = r.latV = 0;
       if (!air) r.speed *= 0.985;
     }
-    r.vx *= r.stagT > 0 ? C.SHOVE.carry : 0.82;
+    r.vx *= slip ? slip.carry : r.stagT > 0 ? C.SHOVE.carry : 0.82;
     r.z += r.speed * C.DT * (trail ? C.CUT.gain : 1);
     if (cones) return crash(this, r, 'cones', -3);
     if (slam) return crash(this, r, 'wall', r.x > 0 ? -3 : 3);
@@ -351,102 +344,15 @@ export class World {
     if (r.speed > C.WORKS.crashSpeed && R.postHit(r.x, r.pz, r.z)) return crash(this, r, 'wall', r.x > 0 ? -3 : 3);
     const ramp = R.rampHit(r.x, r.pz, r.z);
     if (ramp && r.speed > C.RAMP.minSpeed) {
-      r.airT = r.airMax = Math.max(2, Math.round(r.speed * C.RAMP.air * C.TICK_HZ));
+      r.airT = r.airMax = Math.max(2, Math.round(r.speed * C.RAMP.air * C.TICK_HZ * (this.mutator === 'lowgrav' ? MUTATOR.air : 1)));
       r.atkT = 0;
       this.events.push({ type: 'jump', rider: r.id });
     }
   }
 
-  /** Down off a ramp: a little faster, and anyone landed on is knocked off. */
-  private land(r: Rider): void {
-    r.speed = Math.min(r.speed * C.RAMP.boost, r.top * 1.15);
-    let stomp = -1;
-    for (const o of this.riders) {
-      if (o === r || o.state !== 'ride' || o.airT > 0 || o.invT > 0) continue;
-      if (Math.abs(o.x - r.x) < C.RAMP.stompX && Math.abs(o.z - r.z) < C.RAMP.stompZ) {
-        stomp = o.id;
-        r.atkSide = o.x >= r.x ? 1 : -1;
-        o.hitBy = r.id;
-        knockOff(this, o, r);
-        break;
-      }
-    }
-    this.events.push({ type: 'land', rider: r.id, stomp });
-  }
-
   /** The player rides flat out; an AI rider goes at the pace its AI picked this tick (src/sim/ai.ts). */
   private topNow(r: Rider): number {
     return r.isPlayer ? r.top : r.pace;
-  }
-
-  private recover(r: Rider): void {
-    if (r.thug || nabbed(this, r)) {
-      // Knocked-off thugs limp away instead of rejoining.
-      r.state = 'away';
-      r.weapon = null;
-      this.events.push({ type: 'recover', rider: r.id });
-      return;
-    }
-    // back on the scooter, where it came to rest
-    r.x = r.px = r.bikeX;
-    r.z = r.pz = r.bikeZ;
-    r.runT = 0;
-    r.state = 'ride';
-    r.hp = r.maxHp;
-    r.invT = C.INVULN_TICKS;
-    r.speed = Math.max(r.speed, r.top * C.RECOVER_SPEED);
-    r.wantX = r.x;
-    r.latV = 0;
-    this.events.push({ type: 'recover', rider: r.id });
-  }
-
-  /**
-   * Riders are solid side to side. After everyone has moved, each pair alongside is set back to the
-   * side gap they need, the correction split evenly (a barrier hands its share to the other rider).
-   * Two riders pressing equally hold still; one pressing alone shoves both over at half its steering
-   * rate. The needed gap fades smoothly with the distance along the road (riders are rounded, not
-   * boxes), so riding up from behind eases you aside instead of toggling a hard wall on and off.
-   * Nothing is ever kicked back, so nothing jitters.
-   */
-  private contacts(): void {
-    const rs = this.riders;
-    const { width, full, clear } = C.CONTACT;
-    for (let pass = 0; pass < 2; pass++) {
-      for (let i = 0; i < rs.length; i++) {
-        const a = rs[i];
-        if (a.state !== 'ride' || a.airT > 0) continue;
-        for (let j = i + 1; j < rs.length; j++) {
-          const b = rs[j];
-          const dz = Math.abs(b.z - a.z);
-          if (b.state !== 'ride' || b.airT > 0 || dz >= clear) continue;
-          const t = dz <= full ? 0 : (dz - full) / (clear - full);
-          const need = width * (1 - t * t * (3 - 2 * t));
-          // Which side b is on comes from where they were before this tick, so it can't flip mid-press.
-          const oldDx = b.px - a.px;
-          const s: Side = oldDx > 0 || (oldDx === 0 && b.x >= a.x) ? 1 : -1;
-          const pen = need - (b.x - a.x) * s;
-          if (pen <= 1e-4) continue;
-          const na = clamp(a.x - s * pen * 0.5, a.lo, a.hi);
-          const movedA = (a.x - na) * s;
-          const nb = clamp(b.x + s * (pen - movedA), b.lo, b.hi);
-          const movedB = (nb - b.x) * s;
-          a.x = clamp(na - s * (pen - movedA - movedB), a.lo, a.hi);
-          b.x = nb;
-          if (pass > 0 || dz > full) continue;
-          // squeeze feedback: lean in, grind, lose a little speed; pinned on the barrier loses more
-          a.rubT = b.rubT = C.CONTACT.rubTicks;
-          a.rubSide = s;
-          b.rubSide = -s as Side;
-          a.speed *= C.CONTACT.friction;
-          b.speed *= C.CONTACT.friction;
-          if (movedA < pen * 0.5 - 1e-4) a.speed *= 0.99;
-          if (movedB < pen * 0.5 - 1e-4) b.speed *= 0.99;
-          if ((this.tick + i + j) % C.CONTACT.rubEvery === 0) {
-            this.events.push({ type: 'rub', x: (a.x + b.x) / 2, z: (a.z + b.z) / 2, side: s, player: a.isPlayer || b.isPlayer });
-          }
-        }
-      }
-    }
   }
 
   /** The rider `r` could hit right now on either side, nearest first. */

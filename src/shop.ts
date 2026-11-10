@@ -1,5 +1,5 @@
-// What the results screen sells besides upgrades and rides: paint jobs for the player's dummy (looks only,
-// bought once and kept) and a weapon carried into the next race (bought per race, gone when it pays out).
+// What the results screen sells besides upgrades and rides: paint jobs and hats for the player's dummy (looks
+// only, bought once and kept) and a weapon carried into the next race (bought per race, gone when it pays out).
 
 import type { Save } from './meta';
 import * as C from './sim/config';
@@ -22,27 +22,37 @@ export const PAINTS: readonly Paint[] = [
   { body: 0xd9b45a, ride: 0x1c1c22, mark: 0xe23b3b, price: 7000 },
 ];
 
+/** Hats for the dummy (looks only, they wobble), bought once and kept. 0 is bare-headed. Names: `hat0`.. */
+export const HATS = ['none', 'cap', 'party', 'top', 'cowboy', 'viking', 'cone'] as const;
+export type Hat = (typeof HATS)[number];
+export const HAT_PRICE = [0, 600, 1000, 1800, 2800, 4500, 6500];
+
 export type PaintState = 'on' | 'owned' | 'buy';
+type Wardrobe = 'paint' | 'hat';
+const priceOf = (k: Wardrobe, i: number) => (k === 'paint' ? PAINTS[i].price : HAT_PRICE[i]);
 
-export function paintState(save: Save, i: number): PaintState {
-  if (save.paint.cur === i) return 'on';
-  return save.paint.owned.includes(i) ? 'owned' : 'buy';
+export function wearState(save: Save, k: Wardrobe, i: number): PaintState {
+  if (save[k].cur === i) return 'on';
+  return save[k].owned.includes(i) ? 'owned' : 'buy';
 }
+export const paintState = (save: Save, i: number) => wearState(save, 'paint', i);
 
-/** Buy (if need be, and affordable) and wear paint `i`. */
-export function choosePaint(save: Save, i: number): boolean {
-  if (i < 0 || i >= PAINTS.length) return false;
-  if (paintState(save, i) === 'buy') {
-    if (save.cash < PAINTS[i].price) return false;
-    save.cash -= PAINTS[i].price;
-    save.paint.owned.push(i);
+/** Buy (if need be, and affordable) and wear paint or hat `i`. */
+export function wear(save: Save, k: Wardrobe, i: number): boolean {
+  if (!Number.isInteger(i) || i < 0 || i >= (k === 'paint' ? PAINTS.length : HATS.length)) return false;
+  if (wearState(save, k, i) === 'buy') {
+    if (save.cash < priceOf(k, i)) return false;
+    save.cash -= priceOf(k, i);
+    save[k].owned.push(i);
   }
-  save.paint.cur = i;
+  save[k].cur = i;
   return true;
 }
+export const choosePaint = (save: Save, i: number) => wear(save, 'paint', i);
+export const chooseHat = (save: Save, i: number) => wear(save, 'hat', i);
 
 /** A weapon to start the next race with, priced at the stage's purse (it is worth more where the pay is). */
-export const CARRY: Record<C.WeaponKind, number> = { pan: 60, bat: 100 };
+export const CARRY: Record<C.WeaponKind, number> = { pan: 60, bat: 100, oil: 80 };
 
 export const carryPrice = (save: Save, k: C.WeaponKind): number =>
   Math.round(CARRY[k] * C.stage(save.div, save.tier, save.endless).prize);

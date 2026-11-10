@@ -9,7 +9,7 @@ import * as THREE from 'three';
 import { ROAD_HALF } from '../sim/config';
 import { toWorld } from './track';
 import { Kit, cached } from './toon';
-import { JOINT, TARGET, INK_W, rbox, ball, rod } from './rider';
+import { JOINT, TARGET, INK_W, rbox, ball, rod, headKit } from './rider';
 
 const HEAD = 0, SH_L = 1, SH_R = 2, PELVIS = 3, EL_L = 4, HAND_L = 5, EL_R = 6, HAND_R = 7, KNEE_L = 8, FOOT_L = 9, KNEE_R = 10, FOOT_R = 11;
 // Rest pose, roughly as it stands on the scooter. Sim -x is the dummy's left.
@@ -76,11 +76,6 @@ function starGeo(): THREE.BufferGeometry {
 }
 const STARS = 3;
 
-function headKit(body: number, mark: number): Kit {
-  const head = new Kit(INK_W).add(ball(0.175, 12), body, { scale: [0.95, 1.06, 1] });
-  for (const s of [-1, 1]) head.decal(0.06, mark, { at: [s * 0.172, 0.01, 0], rot: [0, (s * Math.PI) / 2, 0] });
-  return head;
-}
 
 /** Upper arm, forearm, thigh, shin (LIMBS' part numbers). */
 const LIMB_KITS: ((body: number) => Kit)[] = [
@@ -158,6 +153,62 @@ export class Ragdoll {
     this.acc = 0;
     this.bumpT = 0.15;
     this.group.visible = true;
+  }
+
+  /** Let go from sim (x, y, z) at velocity (vx, vy, vz), tumbling head over heels: the launch mode's dummy. */
+  fling(x: number, y: number, z: number, vx: number, vy: number, vz: number, rnd: () => number): void {
+    const spin = spinV.set(4 + rnd() * 3, (rnd() - 0.5) * 3, (rnd() - 0.5) * 3);
+    for (let i = 0; i < REST.length; i++) {
+      const [rx, ry, rz] = REST[i];
+      this.p[i].set(x + rx, y + ry, z + rz);
+      a.set(rx, ry - 1.1, rz);
+      vel.set(vx, vy, vz).add(dir.copy(spin).cross(a));
+      this.q[i].copy(this.p[i]).addScaledVector(vel, -STEP);
+    }
+    this.active = true;
+    this.running = false;
+    this.roll = 0;
+    this.age = 0;
+    this.acc = 0;
+    this.bumpT = 0.15;
+    this.group.visible = true;
+  }
+
+  /**
+   * Moves the whole body a share `k` of the way from its pelvis to sim (x, y, z), velocity untouched, so the
+   * tumble stays on the path the sim flies; `y` null leaves the height to the physics (rolling on the ground).
+   */
+  pull(x: number, y: number | null, z: number, k: number): void {
+    if (!this.active || this.running) return;
+    const c = this.p[PELVIS];
+    const dx = (x - c.x) * k;
+    const dy = y === null ? 0 : (y - c.y) * k;
+    const dz = (z - c.z) * k;
+    for (let i = 0; i < this.p.length; i++) {
+      this.p[i].x += dx;
+      this.p[i].y += dy;
+      this.p[i].z += dz;
+      this.q[i].x += dx;
+      this.q[i].y += dy;
+      this.q[i].z += dz;
+    }
+  }
+
+  /** A hat on the head, and a head `scale` times the size (the big-heads week). */
+  dress(hat: THREE.Object3D | null, scale = 1): void {
+    this.head.scale.setScalar(scale);
+    if (!hat) return;
+    hat.position.y = 0.17;
+    this.head.add(hat);
+  }
+
+  /** The player leaning the tumbling body sideways (sim metres): the whole body moves with it. */
+  nudge(dx: number): void {
+    if (!this.active || this.running || dx === 0) return;
+    for (let i = 0; i < this.p.length; i++) {
+      this.p[i].x += dx;
+      this.q[i].x += dx;
+    }
   }
 
   hide(): void {

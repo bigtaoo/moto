@@ -6,7 +6,9 @@ import { CAR, CHARGE, DOWN, TICK_HZ, VEHICLES, rung } from '../sim/config';
 import { Track, toWorld, place, rampLift, RAMP_LOOK } from './track';
 import { ENVS, type Env } from './env';
 import { RiderView } from './rider';
-import type { Paint } from '../shop';
+import type { Hat, Paint } from '../shop';
+import { makeHat } from './hats';
+import { HazardView } from './hazards';
 import { Ragdoll } from './ragdoll';
 import { Traffic, PatrolView, Pickups, Shadows } from './props';
 import { Fx } from './fx';
@@ -92,6 +94,11 @@ export class Stage {
   /** Share of spark and dust particles thrown at this tier. */
   get fxScale(): number {
     return TIERS[this.gov.tier].fx;
+  }
+
+  /** The environment the scene is lit for. */
+  get envNow(): Env {
+    return this.env;
   }
 
   setEnv(e: Env): void {
@@ -195,6 +202,9 @@ export class RaceView {
   private readonly patrol = new PatrolView();
   private readonly pickups = new Pickups();
   private readonly shadows = new Shadows();
+  private readonly hazards: HazardView;
+  /** Each rider's bowling slide already applied to its ragdoll. */
+  private readonly slid: number[] = [];
   private readonly camPos = new THREE.Vector3();
   private readonly camLook = new THREE.Vector3();
   private readonly v = new THREE.Vector3();
@@ -204,12 +214,14 @@ export class RaceView {
   private fovBoost = 0;
   private shakeAmp = 0;
   private first = true;
+  /** The highlight's side camera: which side of the player it stands on (0: the race camera). */
+  cine = 0;
   /** Drawn lateral position and speed per rider: a short spring over the sim's x, so contact can't shake. */
   private drawX: number[] = [];
   private drawVx: number[] = [];
 
-  /** `paint`: the player's paint job (looks only: the sim keeps the stock colours). */
-  constructor(private readonly stage: Stage, readonly w: World, seed: number, paint?: Paint) {
+  /** `paint`, `hat`: the player's paint job and hat (looks only: the sim keeps the stock colours). */
+  constructor(private readonly stage: Stage, public w: World, seed: number, paint?: Paint, hat: Hat = 'none') {
     const env = ENVS[w.div.env];
     stage.setEnv(env);
     this.track = new Track(w.length, seed, env, w.road);
@@ -221,7 +233,16 @@ export class RaceView {
       rd.onImpact = (x, z, v) => this.fx.puff(x, z, v, Math.random);
       return rd;
     });
-    this.group.add(this.track.group, this.traffic.group, this.patrol.root, this.pickups.group, this.shadows.mesh, this.fx.mesh, this.fx.pows);
+    // hats: the player's own, the boss' crown (and a bigger boss), every head huge in the big-heads week
+    const head = w.mutator === 'bigheads' ? 1.8 : 1;
+    w.riders.forEach((r, i) => {
+      const kind = r.boss ? 'crown' : i === 0 ? hat : 'none';
+      this.riders[i].dress(makeHat(kind), head);
+      this.ragdolls[i].dress(makeHat(kind), head);
+      if (r.boss) this.riders[i].root.scale.setScalar(1.22);
+    });
+    this.hazards = new HazardView(w);
+    this.group.add(this.hazards.group, this.track.group, this.traffic.group, this.patrol.root, this.pickups.group, this.shadows.mesh, this.fx.mesh, this.fx.pows);
     for (const rv of this.riders) this.group.add(rv.root);
     for (const rd of this.ragdolls) this.group.add(rd.group);
     stage.scene.add(this.group);
@@ -267,6 +288,7 @@ export class RaceView {
   dispose(): void {
     const bin = new Set<{ dispose(): void }>();
     this.track.collect(bin);
+    for (const m of this.hazards.materials) bin.add(m);
     this.group.traverse((o) => {
       const m = o as THREE.Mesh;
       if (!m.isMesh) return;
@@ -276,6 +298,25 @@ export class RaceView {
     });
     this.group.removeFromParent();
     this.stage.retire(bin);
+  }
+
+  /**
+   * Draw another run of the same race (the same seed and options, so the same road, hazards and riders): the
+   * highlight's re-simulation, and back. What was drawn of the old one (springs, ragdolls) starts over.
+   */
+  rebind(w: World): void {
+    this.w = w;
+    this.drawX = [];
+    this.drawVx = [];
+    this.slid.length = 0;
+    this.first = true;
+    this.shakeAmp = 0;
+    w.riders.forEach((r, i) => {
+      const down = r.state === 'down';
+      this.riders[i].setDown(down);
+      this.ragdolls[i].hide();
+      if (down) this.ragdolls[i].throw(r.bikeX, r.bikeZ, 0, 0, Math.random, 0.5);
+    });
   }
 
   scatterCones(x: number, z: number): void {
@@ -352,6 +393,9 @@ export class RaceView {
       if (r.state === 'ride') this.shadows.add(x, z, 0.5, 0.75);
       else this.shadows.add(x, z, 0.6, 0.6);
       const rd = this.ragdolls[i];
+      // the player leaning the tumbling body (bowling): the ragdoll moves with the sim's slide
+      if (down) rd.nudge(r.slide - (this.slid[i] ?? 0));
+      this.slid[i] = down ? r.slide : 0;
       if (down && r.runT > 0) {
         // up and running back to the scooter
         const pace = DOWN.run * Math.min(1, r.runT / (DOWN.runUp * TICK_HZ));
@@ -368,6 +412,7 @@ export class RaceView {
     this.traffic.update(w, alpha);
     this.patrol.update(w, alpha, dt);
     this.pickups.update(w, dt);
+    this.hazards.update(w, dt, alpha);
     this.fx.scale = this.stage.fxScale;
     this.fx.update(dt, this.stage.camera);
     this.updateCamera(dt, alpha);
@@ -410,12 +455,19 @@ export class RaceView {
     const k = this.first ? 1 : Math.min(1, dt * 6);
     // partway across the road; out past it (on a trail) the camera goes all the way with the rider
     const out = Math.max(0, Math.abs(fx) - 5) * Math.sign(fx);
-    this.focusX += ((fx - out) * cfg.follow + out - this.focusX) * k;
+    const follow = this.cine ? 1 : cfg.follow;
+    this.focusX += ((fx - out) * follow + out - this.focusX) * k;
     this.focusZ = this.first ? fz : this.focusZ + (fz - this.focusZ) * Math.min(1, dt * 14);
     this.first = false;
     const cam = this.stage.camera;
-    toWorld(this.focusX, cfg.h, this.focusZ - cfg.back, this.camPos);
-    toWorld(this.focusX * 0.8, cfg.lookY, this.focusZ + cfg.look, this.camLook);
+    if (this.cine) {
+      // low at the roadside, a little ahead, looking back across at the player
+      toWorld(this.focusX + this.cine * 6.5, 1.6, this.focusZ + 4, this.camPos);
+      toWorld(this.focusX, 1, this.focusZ, this.camLook);
+    } else {
+      toWorld(this.focusX, cfg.h, this.focusZ - cfg.back, this.camPos);
+      toWorld(this.focusX * 0.8, cfg.lookY, this.focusZ + cfg.look, this.camLook);
+    }
     if (this.shakeAmp > 0.001) {
       const s = this.shakeAmp;
       this.camPos.x += (Math.random() - 0.5) * s;

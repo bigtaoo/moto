@@ -38,6 +38,9 @@ export class Hud {
   private readonly leagueEl: HTMLElement;
   private readonly nemEl: HTMLElement;
   readonly remountBtn: HTMLButtonElement;
+  /** The taunt, up for a moment after the player puts someone down. */
+  readonly tauntBtn: HTMLButtonElement;
+  private tauntOn = false;
   private remountOn = false;
   private remountAt = 0;
   /** The remount button is up and has been long enough that a tap on it was meant for it, not a steer. */
@@ -81,6 +84,7 @@ export class Hud {
         <div class="league"></div>
         <div class="nemcard"></div>
         <button class="remount hidden"></button>
+        <button class="taunt"></button>
       </div>
       <div id="results" class="overlay hidden"><div class="card"></div></div>
       <div id="paused" class="overlay hidden"><div class="card small"></div></div>
@@ -102,6 +106,7 @@ export class Hud {
     this.leagueEl = $(this.root, '.league');
     this.nemEl = $(this.root, '.nemcard');
     this.remountBtn = $(this.root, '.remount');
+    this.tauntBtn = $(this.root, '.taunt');
     this.results = new Results($(host, '#results'));
     this.menu = new Menu($(host, '#paused'));
     this.pauseBtn = $(this.root, '.pausebtn');
@@ -118,6 +123,7 @@ export class Hud {
     this.hint.textContent = t(this.hintMode === 'click' ? 'clickForKeys' : CONTROLS);
     this.remountBtn.innerHTML = `<span>${icon('play')} ${t('backOnNow')}</span><small>${t('watchAd')}</small>`;
     this.pauseBtn.setAttribute('aria-label', t('pause'));
+    this.tauntBtn.textContent = DESKTOP ? `${t('taunt')} [T]` : t('taunt');
     this.setSound(!this.soundOff);
     this.menu.localize();
   }
@@ -150,8 +156,8 @@ export class Hud {
       this.bar.appendChild(d);
       this.dots.push(d);
       const l = document.createElement('div');
-      l.className = r.thug ? 'tag thug' : 'tag';
-      l.textContent = r.isPlayer ? '' : r.name;
+      l.className = r.thug ? 'tag thug' : r.boss ? 'tag boss' : 'tag';
+      l.textContent = r.isPlayer ? '' : r.boss ? `${t('bossTag')} · ${r.name}` : r.name;
       lab.appendChild(l);
       this.labels.push(l);
     }
@@ -164,8 +170,14 @@ export class Hud {
   }
 
   /** The division and cup race, shown over the countdown. */
-  setLeague(text: string): void {
+  /** `extra`: a second line under it (this race's mutator or boss). */
+  setLeague(text: string, extra = ''): void {
     this.leagueEl.textContent = text;
+    if (extra) {
+      const s = document.createElement('small');
+      s.textContent = extra;
+      this.leagueEl.appendChild(s);
+    }
     this.leagueEl.className = 'league';
     void this.leagueEl.offsetWidth;
     this.leagueEl.className = 'league show';
@@ -314,6 +326,8 @@ export class Hud {
       if (chase) this.chaser.innerHTML = chase;
       this.chaser.classList.toggle('on', chase !== '');
     }
+    const taunt = w.tauntT > 0 && p.state === 'ride';
+    if (taunt !== this.tauntOn) { this.tauntOn = taunt; this.tauntBtn.classList.toggle('on', taunt); }
     if (this.bannerT > 0) {
       this.bannerT -= dt;
       if (this.bannerT <= 0) this.banner.className = 'banner';

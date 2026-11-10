@@ -2,7 +2,7 @@
 // achievements paid out: each purchase pays, saves, is counted and redraws the screen.
 
 import { buyUpgrade, chooseRide, type UpKey } from './career';
-import { choosePaint, buyCarry } from './shop';
+import { choosePaint, chooseHat, buyCarry } from './shop';
 import { storeSave, type Save } from './meta';
 import { unlock, type Unlocked } from './rewards';
 import type { WeaponKind } from './sim/config';
@@ -52,6 +52,7 @@ export function shopActions(save: Save, redraw: () => void, got: (u: Unlocked[])
     buy: (k: UpKey) => spend('upgrade_purchased', () => buyUpgrade(save, k), () => ({ upgrade_id: k, level: save.up[k] })),
     ride: (v: number) => spend('ride_chosen', () => chooseRide(save, v), (p) => ({ ride: v, bought: p > 0 })),
     paint: (i: number) => spend('paint_chosen', () => choosePaint(save, i), (p) => ({ paint: i, bought: p > 0 })),
+    hat: (i: number) => spend('hat_chosen', () => chooseHat(save, i), (p) => ({ hat: i, bought: p > 0 })),
     carry: (k: WeaponKind) => spend('weapon_bought', () => buyCarry(save, k), () => ({ weapon: k })),
   };
 }

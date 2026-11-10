@@ -152,12 +152,12 @@ function stepOf(div: number, tier: number, cupRace: number, ride: number): Props
 export function raceStart(w: World): void {
   if (!save) return;
   const step = stepOf(save.div, save.tier, save.cup.race + 1, save.garage.cur);
-  race = { world: w, step, falls: 0, presses: { key: 0, mouse: 0, touch: 0 }, by: { ko: 0, car: 0, wall: 0, cones: 0 }, downMs: 0, wasDown: false, pauses: 0, hides: 0, remountOffered: false };
+  race = { world: w, step, falls: 0, presses: { key: 0, mouse: 0, touch: 0 }, by: { ko: 0, car: 0, wall: 0, cones: 0, oil: 0, cow: 0 }, downMs: 0, wasDown: false, pauses: 0, hides: 0, remountOffered: false };
   stutter.reset();
   const between: Props = resultsAt ? { results_sec: Math.round((now() - resultsAt) / 1000), buys } : {};
   resultsAt = 0;
   buys = 0;
-  track('progression_started', { ...step, career_race: save.races + 1, cash: save.cash, up_total: upTotal(save), nemesis: w.nemesis > 0, ...between });
+  track('progression_started', { ...step, career_race: save.races + 1, cash: save.cash, up_total: upTotal(save), nemesis: w.nemesis > 0, mutator: w.mutator ?? 'none', boss: w.boss >= 0, ...between });
 }
 
 /** The way the race was played: the kind of most presses, or none. */
@@ -176,7 +176,7 @@ function raceFields(r: Race): Props {
   return {
     ...r.step, place: w.standing, racers: w.racers, kos: w.kos, grudge_kos: w.grudgeKos, shoves: w.shoves, fines: w.fines,
     near_misses: w.flair.near, best_chain: w.flair.best, flair_cash: w.flair.nearPay + w.flair.chainPay,
-    falls: r.falls, falls_ko: r.by.ko, falls_car: r.by.car, falls_wall: r.by.wall, falls_cones: r.by.cones, down_s: Math.round(r.downMs / 1000), time_s: Math.round(w.time), pauses: r.pauses, hides: r.hides,
+    falls: r.falls, falls_ko: r.by.ko, falls_car: r.by.car, falls_wall: r.by.wall, falls_cones: r.by.cones, falls_oil: r.by.oil, falls_cow: r.by.cow, down_s: Math.round(r.downMs / 1000), time_s: Math.round(w.time), pauses: r.pauses, hides: r.hides,
     revenge: w.revenge, input: inputKind(r.presses), capped: w.time >= C.TIME_CAP_S, ...stutter.fields(),
   };
 }

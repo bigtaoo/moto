@@ -37,7 +37,7 @@ describe('security buggy', () => {
         if (!pt.active) continue;
         if (pt.mode === 'block' || pt.mode === 'squeeze') pressTicks++;
         for (const r of w.riders) {
-          if (r.state !== 'ride') continue;
+          if (r.state !== 'ride' || r.airT > 0) continue; // off a ramp, riders fly over it
           if (Math.abs(r.x - pt.x) < C.PATROL.halfW + C.PATROL.riderHalfW - 0.01 && Math.abs(r.z - pt.z) < C.PATROL.halfL + 0.59) inside++;
         }
       }

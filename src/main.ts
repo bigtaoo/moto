@@ -9,7 +9,6 @@ import { Recorder } from './sim/replay';
 import { Stage, RaceView } from './view/scene';
 import { Controls, DESKTOP, keysReach } from './view/input';
 import { Hud } from './view/hud';
-import type { RaceResult } from './view/results';
 import { titleInfo } from './view/title';
 import { sfx, unlockAudio, hold, setMuted, setChannel, music, raceTrack, preloadAudio } from './view/audio';
 import { installIconCss } from './view/icons';
@@ -17,17 +16,21 @@ import { statsOverlay } from './view/stats';
 import * as funnel from './funnel';
 import * as tele from './telemetry';
 import { parseSave, storeSave, type Save } from './meta';
-import { CUP_RACES, riderName, settleRace, REVENGE_PAY } from './career';
-import { dailyFor, scoreDaily, today } from './daily';
+import { CUP_RACES, riderName, REVENGE_PAY } from './career';
+import { settleWorld } from './raceEnd';
+import { BOSS, MUTATOR, weeklyMutator } from './sim/fun';
+import { Moments, Highlight, HIGHLIGHT } from './highlight';
+import { LaunchMode } from './launchMode';
+import { today } from './daily';
 import * as platform from './platform';
 import { setLang, t } from './i18n';
 import { setHaptics } from './haptics';
-import { PAINTS } from './shop';
+import { PAINTS, HATS } from './shop';
 import { shopActions, counted, streakDouble } from './shopping';
 import { settleShift } from './shift';
 import { blocker } from './view/blocker';
 import { wireBoard } from './view/board';
-import { afterRace, unlock, visit, type Unlocked } from './rewards';
+import { unlock, visit, type Unlocked } from './rewards';
 
 const params = new URLSearchParams(location.search);
 // English until the platform says otherwise (3.4.2: the language comes from the Bridge only); ?lang=xx wins
@@ -57,6 +60,10 @@ localize();
 let world!: World;
 let view!: RaceView;
 let recorder!: Recorder;
+let moments = new Moments();
+/** The race's best moment, playing again before the results. */
+let cine: Highlight | null = null;
+let launch: LaunchMode | null = null;
 let state: 'title' | 'race' | 'results' = 'title';
 /** This race is a security shift (src/shift.ts), and how many this session has run (each its own seed). */
 let chase = false;
@@ -114,11 +121,13 @@ function newRace(): void {
   // a shift has no feuds, and the weapon bought for the next race waits for it
   const nem = chase ? null : save.feud.nemesis;
   const opts = { seed: chase ? seed + 5003 * ++shifts : seed, chase, upgrades: save.up, grudges: chase ? [] : save.grudges, length: LEN, div: save.div, tier: save.tier, endless: save.endless,
-    vehicle: save.garage.cur, nemesis: nem?.id, weapon: chase ? undefined : save.carry ?? undefined };
+    vehicle: save.garage.cur, nemesis: nem?.id, weapon: chase ? undefined : save.carry ?? undefined,
+    boss: !chase && save.cup.race === CUP_RACES - 1, mutator: !chase && save.cup.race === MUTATOR.race ? weeklyMutator(Date.now()) : undefined };
   world = new World(opts);
   recorder = new Recorder(opts);
+  moments = new Moments();
   const paint = PAINTS[save.paint.cur];
-  view = new RaceView(stage, world, seed, paint);
+  view = new RaceView(stage, world, seed, paint, HATS[save.hat.cur]);
   hud.setup(world, paint.body);
   hud.results.hide();
   intro();
@@ -135,7 +144,8 @@ function newRace(): void {
 /** The division pill and the nemesis card, over the countdown. */
 function intro(): void {
   const nem = world.chase ? null : save.feud.nemesis;
-  hud.setLeague(world.chase ? t('shiftPill') : t('pill', { div: world.div.name, n: save.cup.race + 1, m: CUP_RACES }));
+  const extra = world.mutator ? t('mutPill', { name: t(`mut_${world.mutator}`) }) : world.boss >= 0 ? t('bossPill', { n: Math.round(BOSS.pay * world.div.prize) }) : '';
+  hud.setLeague(world.chase ? t('shiftPill') : t('pill', { div: world.div.name, n: save.cup.race + 1, m: CUP_RACES }), extra);
   hud.setNemesis(nem, nem ? riderName(nem.id) : '', Math.round(REVENGE_PAY * world.div.prize));
 }
 
@@ -168,38 +178,10 @@ function finishRace(): void {
   if (settled === w) return;
   settled = w;
   if (w.chase) return finishShift(w);
-  const place = w.player.place;
-  const of = (f: (r: (typeof w.riders)[number]) => number) => w.riders.map((r) => (r.thug ? 0 : f(r)));
-  const s = settleRace(save, {
-    place, kos: w.kos, grudgeKos: w.grudgeKos, shoves: w.shoves, nearPay: w.flair.nearPay, chainPay: w.flair.chainPay, fines: w.fines, grudges: [...w.grudges],
-    places: of((r) => r.place), koPlayer: of((r) => r.koPlayer), koByPlayer: of((r) => r.koByPlayer),
-  });
-  // the day's challenges and first win, paid at the division the race was run in
-  save.daily = dailyFor(save.daily, today());
-  const daily = scoreDaily(save.daily, { place, kos: w.kos, shoves: w.shoves, falls, grudge: w.grudgeKos + w.revenge }, w.div.prize);
-  save.cash += daily.cash + daily.firstWin;
-  const ach = afterRace(save, { place, falls, kos: w.kos, near: w.flair.near, chain: w.flair.best });
-  platform.submitScore(save.life.kos);
-  storeSave(save);
-  funnel.raceDone(place);
-  tele.raceEnd(s);
-  for (const kind of daily.done) funnel.event('daily_done', { kind, done: daily.rows.filter((r) => r.done).length });
-  if (daily.firstWin) funnel.event('first_win', { cash: daily.firstWin });
-  counted(save, ach);
-  const table = s.table.map((r) => ({ name: riderName(r.id), pts: r.pts, rank: r.rank, me: r.id === 0 }));
-  const res: RaceResult = {
-    place, total: w.racers, prize: s.prize, kos: w.kos, koBonus: s.koBonus, grudgeKos: w.grudgeKos, grudgeBonus: s.grudgeBonus,
-    shoves: w.shoves, shoveBonus: s.shoveBonus, flair: { ...w.flair }, fines: s.fines, earned: s.earned, time: w.time, grudges: save.grudges.map((id) => w.riders[id].name),
-    league: { div: w.div.name, race: s.cupRace, races: CUP_RACES, table, end: s.end, next: C.stage(save.div, save.tier, save.endless).name, season: C.TIERS[save.tier].name },
-    feud: { out: s.feud, nemesis: save.feud.nemesis, name: riderName },
-    daily,
-    ach,
-    double: s.earned > 0 && platform.rewardedReady() ? s.earned : 0,
-    doubled: false,
-  };
-  if (res.double) tele.adOffer('double_cash');
+  const res = settleWorld(save, w, falls);
+  const place = res.place;
   setState('results');
-  platform.lifecycle(place <= C.PROMOTE ? 'level_completed' : 'level_failed', { world: w.div.name, level: String(s.cupRace) });
+  platform.lifecycle(place <= C.PROMOTE ? 'level_completed' : 'level_failed', { world: w.div.name, level: String(res.league.race) });
   const show = () => hud.results.show(res, save, { ...shop, double, again: () => nextRace('race_end'), shift: () => nextRace('race_end', true) });
   const double = () => {
     void platform.showRewarded('double_cash').then((ok) => {
@@ -214,7 +196,14 @@ function finishRace(): void {
     });
   };
   const shop = shopActions(save, () => show(), (u) => res.ach.push(...u));
-  show();
+  if (BOT || moments.score < HIGHLIGHT.min) return show();
+  cine = new Highlight(recorder.finish(w), moments.tick, view, hud, (skipped) => {
+    cine = null;
+    view.cine = 0;
+    view.rebind(w);
+    funnel.event('highlight', { skipped });
+    show();
+  });
 }
 
 /** A security shift is over: its bounty, then back to the cup or another shift. */
@@ -238,6 +227,8 @@ function tick(): void {
     if (controls.attack) { atkBuffer = 8; controls.attack = false; }
     inp.attack = atkBuffer > 0;
     inp.charge = controls.charge;
+    inp.taunt = controls.taunt;
+    controls.taunt = false;
   } else {
     inp.steer = 0;
     inp.brake = false;
@@ -254,6 +245,7 @@ function tick(): void {
     if (e.type === 'swing' && e.rider === 0) { swung = true; funnel.tutorialStep('slap'); }
     if (e.type === 'hit' && e.from === 0) funnel.tutorialStep('hit');
     if (e.type === 'crash' && e.rider === 0) falls++;
+    if (state === 'race') moments.note(e, world);
     if (e.type === 'over') over = true;
     else try { react(e, world, view, hud, feel); } catch (err) { setTimeout(() => { throw err; }); } // reported as any other error, the race goes on
   }
@@ -355,6 +347,8 @@ hud.pauseBtn.addEventListener('click', () => setPaused(true));
 // a click, not a press: a finger steering across the screen when the button comes up doesn't buy an ad
 hud.remountBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
 hud.remountBtn.addEventListener('click', remount);
+for (const ev of ['pointerdown', 'pointerup'] as const) hud.tauntBtn.addEventListener(ev, (e) => e.stopPropagation());
+hud.tauntBtn.addEventListener('pointerdown', () => { controls.taunt = true; });
 // a hidden page is silent whatever screen it is on, and a race pauses
 document.addEventListener('visibilitychange', () => {
   hold('hidden', document.hidden);
@@ -384,6 +378,8 @@ function frame(now: number): void {
   tele.frame(ms, state === 'race' && !BOT, !stopped && !waiting);
   stage.frame(ms, state === 'race' && !stopped && !waiting && !document.hidden);
   if (stopped) return;
+  if (cine) return cine.frame(dt);
+  if (launch) return launch.frame(dt);
   let simDt = dt;
   if (feel.hitstop > 0) { feel.hitstop -= dt; simDt = 0; }
   else if (feel.slow > 0) { feel.slow -= dt; simDt *= 0.35; }
@@ -420,6 +416,8 @@ function showTitle(): void {
   if (x2) streakDouble(save, x2, () => { if (state === 'title') showTitle(); });
   const sh = info.querySelector<HTMLButtonElement>('.shiftgo');
   if (sh) sh.onclick = () => { if (state !== 'title') return; chase = true; newRace(); startRace(); };
+  const lg = info.querySelector<HTMLButtonElement>('.launchgo');
+  if (lg) lg.onclick = () => { if (state === 'title' && !launch) launch = new LaunchMode(stage, view.group, save, app, () => { launch = null; showTitle(); }); };
   wireBoard(info, app);
 }
 /** Achievements the boot found won (an older save, a long streak): marked new on the title card. */

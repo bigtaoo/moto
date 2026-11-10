@@ -1,6 +1,6 @@
 // One-finger controls: drag to steer (relative to where the finger went down), tap to slap, press and hold
 // still to wind up a haymaker (thrown on letting go). A second finger tapping while the first drags also
-// slaps. Keys: arrows/A-D steer, Space/J slap (held: the haymaker), S/Down brake, P pause.
+// slaps. Keys: arrows/A-D steer, Space/J slap (held: the haymaker), S/Down brake, T taunt, P pause.
 // In a portal's iframe the keys go to the portal page until the game's window has the focus: the game asks
 // for it at start and again on every press of a finger or mouse in it, and the HUD asks for a click while
 // a keyboard player's keys don't reach it (keysReach).
@@ -35,6 +35,8 @@ export class Controls {
   brake = false;
   /** Set when a slap is asked for; main consumes it. */
   attack = false;
+  /** Set by T (or the HUD's button) for the taunt; main consumes it. */
+  taunt = false;
   onPause: (() => void) | null = null;
   /** A finger held still past a tap, or Space/J held: winding up a haymaker (C.CHARGE). */
   get charge(): boolean {
@@ -73,6 +75,7 @@ export class Controls {
     this.targetX = null;
     this.drag = null;
     this.attack = false;
+    this.taunt = false;
     this.steer = 0;
     this.brake = false;
   }
@@ -114,6 +117,7 @@ export class Controls {
     if (e.type === 'keydown') {
       this.onAny?.();
       if (k === 'p') { this.onPause?.(); return; }
+      if (k === 't' && !e.repeat) this.taunt = true;
       if ((k === ' ' || k === 'j') && !e.repeat) this.attack = true;
       this.keys.add(k);
     } else {

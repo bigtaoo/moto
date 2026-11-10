@@ -4,7 +4,7 @@
  * Bump on any change to the race rules that alters what a seed plus inputs produce, and record the new
  * golden hash in world.test.ts. Replays and (later) online rooms only mix the same version.
  */
-export const SIM_VERSION = 19;
+export const SIM_VERSION = 20;
 
 export const TICK_HZ = 30;
 export const DT = 1 / TICK_HZ;
@@ -79,6 +79,8 @@ export const CHARGE = { min: 15, full: 27, reach: 0.5, push: 5, dmg: 1, drag: 0.
 export const WEAPON = {
   pan: { dmg: 2, reach: 0.2, push: 1 },
   bat: { dmg: 2, reach: 0.6, push: 2 },
+  // not swung: poured out behind (src/sim/fun.ts OIL)
+  oil: { dmg: 0, reach: 0, push: 0 },
 } as const;
 
 /**
@@ -96,7 +98,7 @@ export type WeaponKind = keyof typeof WEAPON;
  * further), then the rider gets up and runs back to it.
  */
 export const DOWN = {
-  lie: { ko: 30, car: 40, wall: 36, cones: 36 }, // ticks on the ground at least before getting up
+  lie: { ko: 30, car: 40, wall: 36, cones: 36, oil: 36, cow: 40 }, // ticks on the ground at least before getting up
   body: 20, // m/s² the body slows at ...
   bike: 11, // ... and the scooter
   bikeSide: 0.6, // share of the sideways shove the scooter takes

@@ -5,6 +5,9 @@ import { clamp, type Rider, type Pickup, type CrashCause } from './types';
 import type { World } from './world';
 import { chainKo } from './flair';
 import { onCredit } from './chase';
+import { pour } from './hazards';
+import { playerDowned } from './stunts';
+import { BOSS } from './fun';
 
 /** The rider `r` could hit right now on either side, nearest first. */
 export function targetFor(w: World, r: Rider, tol = 0): Rider | null {
@@ -41,6 +44,8 @@ export function playerAttack(w: World, p: Rider): void {
 /** Start a swing; `power` (0..1) makes it a haymaker (C.CHARGE). */
 export function tryAttack(w: World, r: Rider, power = 0): boolean {
   if (r.state !== 'ride' || r.airT > 0 || r.atkT > 0 || r.atkCd > 0) return false;
+  // the oil can isn't swung: it is poured out behind
+  if (r.weapon === 'oil') return pour(w, r);
   r.power = power;
   const t = targetFor(w, r, 0.3);
   r.atkSide = t ? (t.x >= r.x ? 1 : -1) : r.atkSide === 1 ? -1 : 1;
@@ -92,9 +97,10 @@ export function resolveAttack(w: World, r: Rider): void {
     return;
   }
   const counter = r.isPlayer && victim.openT > 0;
-  const dmg = (r.weapon ? C.WEAPON[r.weapon].dmg : 1) + (counter ? A.counterDmg : 0) + (r.power >= 1 ? C.CHARGE.dmg : 0);
+  // the boss is armoured: a blow does one damage (a full haymaker two) and barely moves it
+  const dmg = victim.boss ? (r.power >= 1 ? 2 : 1) : (r.weapon ? C.WEAPON[r.weapon].dmg : 1) + (counter ? A.counterDmg : 0) + (r.power >= 1 ? C.CHARGE.dmg : 0);
   victim.hp -= dmg;
-  victim.vx += r.atkSide * (A.push + (r.weapon ? C.WEAPON[r.weapon].push : 0) + r.power * C.CHARGE.push);
+  victim.vx += r.atkSide * (A.push + (r.weapon ? C.WEAPON[r.weapon].push : 0) + r.power * C.CHARGE.push) * (victim.boss ? BOSS.push : 1);
   victim.latV = 0;
   victim.stagT = victim.isPlayer ? A.stagger.player : A.stagger.ai;
   victim.shoveT = C.SHOVE.ticks;
@@ -131,6 +137,7 @@ export function credit(w: World, v: Rider, by: Rider): void {
   if (by.isPlayer && w.grudges.has(v.id)) { w.grudgeKos++; w.grudges.delete(v.id); }
   if (by.isPlayer) {
     chainKo(w);
+    playerDowned(w, v);
     v.koByPlayer++;
     if (v.id === w.nemesis) w.revenge++;
     if (w.chase) onCredit(w, v);
@@ -164,6 +171,8 @@ export function crash(w: World, r: Rider, c: CrashCause, vx: number): void {
   r.huntT = 0;
   r.latV = 0;
   r.airT = 0;
+  r.slide = 0;
+  r.bowled = 0;
   if (!r.thug) { r.intent = 'race'; r.intentT = 0; }
   if (r.isPlayer) {
     w.crashes++;

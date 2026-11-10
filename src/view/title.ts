@@ -12,6 +12,11 @@ import { ACHIEVEMENTS, type Unlocked } from '../rewards';
 import { shiftOpen } from '../shift';
 import { shiftButton } from './results';
 import { boardButton } from './board';
+import { LAUNCH } from '../sim/launch';
+
+/** The button into the dummy launch, once it's open: its best score under it. */
+const launchButton = (save: Save): string =>
+  save.races < LAUNCH.unlock ? '' : `<button class="shift launchgo"><span>${icon('burst')} ${t('launchGo')}</span><small>${save.launchBest ? t('launchBest', { n: save.launchBest }) : t('launchTip')}</small></button>`;
 
 /** The next ride the player doesn't own, and how far off it is. */
 function nextRide(save: Save): string {
@@ -56,5 +61,5 @@ export function titleInfo(save: Save, fresh: Unlocked[] = [], ad = false): strin
   if (save.races === 0) return '';
   const mult = stage(save.div, save.tier, save.endless).prize;
   const win = save.daily.won ? '' : `<div class="dc"><span>${t('firstWin')}</span><b>+${money(Math.round(FIRST_WIN_PAY * mult))}</b></div>`;
-  return streak(save, ad) + (shiftOpen(save) ? shiftButton(save, 'shift shiftgo') : '') + nextRide(save) + nemesis(save) + dailyHtml(rows(save.daily), [], 0, win) + achHtml(save, fresh) + boardButton();
+  return streak(save, ad) + (shiftOpen(save) ? shiftButton(save, 'shift shiftgo') : '') + launchButton(save) + nextRide(save) + nemesis(save) + dailyHtml(rows(save.daily), [], 0, win) + achHtml(save, fresh) + boardButton();
 }

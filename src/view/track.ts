@@ -11,6 +11,9 @@ import type { Env } from './env';
 import { toonMaterial } from './toon';
 
 let phase = 0;
+/** The bends' phase, which the last Track built set: the launch mode builds its own road and puts this back after. */
+export const roadPhase = (): number => phase;
+export const setRoadPhase = (p: number): void => { phase = p; };
 
 /** Sideways offset of the road centre at distance z. */
 export function centreX(z: number): number {

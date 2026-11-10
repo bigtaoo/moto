@@ -88,6 +88,10 @@ const CAR_KITS: (() => Kit)[] = [
     .add(new THREE.CylinderGeometry(0.18, 0.18, 0.28, 8).rotateX(Math.PI / 2), 0xffffff, { at: [0, 1.0, -2.3], ink: false, ...PAINT }), 4.3, 0.8),
 ];
 
+/** Car shape `i`'s merged geometry, built once and kept across races (merging the outlines is the slow part). */
+export const carGeo = (i: number): THREE.BufferGeometry => cached(`car${i}`, () => CAR_KITS[i % CAR_KITS.length]().build());
+export const CAR_SHAPES = CAR_KITS.length;
+
 /** A car's shape: fixed by its id, so it never changes mid-race, and the sim never hears of it. */
 const carType = (id: number) => (Math.imul(id, 2654435761) >>> 0) % CAR_KITS.length;
 
@@ -98,9 +102,8 @@ export class Traffic {
   private readonly col = new THREE.Color();
 
   constructor() {
-    this.meshes = CAR_KITS.map((kit, i) => {
-      // built once and kept across races: merging the outlines is the slow part of starting a race
-      const mesh = new THREE.InstancedMesh(cached(`car${i}`, () => kit().build()), paintedMaterial(), MAX_CARS);
+    this.meshes = CAR_KITS.map((_, i) => {
+      const mesh = new THREE.InstancedMesh(carGeo(i), paintedMaterial(), MAX_CARS);
       mesh.count = 0;
       mesh.frustumCulled = false;
       mesh.setColorAt(0, this.col.set(0xffffff));

@@ -13,9 +13,18 @@ export interface Flair {
   chainT: number;
   best: number;
   chainPay: number;
+  /** Riders bowled over with the tumbling body, taunts, and what they paid; the boss' bounty (src/sim/stunts.ts). */
+  bowls: number;
+  bowlPay: number;
+  taunts: number;
+  tauntPay: number;
+  bossPay: number;
 }
 
-export const newFlair = (): Flair => ({ near: 0, nearPay: 0, chain: 0, chainT: 0, best: 0, chainPay: 0 });
+export const newFlair = (): Flair => ({ near: 0, nearPay: 0, chain: 0, chainT: 0, best: 0, chainPay: 0, bowls: 0, bowlPay: 0, taunts: 0, tauntPay: 0, bossPay: 0 });
+
+/** Cash from the player's stunts this race (bowling, taunts, the boss' bounty). */
+export const stuntPay = (f: Flair): number => f.bowlPay + f.tauntPay + f.bossPay;
 
 /** The player put someone down: extend the chain (the second link on pays, more each link up to a cap). */
 export function chainKo(w: World): void {

@@ -3,7 +3,7 @@
 
 import type { Upgrades } from './sim/world';
 import { DIVISIONS, TIERS, VEHICLES, UPGRADE_MAX, ROSTER, WEAPON, type WeaponKind } from './sim/config';
-import { PAINTS } from './shop';
+import { PAINTS, HATS } from './shop';
 import { newCup, newFeud, type Cup, type Feud } from './career';
 import { saveData } from './platform';
 import { readDaily, today, type Daily } from './daily';
@@ -30,6 +30,10 @@ export interface Save {
   garage: { cur: number; owned: number[] };
   /** Paint jobs owned (src/shop.ts PAINTS indexes) and the one worn. */
   paint: { cur: number; owned: number[] };
+  /** Hats owned (src/shop.ts HATS indexes; 0 is none) and the one worn. */
+  hat: { cur: number; owned: number[] };
+  /** The dummy launch's best score (src/sim/launch.ts). */
+  launchBest: number;
   /** A weapon bought for the next race (src/shop.ts), spent when that race pays out. */
   carry: WeaponKind | null;
   /** The player's own sound switch (the host's is separate and not saved). */
@@ -68,7 +72,7 @@ function readFeud(f: Partial<Feud> | undefined): Feud {
 export function parseSave(raw: string | null): Save {
   const fresh: Save = {
     cash: 0, up: { top: 0, steer: 0, hp: 0 }, grudges: [], races: 0, best: 0, div: 0, cup: newCup(), titles: 0, endless: 0, feud: newFeud(), tier: 0,
-    garage: { cur: 0, owned: [0] }, paint: { cur: 0, owned: [0] }, carry: null, muted: false, sessions: 0, firstDay: 0, musicOff: false, sfxOff: false, hapticsOff: false, quality: 'auto', daily: readDaily(null, today()),
+    garage: { cur: 0, owned: [0] }, paint: { cur: 0, owned: [0] }, hat: { cur: 0, owned: [0] }, launchBest: 0, carry: null, muted: false, sessions: 0, firstDay: 0, musicOff: false, sfxOff: false, hapticsOff: false, quality: 'auto', daily: readDaily(null, today()),
     streak: newStreak(), ach: [], life: { kos: 0, wins: 0 },
   };
   try {
@@ -83,9 +87,13 @@ export function parseSave(raw: string | null): Save {
     const owned = [0];
     if (Array.isArray(s.garage?.owned)) for (const v of s.garage.owned) if (Number.isInteger(v) && v > 0 && v < VEHICLES.length && !owned.includes(v)) owned.push(v);
     const cur = Number(s.garage?.cur);
-    const paints = [0];
-    if (Array.isArray(s.paint?.owned)) for (const v of s.paint.owned) if (Number.isInteger(v) && v > 0 && v < PAINTS.length && !paints.includes(v)) paints.push(v);
-    const paint = Number(s.paint?.cur);
+    /** A wardrobe: what's owned (index 0 always) and what's worn, of `n` things. */
+    const kept = (k: { cur?: unknown; owned?: unknown } | undefined, n: number) => {
+      const own = [0];
+      if (Array.isArray(k?.owned)) for (const v of k.owned) if (Number.isInteger(v) && v > 0 && v < n && !own.includes(v)) own.push(v);
+      const c = Number(k?.cur);
+      return { cur: own.includes(c) ? c : 0, owned: own };
+    };
     /** A count or amount: a whole number, 0 or more (junk, NaN or a negative is 0). */
     const count = (v: unknown) => Math.max(0, Math.floor(num(v)));
     // a rival id the race can look up: anything else would throw at the finish, after the race had paid out
@@ -103,7 +111,9 @@ export function parseSave(raw: string | null): Save {
       feud: readFeud(s.feud),
       tier: Math.max(0, Math.min(TIERS.length - 1, Math.floor(num(s.tier)))),
       garage: { cur: owned.includes(cur) ? cur : 0, owned },
-      paint: { cur: paints.includes(paint) ? paint : 0, owned: paints },
+      paint: kept(s.paint, PAINTS.length),
+      hat: kept(s.hat, HATS.length),
+      launchBest: count(s.launchBest),
       carry: typeof s.carry === 'string' && Object.keys(WEAPON).includes(s.carry) ? s.carry : null,
       muted: s.muted === true,
       sessions: count(s.sessions),

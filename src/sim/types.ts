@@ -1,9 +1,12 @@
 // The sim's data shapes and events, shared by World and the modules that work on it.
 
 import type * as C from './config';
+import type { Mutator } from './fun';
 
 export type Side = -1 | 1;
-export type CrashCause = 'ko' | 'car' | 'wall' | 'cones';
+export type CrashCause = 'ko' | 'car' | 'wall' | 'cones' | 'oil' | 'cow';
+/** What a shove can put a rider into. */
+export type ShoveInto = Exclude<CrashCause, 'ko'>;
 
 export interface Rider {
   id: number;
@@ -110,6 +113,40 @@ export interface Rider {
   /** The trail (World.road.cuts index) it has made up its mind about, and whether it takes it. */
   cutId: number;
   cutTake: boolean;
+  /** The cup's last-race boss (src/sim/fun.ts BOSS). */
+  boss: boolean;
+  /** Down and tumbling: how far the player has leaned the body sideways (the view moves the ragdoll with it), and riders bowled over this fall. */
+  slide: number;
+  bowled: number;
+}
+
+/**
+ * A division's roadside hazard (src/sim/hazards.ts). cow and weed move: x is where they are now (px last
+ * tick), `side` the way they're heading. leaves and ice are patches `w` metres wide from z on. A hydrant
+ * stands by the barrier on `side`.
+ */
+export interface Hazard {
+  id: number;
+  kind: 'cow' | 'weed' | 'leaves' | 'ice' | 'hydrant';
+  x: number;
+  px: number;
+  z: number;
+  /** Where a cow wanders about, and a patch's width. */
+  cx: number;
+  w: number;
+  side: Side;
+  /** Ticks out of step with the others, and (weed) ticks until a burst one rolls again. */
+  phase: number;
+  t: number;
+}
+
+/** An oil slick on the road: who poured it and ticks left. */
+export interface Slick {
+  id: number;
+  x: number;
+  z: number;
+  by: number;
+  t: number;
 }
 
 /** What an AI makes of another rider: where they were a reaction time ago, carried forward. */
@@ -195,7 +232,7 @@ export type SimEvent =
   | { type: 'swing'; rider: number; side: Side; aim: number; windup: number; power: number }
   | { type: 'hit'; from: number; to: number; side: Side; dmg: number; ko: boolean; counter: boolean; power: number }
   | { type: 'whiff'; rider: number; dodged: boolean }
-  | { type: 'shove'; from: number; to: number; into: 'car' | 'wall' | 'cones' }
+  | { type: 'shove'; from: number; to: number; into: ShoveInto }
   | { type: 'steal'; from: number; to: number; kind: C.WeaponKind; took: boolean }
   | { type: 'crash'; rider: number; cause: CrashCause; vx: number; speed: number }
   | { type: 'recover'; rider: number }
@@ -214,6 +251,11 @@ export type SimEvent =
   | { type: 'combo'; n: number; pay: number }
   | { type: 'go' }
   | { type: 'caught'; rider: number }
+  | { type: 'bowl'; rider: number; pay: number }
+  | { type: 'oil'; rider: number; x: number; z: number }
+  | { type: 'weed'; hazard: number; rider: number }
+  | { type: 'taunt'; pay: number }
+  | { type: 'boss'; rider: number; pay: number }
   | { type: 'over' };
 
 export interface Upgrades {
@@ -232,6 +274,8 @@ export interface Input {
   charge: boolean;
   /** Down: back on the scooter right now (paid for with a rewarded ad, once a race). */
   remount: boolean;
+  /** Right after a takedown: show off for a little cash (C.TAUNT). */
+  taunt: boolean;
 }
 
 export interface WorldOpts {
@@ -254,6 +298,10 @@ export interface WorldOpts {
   weapon?: C.WeaponKind;
   /** A security shift instead of a race (src/sim/chase.ts). */
   chase?: boolean;
+  /** The cup's last race: one rival is the boss. */
+  boss?: boolean;
+  /** This week's twist (src/sim/fun.ts). */
+  mutator?: Mutator;
 }
 
 export function clamp(v: number, lo: number, hi: number): number {
