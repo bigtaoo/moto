@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { newCup, scoreRace, standings, cupOver, endCup, CUP_RACES, POINTS, CUP_BONUS, newFeud, settleFeud, REVENGE_PAY, AHEAD_PAY, BREAK_PAY, settleRace, buyUpgrade, upgradePrice, upgradeLock, rideState, chooseRide, type RaceSummary } from './career';
 import { parseSave } from './meta';
+import { PAINTS, choosePaint, buyCarry, carryPrice } from './shop';
+import { World } from './sim/world';
 import * as C from './sim/config';
 
 /** Places for the player and the roster: the player at `me`, the rivals filling the rest in id order. */
@@ -200,5 +202,27 @@ describe('career settlement, seasons and the garage', () => {
     expect(bad.tier).toBe(C.TIERS.length - 1);
     expect(bad.up.top).toBe(C.UPGRADE_MAX.top);
     expect(bad.garage).toEqual({ cur: 0, owned: [0, 2] });
+  });
+
+  it('sells paint once and a weapon per race, and starts that race with it', () => {
+    const save = parseSave(null);
+    expect(choosePaint(save, 1)).toBe(false); // no cash
+    save.cash = PAINTS[1].price + carryPrice(save, 'bat') + 10;
+    expect(choosePaint(save, 1)).toBe(true);
+    expect(save.paint).toEqual({ cur: 1, owned: [0, 1] });
+    expect(choosePaint(save, 0)).toBe(true);
+    expect(choosePaint(save, 1)).toBe(true);
+    expect(buyCarry(save, 'bat')).toBe(true);
+    expect(buyCarry(save, 'pan')).toBe(false); // one at a time
+    expect(save.cash).toBe(10);
+    const w = new World({ seed: 3, weapon: save.carry ?? undefined });
+    expect(w.player.weapon).toBe('bat');
+    expect(new World({ seed: 3 }).player.weapon).toBeNull();
+    settleRace(save, summary(4));
+    expect(save.carry).toBeNull();
+    const back = parseSave(JSON.stringify({ ...save, carry: 'pan', paint: { cur: 9, owned: [1, 1, 99] } }));
+    expect(back.carry).toBe('pan');
+    expect(back.paint).toEqual({ cur: 0, owned: [0, 1] });
+    expect(parseSave(JSON.stringify({ carry: 'toString' })).carry).toBeNull();
   });
 });

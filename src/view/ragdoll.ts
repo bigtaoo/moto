@@ -55,14 +55,14 @@ const w = REST.map(() => new THREE.Vector3());
 const along = (g: THREE.BufferGeometry, len: number) => g.rotateX(-Math.PI / 2).translate(0, len / 2, 0);
 
 /** The body from the hips to the neck, in the pelvis frame: y towards the shoulders, x to the dummy's left, z forward. */
-function torsoKit(body: number, ride: number): Kit {
+function torsoKit(body: number, ride: number, mark: number): Kit {
   return new Kit(INK_W)
     .add(rbox(0.4, 0.22, 0.27), ride, { at: [0, 0, 0] })
     .add(rbox(0.46, 0.54, 0.29, 0.09), body, { at: [0, 0.33, 0] })
     .add(rbox(0.48, 0.06, 0.31, 0.02), JOINT, { at: [0, 0.12, 0], ink: false })
     .add(new THREE.CylinderGeometry(0.055, 0.065, 0.14, 8), JOINT, { at: [0, 0.64, 0], ink: false })
-    .decal(0.085, TARGET, { at: [0, 0.4, 0.151] })
-    .decal(0.085, TARGET, { at: [0, 0.4, -0.151], rot: [0, Math.PI, 0] });
+    .decal(0.085, mark, { at: [0, 0.4, 0.151] })
+    .decal(0.085, mark, { at: [0, 0.4, -0.151], rot: [0, Math.PI, 0] });
 }
 
 /** A chunky five-pointed star (puffed out to a point front and back), for the ones circling a dazed head. */
@@ -76,9 +76,9 @@ function starGeo(): THREE.BufferGeometry {
 }
 const STARS = 3;
 
-function headKit(body: number): Kit {
+function headKit(body: number, mark: number): Kit {
   const head = new Kit(INK_W).add(ball(0.175, 12), body, { scale: [0.95, 1.06, 1] });
-  for (const s of [-1, 1]) head.decal(0.06, TARGET, { at: [s * 0.172, 0.01, 0], rot: [0, (s * Math.PI) / 2, 0] });
+  for (const s of [-1, 1]) head.decal(0.06, mark, { at: [s * 0.172, 0.01, 0], rot: [0, (s * Math.PI) / 2, 0] });
   return head;
 }
 
@@ -121,10 +121,10 @@ export class Ragdoll {
   onImpact: ((x: number, z: number, v: number) => void) | null = null;
 
   /** `mat` is the rider's own vertex-coloured toon material, so a hit flash shows here too. */
-  constructor(body: number, ride: number, mat: THREE.Material) {
+  constructor(body: number, ride: number, mat: THREE.Material, mark = TARGET) {
     // Built once per colours and kept across races (see `cached` in toon.ts).
-    this.torso = new THREE.Mesh(cached(`rag-torso:${body}:${ride}`, () => torsoKit(body, ride).build()), mat);
-    this.head = new THREE.Mesh(cached(`rag-head:${body}`, () => headKit(body).build()), mat);
+    this.torso = new THREE.Mesh(cached(`rag-torso:${body}:${ride}:${mark}`, () => torsoKit(body, ride, mark).build()), mat);
+    this.head = new THREE.Mesh(cached(`rag-head:${body}:${mark}`, () => headKit(body, mark).build()), mat);
     const parts = LIMB_KITS.map((kit, i) => cached(`rag-limb${i}:${body}`, () => kit(body).build()));
     this.limbs = LIMBS.map(([, , part]) => new THREE.Mesh(parts[part], mat));
     const star = cached('rag-star', starGeo);

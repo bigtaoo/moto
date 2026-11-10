@@ -136,7 +136,8 @@ export class Hud {
   }
 
   /** Build the per-race bits: progress dots and rival name tags. */
-  setup(w: World): void {
+  /** `me`: the player's dot colour (their paint job). */
+  setup(w: World, me?: number): void {
     for (const d of this.dots) d.remove();
     for (const l of this.labels) l.remove();
     this.dots.length = 0;
@@ -145,7 +146,7 @@ export class Hud {
     for (const r of w.riders) {
       const d = document.createElement('div');
       d.className = r.isPlayer ? 'dot me' : r.thug ? 'dot hidden' : 'dot';
-      d.style.background = '#' + r.body.toString(16).padStart(6, '0');
+      d.style.background = '#' + (r.isPlayer && me !== undefined ? me : r.body).toString(16).padStart(6, '0');
       this.bar.appendChild(d);
       this.dots.push(d);
       const l = document.createElement('div');

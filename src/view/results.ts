@@ -3,12 +3,13 @@
 // doesn't buy something or skip it.
 
 import { icon } from './icons';
-import { GRUDGE_BONUS, UPGRADE_MAX, UPGRADE_CAP, VEHICLES, DIVISIONS, stage, type Vehicle } from '../sim/config';
+import { GRUDGE_BONUS, UPGRADE_MAX, UPGRADE_CAP, VEHICLES, DIVISIONS, stage, type Vehicle, type WeaponKind } from '../sim/config';
 import type { Save } from '../meta';
 import { BREAK_AT, rideState, upgradeLock, upgradePrice, type CupEnd, type FeudOutcome, type Nemesis, type UpKey } from '../career';
 import type { DailyOutcome, DailyRow, Kind } from '../daily';
 import type { Flair } from '../sim/flair';
 import { t, ord, money, type Key } from '../i18n';
+import { shopHtml, bindShop } from './shop';
 
 export interface League {
   /** The division this race was in. */
@@ -54,6 +55,8 @@ export interface RaceResult {
 export interface ResultActions {
   buy: (k: UpKey) => void;
   ride: (v: number) => void;
+  paint: (i: number) => void;
+  carry: (k: WeaponKind) => void;
   double: () => void;
   again: () => void;
 }
@@ -161,11 +164,12 @@ export class Results {
       ${dailyHtml(d.rows, d.done, d.done.length ? d.cash / d.done.length : 0)}
       ${res.grudges.length ? `<div class="grudges">${t('holding')} <b>${res.grudges.join(', ')}</b><br><small>${t('grudgeTip', { n: GRUDGE_BONUS })}</small></div>` : ''}
       <div class="cashline">${t('cash')} <b>${money(save.cash)}</b></div>
-      <div class="ups">${ups}${garageHtml(save)}</div>
+      <div class="ups">${ups}${garageHtml(save)}${shopHtml(save)}</div>
       <button class="primary again">${againLabel(res.league)}</button>`;
     const guard = (f: () => void) => () => { if (this.armed) f(); };
     card.querySelectorAll<HTMLButtonElement>('.up button').forEach((b) => { b.onclick = guard(() => on.buy(b.dataset.k as UpKey)); });
     card.querySelectorAll<HTMLButtonElement>('.ride').forEach((b) => { b.onclick = guard(() => on.ride(Number(b.dataset.v))); });
+    bindShop(card, guard, on);
     this.again = on.again;
     (card.querySelector('.again') as HTMLButtonElement).onclick = guard(on.again);
     const dbl = card.querySelector<HTMLButtonElement>('.double');

@@ -22,6 +22,7 @@ import { dailyFor, scoreDaily, today } from './daily';
 import * as platform from './platform';
 import { setLang, t } from './i18n';
 import { setHaptics } from './haptics';
+import { PAINTS, choosePaint, buyCarry } from './shop';
 
 const params = new URLSearchParams(location.search);
 // English until the platform says otherwise (3.4.2: the language comes from the Bridge only); ?lang=xx wins
@@ -103,11 +104,12 @@ function newRace(): void {
   view?.dispose();
   const seed = ((save.races * 7919 + 17) % 99991) + 1;
   const nem = save.feud.nemesis;
-  const opts = { seed, upgrades: save.up, grudges: save.grudges, length: LEN, div: save.div, tier: save.tier, endless: save.endless, vehicle: save.garage.cur, nemesis: nem?.id };
+  const opts = { seed, upgrades: save.up, grudges: save.grudges, length: LEN, div: save.div, tier: save.tier, endless: save.endless, vehicle: save.garage.cur, nemesis: nem?.id, weapon: save.carry ?? undefined };
   world = new World(opts);
   recorder = new Recorder(opts);
-  view = new RaceView(stage, world, seed);
-  hud.setup(world);
+  const paint = PAINTS[save.paint.cur];
+  view = new RaceView(stage, world, seed, paint);
+  hud.setup(world, paint.body);
   hud.results.hide();
   intro();
   hud.showRemount(false);
@@ -180,7 +182,7 @@ function finishRace(): void {
   if (res.double) tele.adOffer('double_cash');
   setState('results');
   platform.lifecycle(place <= C.PROMOTE ? 'level_completed' : 'level_failed', { world: w.div.name, level: String(s.cupRace) });
-  const show = () => hud.results.show(res, save, { buy, ride, double, again: () => nextRace('race_end') });
+  const show = () => hud.results.show(res, save, { buy, ride, paint, carry, double, again: () => nextRace('race_end') });
   const double = () => {
     void platform.showRewarded('double_cash').then((ok) => {
       if (ok && !res.doubled) {
@@ -210,6 +212,16 @@ function finishRace(): void {
     if (save.cash < had) { tele.bought(); sfx.coin(); }
     show();
   };
+  /** A paint job or a weapon for the next race: pay, save, count it, redraw. */
+  const shop = (ok: boolean, had: number, event: string, f: Record<string, string | number | boolean>) => {
+    if (!ok) return;
+    storeSave(save);
+    funnel.event(event, { ...f, price: had - save.cash, cash: save.cash });
+    if (save.cash < had) { tele.bought(); sfx.coin(); }
+    show();
+  };
+  const paint = (i: number) => { const had = save.cash; shop(choosePaint(save, i), had, 'paint_chosen', { paint: i, bought: had > save.cash }); };
+  const carry = (k: C.WeaponKind) => { const had = save.cash; shop(buyCarry(save, k), had, 'weapon_bought', { weapon: k }); };
   show();
 }
 

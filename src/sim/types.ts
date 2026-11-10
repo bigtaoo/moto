@@ -244,6 +244,8 @@ export interface WorldOpts {
   endless?: number;
   /** The player's ride (C.VEHICLES index). */
   vehicle?: number;
+  /** A weapon the player brings to the start (bought in the shop). */
+  weapon?: C.WeaponKind;
 }
 
 export function clamp(v: number, lo: number, hi: number): number {

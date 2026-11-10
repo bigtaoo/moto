@@ -135,6 +135,7 @@ export function settleRace(save: Save, s: RaceSummary): Settlement {
   save.races++;
   if (save.best === 0 || s.place < save.best) save.best = s.place;
   save.grudges = [...s.grudges];
+  save.carry = null;
   return { prize, koBonus, grudgeBonus, shoveBonus, nearPay: s.nearPay, chainPay: s.chainPay, fines: s.fines, feud, cupRace, div, tier, table, end, earned };
 }
 

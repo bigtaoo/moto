@@ -101,7 +101,7 @@ export class World {
       top: C.PLAYER_BASE.top + v.top + up.top * C.UPGRADE_STEP.top,
       steer: C.PLAYER_BASE.steer + v.steer + up.steer * C.UPGRADE_STEP.steer,
       hp: C.PLAYER_BASE.hp + v.hp + up.hp * C.UPGRADE_STEP.hp, accel: C.PLAYER_BASE.accel + v.accel,
-      aggr: 0, aware: 1, body: C.PLAYER_BODY, ride: C.PLAYER_RIDE,
+      aggr: 0, aware: 1, body: C.PLAYER_BODY, ride: C.PLAYER_RIDE, weapon: opts.weapon,
     });
     C.ROSTER.forEach((s, i) => {
       const g = grid(i);

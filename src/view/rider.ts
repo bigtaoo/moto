@@ -178,8 +178,8 @@ const partsBuilt = new Map<string, Parts>();
  * A rider's merged meshes, built once per ride and colours and kept across races (see `shared` in
  * toon.ts): the outlines make building them the dearest part of starting a race.
  */
-function riderParts(vehicle: number, body: number, ride: number): Parts {
-  const key = `${vehicle}:${body}:${ride}`;
+function riderParts(vehicle: number, body: number, ride: number, mark: number): Parts {
+  const key = `${vehicle}:${body}:${ride}:${mark}`;
   const done = partsBuilt.get(key);
   if (done) return done;
   const { kit: sc, seat } = buildRide(vehicle, ride);
@@ -214,9 +214,9 @@ function riderParts(vehicle: number, body: number, ride: number): Parts {
     .add(rbox(0.48, 0.06, 0.31, 0.02), JOINT, { at: [0, 0.06, 0], ink: false })
     .add(new THREE.CylinderGeometry(0.055, 0.065, 0.14, 8), JOINT, { at: [0, 0.59, 0], ink: false })
     .add(ball(0.175, 12), body, { at: [0, 0.76, 0.01], scale: [0.95, 1.06, 1] })
-    .decal(0.085, TARGET, { at: [0, 0.34, 0.151] })
-    .decal(0.085, TARGET, { at: [0, 0.34, -0.151], rot: [0, Math.PI, 0] });
-  for (const s of [-1, 1]) top.decal(0.06, TARGET, { at: [s * 0.172, 0.77, 0.01], rot: [0, (s * Math.PI) / 2, 0] });
+    .decal(0.085, mark, { at: [0, 0.34, 0.151] })
+    .decal(0.085, mark, { at: [0, 0.34, -0.151], rot: [0, Math.PI, 0] });
+  for (const s of [-1, 1]) top.decal(0.06, mark, { at: [s * 0.172, 0.77, 0.01], rot: [0, (s * Math.PI) / 2, 0] });
 
   // one arm, in its shoulder pivot's frame: both sides use it
   const arm = new Kit(INK_W)
@@ -269,10 +269,10 @@ export class RiderView {
   /** Height of the torso pivot: lower when seated. */
   private readonly torsoY: number;
 
-  /** `vehicle`: C.VEHICLES index of the ride drawn. */
-  constructor(readonly body: number, readonly ride: number, readonly vehicle = 0) {
+  /** `vehicle`: C.VEHICLES index of the ride drawn; `mark`: the colour of the target marks. */
+  constructor(readonly body: number, readonly ride: number, readonly vehicle = 0, readonly mark = TARGET) {
     this.mat = toonMaterial({ vertexColors: true, emissive: 0xffffff, emissiveIntensity: 0 });
-    const p = riderParts(vehicle, body, ride);
+    const p = riderParts(vehicle, body, ride, mark);
     this.torsoY = p.torsoY;
 
     // torso, neck and head, in the torso pivot's frame

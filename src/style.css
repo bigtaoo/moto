@@ -279,6 +279,22 @@ button.primary:active { transform: translateY(4px); box-shadow: 0 1px 0 var(--in
 .ride:disabled { cursor: default; }
 .ride.buy:disabled, .ride.locked { opacity: 0.55; }
 .ride.locked i { font-size: 12px; }
+.shop { margin-top: 6px; text-align: left; }
+.paints, .carries { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
+.paint, .carry {
+  flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: pointer; min-width: 74px;
+  background: #fff; border: 3px solid var(--ink); border-radius: 10px; padding: 5px 6px; font: inherit; color: var(--ink);
+}
+.paint b, .carry b { font-size: 12px; white-space: nowrap; }
+.paint > i, .carry > i { font-style: normal; font-weight: 900; font-size: 13px; }
+.paint .sw { width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--ink); position: relative; }
+.paint .sw i { position: absolute; left: 11px; top: 11px; width: 8px; height: 8px; border-radius: 50%; border: 1px solid var(--ink); }
+.paint.on, .carry.on { background: var(--yellow); }
+.paint:disabled, .carry:disabled { cursor: default; }
+.paint.buy:disabled, .carry:disabled:not(.on) { opacity: 0.55; }
+.carry { flex: 1 1 0; flex-direction: row; justify-content: space-between; padding: 7px 10px; }
+.carry b { font-size: 14px; }
+.shop .tip { display: block; font-size: 12px; opacity: 0.7; }
 
 /* the day's challenges, the returning player's goals, the pause menu, the screen in place of a broken game */
 .daily { background: #eef7ee; border-radius: 10px; padding: 6px 8px; font-size: 14px; margin: 6px 0; text-align: left; }

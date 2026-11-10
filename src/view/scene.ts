@@ -6,6 +6,7 @@ import { CAR, DOWN, TICK_HZ, VEHICLES, rung } from '../sim/config';
 import { Track, toWorld, place, rampLift, RAMP_LOOK } from './track';
 import { ENVS, type Env } from './env';
 import { RiderView } from './rider';
+import type { Paint } from '../shop';
 import { Ragdoll } from './ragdoll';
 import { Traffic, PatrolView, Pickups, Shadows } from './props';
 import { Fx } from './fx';
@@ -207,13 +208,16 @@ export class RaceView {
   private drawX: number[] = [];
   private drawVx: number[] = [];
 
-  constructor(private readonly stage: Stage, readonly w: World, seed: number) {
+  /** `paint`: the player's paint job (looks only: the sim keeps the stock colours). */
+  constructor(private readonly stage: Stage, readonly w: World, seed: number, paint?: Paint) {
     const env = ENVS[w.div.env];
     stage.setEnv(env);
     this.track = new Track(w.length, seed, env, w.road);
-    this.riders = w.riders.map((r, i) => new RiderView(r.body, r.ride, i === 0 ? w.vehicle : rivalRide(w, i, r.thug)));
+    this.riders = w.riders.map((r, i) => i === 0 && paint
+      ? new RiderView(paint.body, paint.ride, w.vehicle, paint.mark)
+      : new RiderView(r.body, r.ride, i === 0 ? w.vehicle : rivalRide(w, i, r.thug)));
     this.ragdolls = this.riders.map((rv) => {
-      const rd = new Ragdoll(rv.body, rv.ride, rv.mat);
+      const rd = new Ragdoll(rv.body, rv.ride, rv.mat, rv.mark);
       rd.onImpact = (x, z, v) => this.fx.puff(x, z, v, Math.random);
       return rd;
     });
