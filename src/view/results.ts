@@ -10,6 +10,7 @@ import type { DailyOutcome, DailyRow, Kind } from '../daily';
 import type { Flair } from '../sim/flair';
 import { t, ord, money, type Key } from '../i18n';
 import { shopHtml, bindShop } from './shop';
+import type { Unlocked } from '../rewards';
 
 export interface League {
   /** The division this race was in. */
@@ -46,6 +47,8 @@ export interface RaceResult {
   feud: { out: FeudOutcome; nemesis: Nemesis | null; name: (id: number) => string };
   /** The day's challenges after this race, and what they paid. */
   daily: DailyOutcome;
+  /** Achievements this race (or a purchase after it) won, each paid once. */
+  ach: Unlocked[];
   /** Cash a rewarded ad would add (doubling this race's earnings); 0: not on offer. */
   double: number;
   /** The ad was watched and the cash added. */
@@ -157,6 +160,7 @@ export class Results {
         ${res.doubled ? row(t('adBonus'), money(res.earned / 2), 'good') : ''}
         ${row(t('earned'), money(res.earned), 'total')}
         ${d.firstWin ? row(t('firstWin'), '+' + money(d.firstWin), 'good') : ''}
+        ${res.ach.map((a) => row(`${icon('star')} ${t(`a_${a.id}` as Key)}`, '+' + money(a.pay), 'good')).join('')}
       </div>
       ${res.double > 0 && !res.doubled ? `<button class="double"><span>${icon('play')} ${t('double', { n: res.double })}</span><small>${t('watchAd')}</small></button>` : ''}
       ${feudCard(res)}

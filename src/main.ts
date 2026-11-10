@@ -17,12 +17,14 @@ import { statsOverlay } from './view/stats';
 import * as funnel from './funnel';
 import * as tele from './telemetry';
 import { parseSave, storeSave, type Save } from './meta';
-import { CUP_RACES, riderName, settleRace, buyUpgrade, chooseRide, REVENGE_PAY, type UpKey } from './career';
+import { CUP_RACES, riderName, settleRace, REVENGE_PAY } from './career';
 import { dailyFor, scoreDaily, today } from './daily';
 import * as platform from './platform';
 import { setLang, t } from './i18n';
 import { setHaptics } from './haptics';
-import { PAINTS, choosePaint, buyCarry } from './shop';
+import { PAINTS } from './shop';
+import { shopActions, counted } from './shopping';
+import { afterRace, unlock, visit, type Unlocked } from './rewards';
 
 const params = new URLSearchParams(location.search);
 // English until the platform says otherwise (3.4.2: the language comes from the Bridge only); ?lang=xx wins
@@ -164,11 +166,13 @@ function finishRace(): void {
   save.daily = dailyFor(save.daily, today());
   const daily = scoreDaily(save.daily, { place, kos: w.kos, shoves: w.shoves, falls, grudge: w.grudgeKos + w.revenge }, w.div.prize);
   save.cash += daily.cash + daily.firstWin;
+  const ach = afterRace(save, { place, falls, kos: w.kos, near: w.flair.near, chain: w.flair.best });
   storeSave(save);
   funnel.raceDone(place);
   tele.raceEnd(s);
   for (const kind of daily.done) funnel.event('daily_done', { kind, done: daily.rows.filter((r) => r.done).length });
   if (daily.firstWin) funnel.event('first_win', { cash: daily.firstWin });
+  counted(save, ach);
   const table = s.table.map((r) => ({ name: riderName(r.id), pts: r.pts, rank: r.rank, me: r.id === 0 }));
   const res: RaceResult = {
     place, total: w.racers, prize: s.prize, kos: w.kos, koBonus: s.koBonus, grudgeKos: w.grudgeKos, grudgeBonus: s.grudgeBonus,
@@ -176,13 +180,14 @@ function finishRace(): void {
     league: { div: w.div.name, race: s.cupRace, races: CUP_RACES, table, end: s.end, next: C.stage(save.div, save.tier, save.endless).name, season: C.TIERS[save.tier].name },
     feud: { out: s.feud, nemesis: save.feud.nemesis, name: riderName },
     daily,
+    ach,
     double: s.earned > 0 && platform.rewardedReady() ? s.earned : 0,
     doubled: false,
   };
   if (res.double) tele.adOffer('double_cash');
   setState('results');
   platform.lifecycle(place <= C.PROMOTE ? 'level_completed' : 'level_failed', { world: w.div.name, level: String(s.cupRace) });
-  const show = () => hud.results.show(res, save, { buy, ride, paint, carry, double, again: () => nextRace('race_end') });
+  const show = () => hud.results.show(res, save, { ...shop, double, again: () => nextRace('race_end') });
   const double = () => {
     void platform.showRewarded('double_cash').then((ok) => {
       if (ok && !res.doubled) {
@@ -195,33 +200,7 @@ function finishRace(): void {
       if (state === 'results') show();
     });
   };
-  const buy = (k: UpKey) => {
-    const had = save.cash;
-    if (!buyUpgrade(save, k)) return;
-    storeSave(save);
-    funnel.event('upgrade_purchased', { upgrade_id: k, level: save.up[k], price: had - save.cash, cash: save.cash });
-    tele.bought();
-    sfx.coin();
-    show();
-  };
-  const ride = (v: number) => {
-    const had = save.cash;
-    if (!chooseRide(save, v)) return;
-    storeSave(save);
-    funnel.event('ride_chosen', { ride: v, bought: save.cash < had, price: had - save.cash, cash: save.cash });
-    if (save.cash < had) { tele.bought(); sfx.coin(); }
-    show();
-  };
-  /** A paint job or a weapon for the next race: pay, save, count it, redraw. */
-  const shop = (ok: boolean, had: number, event: string, f: Record<string, string | number | boolean>) => {
-    if (!ok) return;
-    storeSave(save);
-    funnel.event(event, { ...f, price: had - save.cash, cash: save.cash });
-    if (save.cash < had) { tele.bought(); sfx.coin(); }
-    show();
-  };
-  const paint = (i: number) => { const had = save.cash; shop(choosePaint(save, i), had, 'paint_chosen', { paint: i, bought: had > save.cash }); };
-  const carry = (k: C.WeaponKind) => { const had = save.cash; shop(buyCarry(save, k), had, 'weapon_bought', { weapon: k }); };
+  const shop = shopActions(save, () => show(), (u) => res.ach.push(...u));
   show();
 }
 
@@ -418,8 +397,26 @@ function showTitle(): void {
     best.textContent = t('best', { div: C.stage(save.div, save.tier, save.endless).name, n: save.cup.race + 1, m: CUP_RACES, cash: save.cash }) + (save.titles ? t('champs', { n: save.titles }) : '');
   }
   const info = document.getElementById('titleinfo');
-  if (info) info.innerHTML = titleInfo(save);
+  if (!info) return;
+  const ad = !save.streak.doubled && save.streak.pay > 0 && save.streak.day === today() && platform.rewardedReady();
+  info.innerHTML = titleInfo(save, bootAch, ad);
+  if (ad) tele.adOffer('streak_double');
+  const x2 = info.querySelector<HTMLButtonElement>('.x2');
+  if (x2) x2.onclick = () => {
+    x2.disabled = true;
+    void platform.showRewarded('streak_double').then((ok) => {
+      if (ok && !save.streak.doubled) {
+        save.cash += save.streak.pay;
+        save.streak.doubled = true;
+        storeSave(save);
+        sfx.coin();
+      }
+      if (state === 'title') showTitle();
+    });
+  };
 }
+/** Achievements the boot found won (an older save, a long streak): marked new on the title card. */
+let bootAch: Unlocked[] = [];
 
 async function boot(): Promise<void> {
   await platform.initPlatform();
@@ -451,6 +448,11 @@ async function boot(): Promise<void> {
   tele.begin(save, canvas, () => stage.tier);
   stage.setQualityMode(save.quality);
   stage.onQuality = (tier, prev) => tele.qualityChanged(tier, prev, stage.qualityMode);
+  // the day's visit: the streak goes on or starts over; a new player's first is their tutorial and pays nothing
+  const streakPay = visit(save.streak, today(), C.stage(save.div, save.tier, save.endless).prize, save.races > 0);
+  save.cash += streakPay;
+  if (streakPay) funnel.event('streak', { n: save.streak.n, cash: streakPay });
+  bootAch = counted(save, unlock(save));
   // a save that couldn't be read is left alone: this session plays on a fresh one and writes nothing
   if (read.ok) storeSave(save);
   else {

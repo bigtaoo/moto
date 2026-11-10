@@ -307,6 +307,20 @@ button.primary:active { transform: translateY(4px); box-shadow: 0 1px 0 var(--in
 .tl { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; text-align: left; padding: 3px 2px; }
 .tl em { font-style: normal; font-weight: 900; color: #1f8a3a; }
 .tl.nem b { color: var(--red); }
+.tl.streak { align-items: center; }
+.tl.streak > span:last-child { display: flex; align-items: center; gap: 6px; }
+.x2 { font: inherit; font-size: 12px; font-weight: 800; padding: 4px 8px; min-height: 32px; border: 2px solid var(--ink); border-radius: 8px; background: var(--yellow); cursor: pointer; }
+.x2:disabled { opacity: 0.5; }
+.achs { background: #f3efe2; border-radius: 10px; padding: 6px 8px; font-size: 13px; margin: 6px 0; text-align: left; }
+.achs summary { font-weight: 900; cursor: pointer; min-height: 28px; line-height: 28px; }
+.achs[open] { max-height: 40vh; overflow-y: auto; }
+.ac { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 3px 2px; opacity: 0.6; }
+.ac span { display: flex; flex-direction: column; }
+.ac small { font-size: 11px; opacity: 0.8; }
+.ac i { font-style: normal; font-weight: 800; white-space: nowrap; }
+.ac.got { opacity: 1; }
+.ac.got i { color: #1f8a3a; }
+.ac.new { background: var(--yellow); border-radius: 6px; }
 .opts { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
 .opt {
   display: flex; justify-content: space-between; align-items: center; min-height: 44px; padding: 8px 12px; cursor: pointer;

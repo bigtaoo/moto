@@ -251,7 +251,7 @@ export function remountOffer(): void {
 }
 
 /** A rewarded ad was offered (the result is platform.ts's ad_result). */
-export function adOffer(placement: 'double_cash' | 'remount'): void {
+export function adOffer(placement: 'double_cash' | 'remount' | 'streak_double'): void {
   track('ad_offer', { placement, ...(race ? { step_id: race.step.step_id as string } : {}) });
 }
 

@@ -8,6 +8,7 @@ import { newCup, newFeud, type Cup, type Feud } from './career';
 import { saveData } from './platform';
 import { readDaily, today, type Daily } from './daily';
 import type { QualityMode } from './view/quality';
+import { newStreak, ACH_IDS, type Streak, type Life } from './rewards';
 
 export interface Save {
   cash: number;
@@ -44,6 +45,11 @@ export interface Save {
   quality: QualityMode;
   /** Today's challenges and first win (src/daily.ts). */
   daily: Daily;
+  /** Days in a row the game was opened, and what today's visit paid (src/rewards.ts). */
+  streak: Streak;
+  /** Achievements won (src/rewards.ts ids) and the lifetime counts they need. */
+  ach: string[];
+  life: Life;
 }
 
 const num = (v: unknown): number => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
@@ -63,6 +69,7 @@ export function parseSave(raw: string | null): Save {
   const fresh: Save = {
     cash: 0, up: { top: 0, steer: 0, hp: 0 }, grudges: [], races: 0, best: 0, div: 0, cup: newCup(), titles: 0, endless: 0, feud: newFeud(), tier: 0,
     garage: { cur: 0, owned: [0] }, paint: { cur: 0, owned: [0] }, carry: null, muted: false, sessions: 0, firstDay: 0, musicOff: false, sfxOff: false, hapticsOff: false, quality: 'auto', daily: readDaily(null, today()),
+    streak: newStreak(), ach: [], life: { kos: 0, wins: 0 },
   };
   try {
     if (!raw) return fresh;
@@ -106,6 +113,9 @@ export function parseSave(raw: string | null): Save {
       hapticsOff: s.hapticsOff === true,
       quality: s.quality === 'low' || s.quality === 'high' ? s.quality : 'auto',
       daily: readDaily(s.daily, today()),
+      streak: { day: count(s.streak?.day), n: count(s.streak?.n), pay: count(s.streak?.pay), doubled: s.streak?.doubled === true },
+      ach: Array.isArray(s.ach) ? ACH_IDS.filter((id) => s.ach!.includes(id)) : [],
+      life: { kos: count(s.life?.kos), wins: count(s.life?.wins) },
     };
   } catch {
     return fresh;
