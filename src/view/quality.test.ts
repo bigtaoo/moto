@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Governor, TOP, forcedTier, isSoftware, startTier } from './quality';
+import { Governor, TIERS, TOP, forcedTier, isSoftware, startTier } from './quality';
 
 /** Feed `secs` seconds of frames at `fps`; returns the tier changes seen. */
 function run(g: Governor, fps: number, secs: number, active = true): number[] {
@@ -82,5 +82,17 @@ describe('start tier', () => {
     expect(forcedTier('?quality=6')).toBe(null);
     expect(forcedTier('?quality=high')).toBe(null);
     expect(forcedTier('')).toBe(null);
+  });
+});
+
+describe('tiers', () => {
+  it('never get cheaper going up: pixel ratio, particles and view distance all grow or hold', () => {
+    for (let t = 1; t <= TOP; t++) {
+      expect(TIERS[t].dpr).toBeGreaterThan(TIERS[t - 1].dpr);
+      expect(TIERS[t].fx).toBeGreaterThanOrEqual(TIERS[t - 1].fx);
+      expect(TIERS[t].view).toBeGreaterThanOrEqual(TIERS[t - 1].view);
+    }
+    expect(TIERS[TOP].view).toBe(1);
+    expect(TIERS[0].view).toBeGreaterThanOrEqual(0.5); // the road ahead stays readable
   });
 });

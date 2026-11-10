@@ -1,6 +1,8 @@
 // Quality tiers and the governor that moves between them. Six tiers, 0 the cheapest and 5 the best. What
 // costs frames in this game is filling pixels (a toon shader with outlines, over a whole phone screen), so
-// a tier is mostly a cap on the pixel ratio; the two bottom tiers also throw fewer sparks and dust bits.
+// a tier is mostly a cap on the pixel ratio; the two bottom tiers also throw fewer sparks and dust bits, and
+// the three bottom ones see less far: the fog closes in and the far plane with it, so the trees stacked up
+// along the horizon (the worst overdraw on screen) aren't drawn and riders and cars far ahead are culled.
 // MSAA can only be chosen when the WebGL context is made, so it is decided once per device, not per tier.
 //
 // The governor is fed frame times and is plain arithmetic (no DOM), so it is unit tested. Rules (see
@@ -13,15 +15,17 @@ export interface Tier {
   dpr: number;
   /** Share of spark and dust particles kept. */
   fx: number;
+  /** Share of the environment's fog distance (and so of the view distance) kept. */
+  view: number;
 }
 
 export const TIERS: readonly Tier[] = [
-  { dpr: 0.5, fx: 0.5 },
-  { dpr: 0.75, fx: 0.5 },
-  { dpr: 1, fx: 1 },
-  { dpr: 1.25, fx: 1 },
-  { dpr: 1.5, fx: 1 },
-  { dpr: 2, fx: 1 },
+  { dpr: 0.5, fx: 0.5, view: 0.6 },
+  { dpr: 0.75, fx: 0.5, view: 0.75 },
+  { dpr: 1, fx: 1, view: 0.9 },
+  { dpr: 1.25, fx: 1, view: 1 },
+  { dpr: 1.5, fx: 1, view: 1 },
+  { dpr: 2, fx: 1, view: 1 },
 ];
 export const TOP = TIERS.length - 1;
 

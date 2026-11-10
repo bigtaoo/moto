@@ -1,5 +1,6 @@
 // The road in 3D: the sim's straight road (x across, z along) bent into curves and hills, plus the test-site dressing.
-// The whole course is built once per race (it is only ~2.5 km), so there is no chunk streaming yet.
+// The whole course is built once per race (it is only ~2.5 km); the long pieces (road, ground, barriers, trees)
+// are cut into CHUNK-long slices so the camera's frustum and far plane drop the ones out of sight.
 
 import * as THREE from 'three';
 import { ROAD_HALF, LANE_X, CUT, WORKS, RAMP } from '../sim/config';
@@ -40,6 +41,8 @@ export function place(o: THREE.Object3D, x: number, y: number, z: number, yaw = 
 }
 
 const SEG = 2;
+/** Length of a course slice, in m (a multiple of SEG, so slices of a strip meet row on row). */
+const CHUNK = 150;
 const SHOULDER = 1.2;
 const BARRIER_X = ROAD_HALF + SHOULDER + 0.3;
 /** Drawn ramp sizes: length up the slope and height at the lip. */
@@ -128,6 +131,26 @@ export class Track {
     return o;
   }
 
+  /** Instances bucketed by z into one InstancedMesh per course slice. */
+  private sliced(geo: THREE.BufferGeometry, mat: THREE.Material, items: { z: number; m: THREE.Matrix4; c?: THREE.Color }[]): void {
+    const buckets = new Map<number, typeof items>();
+    for (const it of items) {
+      const b = Math.floor(it.z / CHUNK);
+      if (!buckets.has(b)) buckets.set(b, []);
+      buckets.get(b)!.push(it);
+    }
+    for (const list of buckets.values()) {
+      const mesh = new THREE.InstancedMesh(geo, mat, list.length);
+      list.forEach((it, i) => { mesh.setMatrixAt(i, it.m); if (it.c) mesh.setColorAt(i, it.c); });
+      this.group.add(mesh);
+    }
+  }
+
+  /** A strip in slices sharing one material. */
+  private strips(from: number, to: number, mat: THREE.Material, xs: number[], yOff: (x: number, z: number) => number, color?: (x: number, z: number) => THREE.Color): void {
+    for (let z = from; z < to; z += CHUNK) this.group.add(new THREE.Mesh(this.strip(z, Math.min(z + CHUNK, to), xs, yOff, color), mat));
+  }
+
   private strip(from: number, to: number, xs: number[], yOff: (x: number, z: number) => number, color?: (x: number, z: number) => THREE.Color): THREE.BufferGeometry {
     const rows = Math.ceil((to - from) / SEG) + 1;
     const cols = xs.length;
@@ -196,9 +219,7 @@ export class Track {
     }));
     tex.wrapT = THREE.RepeatWrapping;
     tex.anisotropy = 4;
-    const geo = this.strip(from, to, [-w, w], () => 0);
-    const mat = this.keep(new THREE.MeshLambertMaterial({ map: tex }));
-    this.group.add(new THREE.Mesh(geo, mat));
+    this.strips(from, to, this.keep(new THREE.MeshLambertMaterial({ map: tex })), [-w, w], () => 0);
   }
 
   private ground(from: number, to: number): void {
@@ -206,25 +227,20 @@ export class Track {
     const a = new THREE.Color(this.env.ground[0]);
     const b = new THREE.Color(this.env.ground[1]);
     const k = new THREE.Color();
-    const geo = this.strip(from, to, xs, (x) => -0.04 + Math.max(0, Math.abs(x) - 20) * 0.08, (x, z) => {
+    this.strips(from, to, this.keep(new THREE.MeshLambertMaterial({ vertexColors: true })), xs, (x) => -0.04 + Math.max(0, Math.abs(x) - 20) * 0.08, (x, z) => {
       const n = 0.5 + 0.5 * Math.sin(z * 0.05 + x * 0.11) * Math.sin(z * 0.013 - x * 0.07);
       return k.copy(a).lerp(b, n);
     });
-    const mat = this.keep(new THREE.MeshLambertMaterial({ vertexColors: true }));
-    this.group.add(new THREE.Mesh(geo, mat));
   }
 
-  /** Yellow/black crash barriers along both edges, one instanced mesh. */
+  /** Yellow/black crash barriers along both edges, instanced per course slice. */
   private barriers(from: number, to: number): void {
     const step = 5;
-    const n = Math.ceil((to - from) / step) * 2;
     const geo = this.keep(new THREE.BoxGeometry(0.5, 0.75, step * 0.92));
-    const mat = this.keep(new THREE.MeshLambertMaterial());
-    const mesh = new THREE.InstancedMesh(geo, mat, n);
     const o = new THREE.Object3D();
     const yellow = new THREE.Color(0xf2c230);
     const black = new THREE.Color(0x26262b);
-    let i = 0;
+    const items: { z: number; m: THREE.Matrix4; c: THREE.Color }[] = [];
     // open where a trail leaves the road and where it comes back
     const open = (s: number, z0: number, z1: number) =>
       this.R.cuts.some((c) => c.side === s && ((z1 > c.z0 && z0 < c.z0 + CUT.gap) || (z1 > c.z1 - CUT.merge && z0 < c.z1)));
@@ -233,13 +249,10 @@ export class Track {
         if (open(s, z, z + step)) continue;
         place(o, s * BARRIER_X, 0.37, z + step / 2);
         o.updateMatrix();
-        mesh.setMatrixAt(i, o.matrix);
-        mesh.setColorAt(i, j % 2 ? yellow : black);
-        i++;
+        items.push({ z, m: o.matrix.clone(), c: j % 2 ? yellow : black });
       }
     }
-    mesh.count = i;
-    this.group.add(mesh);
+    this.sliced(geo, this.keep(new THREE.MeshLambertMaterial()), items);
   }
 
   private trees(from: number, to: number, seed: number): void {
@@ -249,11 +262,9 @@ export class Track {
     trunkGeo.translate(0, 0.8, 0);
     const leafGeo = this.keep(new THREE.ConeGeometry(1.4, 3.6, 6));
     leafGeo.translate(0, 3.1, 0);
-    const trunks = new THREE.InstancedMesh(trunkGeo, this.keep(new THREE.MeshLambertMaterial({ color: this.env.trunk })), n);
-    const leaves = new THREE.InstancedMesh(leafGeo, this.keep(new THREE.MeshLambertMaterial({ color: 0xffffff })), n);
     const o = new THREE.Object3D();
     const greens = this.env.leaves.map((c) => new THREE.Color(c));
-    let k = 0;
+    const items: { z: number; m: THREE.Matrix4; c: THREE.Color }[] = [];
     for (let i = 0; i < n; i++) {
       const z = from + rnd.float() * (to - from);
       const side = rnd.float() < 0.5 ? -1 : 1;
@@ -264,13 +275,10 @@ export class Track {
       const s = 0.7 + rnd.float() * 0.8;
       o.scale.set(s, s * (0.8 + rnd.float() * 0.5), s);
       o.updateMatrix();
-      trunks.setMatrixAt(k, o.matrix);
-      leaves.setMatrixAt(k, o.matrix);
-      leaves.setColorAt(k, greens[rnd.int(greens.length)]);
-      k++;
+      items.push({ z, m: o.matrix.clone(), c: greens[rnd.int(greens.length)] });
     }
-    trunks.count = leaves.count = k;
-    this.group.add(trunks, leaves);
+    this.sliced(trunkGeo, this.keep(new THREE.MeshLambertMaterial({ color: this.env.trunk })), items.map(({ z, m }) => ({ z, m })));
+    this.sliced(leafGeo, this.keep(new THREE.MeshLambertMaterial({ color: 0xffffff })), items);
   }
 
   /** Crash-test target boards on poles, every 120 m on alternating sides. */

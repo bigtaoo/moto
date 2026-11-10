@@ -52,6 +52,7 @@ export class Stage {
   private readonly gov: Governor;
   private mode: QualityMode = 'auto';
   private applied: number;
+  private env: Env = ENVS.meadow;
   private readonly retired: { dispose(): void }[] = [];
 
   /** Throws when the browser has no WebGL. */
@@ -63,9 +64,9 @@ export class Stage {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.start = startTier(dev);
     this.forced = forcedTier(location.search);
-    // two tiers are the same here when both caps are above the screen's own ratio (and fx match)
+    // two tiers are the same here when both caps are above the screen's own ratio (and fx and view match)
     const cap = (t: number) => Math.min(TIERS[t].dpr, window.devicePixelRatio || 1);
-    this.gov = new Governor(this.forced ?? this.start, (a, b) => cap(a) === cap(b) && TIERS[a].fx === TIERS[b].fx);
+    this.gov = new Governor(this.forced ?? this.start, (a, b) => cap(a) === cap(b) && TIERS[a].fx === TIERS[b].fx && TIERS[a].view === TIERS[b].view);
     this.applied = this.gov.tier;
     this.scene.background = new THREE.Color();
     this.scene.fog = new THREE.Fog(0xffffff, 110, 330);
@@ -92,11 +93,10 @@ export class Stage {
   }
 
   setEnv(e: Env): void {
+    this.env = e;
     (this.scene.background as THREE.Color).set(e.sky);
-    const fog = this.scene.fog as THREE.Fog;
-    fog.color.set(e.sky);
-    fog.near = e.fogNear;
-    fog.far = e.fogFar;
+    (this.scene.fog as THREE.Fog).color.set(e.sky);
+    this.applyView();
     this.hemi.color.set(e.hemiSky);
     this.hemi.groundColor.set(e.hemiGround);
     this.hemi.intensity = e.hemi;
@@ -162,8 +162,24 @@ export class Stage {
     const t = this.gov.tier;
     const r = this.ratio();
     if (this.renderer.getPixelRatio() !== r) this.renderer.setPixelRatio(r);
-    if (t !== this.applied) this.onQuality?.(t, this.applied);
+    if (t !== this.applied) {
+      this.applyView();
+      this.onQuality?.(t, this.applied);
+    }
     this.applied = t;
+  }
+
+  /**
+   * The fog at this tier's share of the environment's, and the far plane just past where it is solid: what
+   * lies beyond would be drawn in the sky's own colour, so clipping it changes nothing on screen.
+   */
+  private applyView(): void {
+    const v = TIERS[this.gov.tier].view;
+    const fog = this.scene.fog as THREE.Fog;
+    fog.near = this.env.fogNear * v;
+    fog.far = this.env.fogFar * v;
+    this.camera.far = fog.far + 10;
+    this.camera.updateProjectionMatrix();
   }
 }
 
