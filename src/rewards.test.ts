@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { visit, newStreak, STREAK_PAY, unlock, afterRace, ACHIEVEMENTS } from './rewards';
+import { visit, newStreak, dayMult, STREAK_PAY, unlock, afterRace, ACHIEVEMENTS } from './rewards';
 import { parseSave } from './meta';
 import * as C from './sim/config';
 
@@ -18,6 +18,14 @@ describe('login streak', () => {
     expect(s.n).toBe(1);
     expect(visit(s, 126, 1, false)).toBe(0); // a new player's first visit counts but pays nothing
     expect(s.n).toBe(2);
+  });
+
+  it('pays the day rewards at the root of the stage multiplier, so the last stage pays about 3×, not 11×', () => {
+    expect(dayMult(1)).toBe(1);
+    const last = C.stage(C.DIVISIONS.length - 1, C.TIERS.length - 1).prize;
+    expect(last).toBeGreaterThan(10);
+    expect(dayMult(last)).toBeGreaterThan(3);
+    expect(dayMult(last)).toBeLessThan(3.5);
   });
 });
 

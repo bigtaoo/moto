@@ -119,7 +119,11 @@ export function react(e: SimEvent, w: World, view: RaceView, hud: Hud, feel: Fee
           hud.pop(t('bowlTip'));
         }
       }
-      if (near(e.rider)) sfx.crash();
+      if (near(e.rider)) {
+        sfx.crash();
+        if (e.cause === 'cow') sfx.moo(1);
+        else if (e.cause === 'oil') sfx.slip();
+      }
       break;
     }
     case 'recover':
@@ -175,18 +179,19 @@ export function react(e: SimEvent, w: World, view: RaceView, hud: Hud, feel: Fee
       view.shake(0.35);
       buzz(35);
       sfx.thunk(true);
+      sfx.pins();
       hud.pop(t('bowled', { n: e.pay }), 'big');
       bowlTips = 2;
       break;
     }
     case 'oil':
-      if (near(e.rider)) sfx.scrape(e.rider === 0);
+      if (near(e.rider)) sfx.glug();
       if (e.rider === 0) hud.flash(t('oilPoured'), 'go');
       break;
     case 'weed': {
       const r = w.riders[e.rider];
       view.fx.dust(r.x, r.z, 10, Math.random);
-      if (near(e.rider)) sfx.thunk(false);
+      if (near(e.rider)) sfx.rustle();
       if (e.rider === 0) {
         view.shake(0.25);
         buzz(20);
@@ -195,13 +200,13 @@ export function react(e: SimEvent, w: World, view: RaceView, hud: Hud, feel: Fee
       break;
     }
     case 'taunt':
-      sfx.coin();
+      sfx.boing();
       buzz(15);
       hud.pop(t('taunted', { n: e.pay }), 'big');
       break;
     case 'boss':
       feel.slow = 0.6;
-      sfx.coin();
+      sfx.fanfare();
       hud.flash(t('bossDown', { n: e.pay }), 'ko');
       break;
     case 'nearMiss':

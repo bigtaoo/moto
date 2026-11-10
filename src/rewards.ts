@@ -19,6 +19,13 @@ export const STREAK_PAY = [100, 150, 200, 300, 400, 500, 750];
 export const newStreak = (): Streak => ({ day: 0, n: 0, pay: 0, doubled: false });
 
 /**
+ * What the day's rewards (streak, challenges, first win) are multiplied by at a stage: the root of its prize
+ * multiplier. They come per day, not per race, so at the full multiplier (up to ×10.8 at the last stage) a
+ * player on three races a day got a third of their cash from them and had nothing left to buy (scripts/career.ts).
+ */
+export const dayMult = (prize: number): number => Math.sqrt(prize);
+
+/**
  * A visit on `day`: the streak goes on (the last visit was yesterday), starts over (a gap) or stands (today was
  * already counted). Returns the cash it pays, 0 when today was already counted or `pays` is off (a new player,
  * whose first visit is the tutorial race).

@@ -1,28 +1,36 @@
-// The results screen's shop: paint jobs and hats for the dummy (bought once) and a weapon to bring to the
-// next race (bought per race). The rules live in src/shop.ts; this is only the HTML.
+// The results screen's shop: paint jobs and hats for the dummy (bought once; the dearest go on sale in a later
+// season) and a weapon to bring to the next race (bought per race). The rules live in src/shop.ts; this is
+// only the HTML.
 
 import type { Save } from '../meta';
-import { PAINTS, HATS, HAT_PRICE, paintState, wearState, carryPrice } from '../shop';
-import type { WeaponKind } from '../sim/config';
+import { PAINTS, HATS, wearState, wearPrice, wearTier, carryPrice } from '../shop';
+import { TIERS, type WeaponKind } from '../sim/config';
+import { icon } from './icons';
 import { t, money, type Key } from '../i18n';
 
 const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
 const KINDS: WeaponKind[] = ['pan', 'bat', 'oil'];
 const CARRY_KEY = { pan: 'carryPan', bat: 'carryBat', oil: 'carryOil' } as const;
 
+/** A paint's or hat's button state: disabled or not, and what its tag says. */
+function tag(save: Save, k: 'paint' | 'hat', i: number): { st: string; off: boolean; label: string } {
+  const st = wearState(save, k, i);
+  const price = wearPrice(k, i);
+  const off = st === 'on' || st === 'locked' || (st === 'buy' && save.cash < price);
+  const label = st === 'on' ? t('wearing') : st === 'owned' ? t('wearIt')
+    : st === 'locked' ? `${icon('lock')} ${TIERS[wearTier(k, i)].name}` : money(price);
+  return { st, off, label };
+}
+
 export function shopHtml(save: Save): string {
   const paints = PAINTS.map((p, i) => {
-    const st = paintState(save, i);
-    const off = st === 'on' || (st === 'buy' && save.cash < p.price);
-    const label = st === 'on' ? t('wearing') : st === 'owned' ? t('wearIt') : money(p.price);
+    const { st, off, label } = tag(save, 'paint', i);
     return `<button class="paint ${st}" data-p="${i}" ${off ? 'disabled' : ''} title="${t(`paint${i}` as Key)}">
       <span class="sw" style="background:linear-gradient(135deg, ${hex(p.body)} 0 55%, ${hex(p.ride)} 55%)"><i style="background:${hex(p.mark)}"></i></span>
       <b>${t(`paint${i}` as Key)}</b><i>${label}</i></button>`;
   }).join('');
   const hats = HATS.map((_, i) => {
-    const st = wearState(save, 'hat', i);
-    const off = st === 'on' || (st === 'buy' && save.cash < HAT_PRICE[i]);
-    const label = st === 'on' ? t('wearing') : st === 'owned' ? t('wearIt') : money(HAT_PRICE[i]);
+    const { st, off, label } = tag(save, 'hat', i);
     return `<button class="paint hat ${st}" data-h="${i}" ${off ? 'disabled' : ''}><b>${t(`hat${i}` as Key)}</b><i>${label}</i></button>`;
   }).join('');
   const carry = KINDS.map((k) => {

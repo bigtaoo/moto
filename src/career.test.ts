@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { newCup, scoreRace, standings, cupOver, endCup, CUP_RACES, POINTS, CUP_BONUS, newFeud, settleFeud, REVENGE_PAY, AHEAD_PAY, BREAK_PAY, settleRace, buyUpgrade, upgradePrice, upgradeLock, rideState, chooseRide, type RaceSummary } from './career';
 import { parseSave } from './meta';
-import { PAINTS, choosePaint, buyCarry, carryPrice } from './shop';
+import { PAINTS, HATS, HAT_PRICE, PAINT_TIER, HAT_TIER, choosePaint, chooseHat, wearState, buyCarry, carryPrice } from './shop';
 import { World } from './sim/world';
 import * as C from './sim/config';
 
@@ -224,5 +224,26 @@ describe('career settlement, seasons and the garage', () => {
     expect(back.carry).toBe('pan');
     expect(back.paint).toEqual({ cur: 0, owned: [0, 1] });
     expect(parseSave(JSON.stringify({ carry: 'toString' })).carry).toBeNull();
+  });
+
+  it('puts the dearest paints and hats on sale only in a later season, and keeps them once bought', () => {
+    const save = parseSave(null);
+    save.cash = 1e6;
+    const last = PAINTS.length - 1;
+    const hat = HATS.length - 1;
+    expect(PAINT_TIER[last]).toBeGreaterThan(0);
+    expect(wearState(save, 'paint', last)).toBe('locked');
+    expect(choosePaint(save, last)).toBe(false);
+    expect(chooseHat(save, hat)).toBe(false);
+    expect(save.cash).toBe(1e6);
+    save.tier = HAT_TIER[hat];
+    expect(chooseHat(save, hat)).toBe(true);
+    expect(save.cash).toBe(1e6 - HAT_PRICE[hat]);
+    save.tier = PAINT_TIER[last];
+    expect(choosePaint(save, last)).toBe(true);
+    save.tier = 0; // an old save, or a new career: what is owned stays wearable
+    expect(choosePaint(save, 0)).toBe(true);
+    expect(wearState(save, 'paint', last)).toBe('owned');
+    expect(choosePaint(save, last)).toBe(true);
   });
 });

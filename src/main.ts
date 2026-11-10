@@ -30,7 +30,7 @@ import { shopActions, counted, streakDouble } from './shopping';
 import { settleShift } from './shift';
 import { blocker } from './view/blocker';
 import { wireBoard } from './view/board';
-import { unlock, visit, type Unlocked } from './rewards';
+import { unlock, visit, dayMult, type Unlocked } from './rewards';
 
 const params = new URLSearchParams(location.search);
 // English until the platform says otherwise (3.4.2: the language comes from the Bridge only); ?lang=xx wins
@@ -454,7 +454,7 @@ async function boot(): Promise<void> {
   stage.setQualityMode(save.quality);
   stage.onQuality = (tier, prev) => tele.qualityChanged(tier, prev, stage.qualityMode);
   // the day's visit: the streak goes on or starts over; a new player's first is their tutorial and pays nothing
-  const streakPay = visit(save.streak, today(), C.stage(save.div, save.tier, save.endless).prize, save.races > 0);
+  const streakPay = visit(save.streak, today(), dayMult(C.stage(save.div, save.tier, save.endless).prize), save.races > 0);
   save.cash += streakPay;
   if (streakPay) funnel.event('streak', { n: save.streak.n, cash: streakPay });
   bootAch = counted(save, unlock(save));

@@ -8,7 +8,7 @@ import type { Save } from '../meta';
 import { BREAK_AT, riderName, rideState } from '../career';
 import { rows, FIRST_WIN_PAY } from '../daily';
 import { t, money, type Key } from '../i18n';
-import { ACHIEVEMENTS, type Unlocked } from '../rewards';
+import { ACHIEVEMENTS, dayMult, type Unlocked } from '../rewards';
 import { shiftOpen } from '../shift';
 import { shiftButton } from './results';
 import { boardButton } from './board';
@@ -59,7 +59,7 @@ export function achHtml(save: Save, fresh: Unlocked[]): string {
 /** The returning player's goals, as HTML for the title card; `ad`: the streak's doubling ad is on offer. */
 export function titleInfo(save: Save, fresh: Unlocked[] = [], ad = false): string {
   if (save.races === 0) return '';
-  const mult = stage(save.div, save.tier, save.endless).prize;
+  const mult = dayMult(stage(save.div, save.tier, save.endless).prize);
   const win = save.daily.won ? '' : `<div class="dc"><span>${t('firstWin')}</span><b>+${money(Math.round(FIRST_WIN_PAY * mult))}</b></div>`;
   return streak(save, ad) + (shiftOpen(save) ? shiftButton(save, 'shift shiftgo') : '') + launchButton(save) + nextRide(save) + nemesis(save) + dailyHtml(rows(save.daily), [], 0, win) + achHtml(save, fresh) + boardButton();
 }

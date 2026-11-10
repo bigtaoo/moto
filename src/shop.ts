@@ -18,31 +18,44 @@ export const PAINTS: readonly Paint[] = [
   { body: 0xd83a2e, ride: 0xf2f2f2, mark: 0xffd23c, price: 800 },
   { body: 0x7fd6b4, ride: 0x2b2b33, mark: 0xff6fa8, price: 1500 },
   { body: 0x3c3f58, ride: 0xe0602a, mark: 0x5fe0ff, price: 2500 },
-  { body: 0xff8fc8, ride: 0x7a3cff, mark: 0xffffff, price: 4000 },
-  { body: 0xd9b45a, ride: 0x1c1c22, mark: 0xe23b3b, price: 7000 },
+  { body: 0xff8fc8, ride: 0x7a3cff, mark: 0xffffff, price: 9000 },
+  { body: 0xd9b45a, ride: 0x1c1c22, mark: 0xe23b3b, price: 30000 },
 ];
 
 /** Hats for the dummy (looks only, they wobble), bought once and kept. 0 is bare-headed. Names: `hat0`.. */
 export const HATS = ['none', 'cap', 'party', 'top', 'cowboy', 'viking', 'cone'] as const;
 export type Hat = (typeof HATS)[number];
-export const HAT_PRICE = [0, 600, 1000, 1800, 2800, 4500, 6500];
+export const HAT_PRICE = [0, 600, 1000, 1800, 5000, 12000, 32000];
 
-export type PaintState = 'on' | 'owned' | 'buy';
+/**
+ * The season (`save.tier`) each paint and hat goes on sale in. Once the upgrades are capped the later seasons
+ * paid far more than their one ride cost (scripts/career.ts ended Legend $60–170k up with nothing to buy), and
+ * every paint and hat was affordable by the middle of Pro; these give Pro and Legend something to save for.
+ */
+export const PAINT_TIER = [0, 0, 0, 0, 1, 2];
+export const HAT_TIER = [0, 0, 0, 0, 1, 1, 2];
+
+export type PaintState = 'on' | 'owned' | 'buy' | 'locked';
 type Wardrobe = 'paint' | 'hat';
-const priceOf = (k: Wardrobe, i: number) => (k === 'paint' ? PAINTS[i].price : HAT_PRICE[i]);
+export const wearPrice = (k: Wardrobe, i: number) => (k === 'paint' ? PAINTS[i].price : HAT_PRICE[i]);
+/** The season paint or hat `i` goes on sale in. */
+export const wearTier = (k: Wardrobe, i: number) => (k === 'paint' ? PAINT_TIER[i] : HAT_TIER[i]);
 
 export function wearState(save: Save, k: Wardrobe, i: number): PaintState {
   if (save[k].cur === i) return 'on';
-  return save[k].owned.includes(i) ? 'owned' : 'buy';
+  if (save[k].owned.includes(i)) return 'owned';
+  return save.tier >= wearTier(k, i) ? 'buy' : 'locked';
 }
 export const paintState = (save: Save, i: number) => wearState(save, 'paint', i);
 
 /** Buy (if need be, and affordable) and wear paint or hat `i`. */
 export function wear(save: Save, k: Wardrobe, i: number): boolean {
   if (!Number.isInteger(i) || i < 0 || i >= (k === 'paint' ? PAINTS.length : HATS.length)) return false;
-  if (wearState(save, k, i) === 'buy') {
-    if (save.cash < priceOf(k, i)) return false;
-    save.cash -= priceOf(k, i);
+  const st = wearState(save, k, i);
+  if (st === 'locked') return false;
+  if (st === 'buy') {
+    if (save.cash < wearPrice(k, i)) return false;
+    save.cash -= wearPrice(k, i);
     save[k].owned.push(i);
   }
   save[k].cur = i;

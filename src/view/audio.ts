@@ -1,12 +1,14 @@
 // Sound: recorded effects and chiptune music from public/audio (all CC0, see public/audio/CREDITS.txt),
-// played through one Web Audio context. The files are fetched at boot and decoded once the first tap or
+// played through one Web Audio context, plus the round-4 effects made from code (./synth). The files are fetched at boot and decoded once the first tap or
 // key has unlocked audio. Anything that should silence the game (the host's pause or mute, the player's
 // pause or mute button, a hidden page, an ad) goes through `hold`/`setMuted`, so the rules live here.
+
+import { SYNTHS, type SynthName } from './synth';
 
 type Track = 'title' | 'race1' | 'race2' | 'race3';
 const SFX = ['thunk1', 'thunk2', 'thunk3', 'thunk_big', 'scrape', 'whoosh1', 'whoosh2', 'dodge', 'crash', 'siren',
   'alarm', 'tell', 'pickup', 'count', 'go', 'coin', 'cash', 'click'] as const;
-type Name = (typeof SFX)[number] | Track;
+type Name = (typeof SFX)[number] | Track | SynthName;
 
 const url = (n: Name) => `${import.meta.env.BASE_URL}audio/${n}.mp3`;
 const MUSIC_VOL = 0.32;
@@ -76,6 +78,14 @@ export function unlockAudio(): void {
     musicBus = ctx.createGain();
     musicBus.connect(master);
     for (const n of SFX) void decode(n);
+    // made a few frames apart (~50 ms of maths in all), so the tap that unlocks audio doesn't stall
+    (Object.entries(SYNTHS) as [SynthName, (sr: number) => Float32Array][]).forEach(([n, gen], k) => setTimeout(() => {
+      if (!ctx) return;
+      const data = gen(ctx.sampleRate);
+      const b = ctx.createBuffer(1, data.length, ctx.sampleRate);
+      b.getChannelData(0).set(data);
+      buffers.set(n, b);
+    }, 40 * (k + 1)));
     apply();
     if (wanted) music(wanted);
   } catch {
@@ -202,5 +212,45 @@ export const sfx = {
   },
   click(): void {
     play('click', 0.5);
+  },
+  /** A cow by the road, `near` 0..1 by how close. */
+  moo(near: number): void {
+    play('moo', 0.15 + 0.35 * near);
+  },
+  /** A burst hydrant coming on, `near` 0..1. */
+  spray(near: number): void {
+    play('spray', 0.15 + 0.4 * near);
+  },
+  /** Oil poured from the can. */
+  glug(): void {
+    play('glug', 0.7);
+  },
+  /** A rider's wheels gone on an oil slick. */
+  slip(): void {
+    play('slip', 0.5);
+  },
+  /** Riding into a tumbleweed. */
+  rustle(): void {
+    play('rustle', 0.7);
+  },
+  /** The taunt paying out. */
+  boing(): void {
+    play('boing', 0.6);
+    play('cash', 0.4, 1.15, 0.12);
+  },
+  /** The cup's boss is down. */
+  fanfare(): void {
+    play('fanfare', 0.55);
+    play('cash', 0.6, 1, 0.3);
+  },
+  /** The tumbling body bowling a rider over. */
+  pins(): void {
+    play('pins', 0.8);
+  },
+  /** A launch prop smashed: crates crack, barrels clang, cars crunch. */
+  smash(kind: 'crate' | 'barrel' | 'car'): void {
+    if (kind === 'crate') { play('crack', 0.9); play('thunk2', 0.4); }
+    else if (kind === 'barrel') { play('clang', 0.7); play('thunk_big', 0.4); }
+    else { play('crash', 0.9); play('clang', 0.3, 0.6, 0.03); }
   },
 };

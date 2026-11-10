@@ -151,8 +151,7 @@ export class LaunchView {
       this.fx.sparks(p.x, 1, p.z, p.vx > 0 ? 1 : -1, true, Math.random);
       this.fx.dust(p.x, p.z, l.vz, Math.random);
       this.shake(big ? 0.6 : 0.35);
-      if (big) sfx.crash();
-      else sfx.thunk(true);
+      sfx.smash(p.kind);
     } else if (e.type === 'land') {
       this.shake(Math.min(0.5, e.speed * 0.03));
       sfx.thunk(e.speed > 10);

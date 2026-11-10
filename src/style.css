@@ -317,7 +317,8 @@ button.primary:active { transform: translateY(4px); box-shadow: 0 1px 0 var(--in
 .paint .sw i { position: absolute; left: 11px; top: 11px; width: 8px; height: 8px; border-radius: 50%; border: 1px solid var(--ink); }
 .paint.on, .carry.on { background: var(--yellow); }
 .paint:disabled, .carry:disabled { cursor: default; }
-.paint.buy:disabled, .carry:disabled:not(.on) { opacity: 0.55; }
+.paint.buy:disabled, .paint.locked, .carry:disabled:not(.on) { opacity: 0.55; }
+.paint.locked > i { font-size: 11px; }
 .carry { flex: 1 1 0; flex-direction: row; justify-content: space-between; padding: 7px 10px; }
 .carry b { font-size: 14px; }
 .shop .tip { display: block; font-size: 12px; opacity: 0.7; }

@@ -10,6 +10,7 @@ import { ROAD_HALF } from '../sim/config';
 import { place } from './track';
 import { rbox, ball } from './rider';
 import { Kit, cached, kitMaterial, toonMaterial } from './toon';
+import { sfx } from './audio';
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const o = new THREE.Object3D();
@@ -82,7 +83,10 @@ function slickGeo(): THREE.BufferGeometry {
   });
 }
 
-interface View { root: THREE.Object3D; spin?: THREE.Object3D; spray?: THREE.Mesh }
+/** `heard`: this cow has mooed or this hydrant is spraying, as far as the sound goes. */
+interface View { root: THREE.Object3D; spin?: THREE.Object3D; spray?: THREE.Mesh; heard?: boolean }
+/** How far ahead or behind the player a cow or hydrant is heard, m. */
+const EAR = 26;
 
 export class HazardView {
   readonly group = new THREE.Group();
@@ -154,7 +158,9 @@ export class HazardView {
     for (const h of w.hazards) {
       const v = this.views.get(h.id);
       if (!v) continue;
+      const dz = Math.abs(h.z - w.player.z);
       if (h.kind === 'cow') {
+        if (!v.heard && dz < EAR) { v.heard = true; sfx.moo(1 - dz / EAR); }
         const x = lerp(h.px, h.x, alpha);
         place(v.root, x, Math.abs(Math.sin(this.t * 5 + h.id)) * 0.05, h.z, -h.side * Math.PI / 2);
       } else if (h.kind === 'weed') {
@@ -165,6 +171,8 @@ export class HazardView {
       } else if (h.kind === 'hydrant') {
         const on = spraying(w, h);
         v.spray!.visible = on;
+        if (on && !v.heard && dz < EAR) sfx.spray(1 - dz / EAR);
+        v.heard = on;
         if (on) v.spray!.scale.set(0.9 + Math.random() * 0.15, 1 + Math.random() * 0.25, 1 + Math.random() * 0.25);
       }
     }
