@@ -8,6 +8,7 @@ import { Prng } from '../sim/rng';
 import type { Road, Ramp } from '../sim/road';
 import { makeCanvasTexture, testSymbolTexture } from './textures';
 import type { Env } from './env';
+import { toonMaterial } from './toon';
 
 let phase = 0;
 
@@ -252,7 +253,7 @@ export class Track {
         items.push({ z, m: o.matrix.clone(), c: j % 2 ? yellow : black });
       }
     }
-    this.sliced(geo, this.keep(new THREE.MeshLambertMaterial()), items);
+    this.sliced(geo, this.keep(toonMaterial()), items);
   }
 
   private trees(from: number, to: number, seed: number): void {
@@ -277,8 +278,8 @@ export class Track {
       o.updateMatrix();
       items.push({ z, m: o.matrix.clone(), c: greens[rnd.int(greens.length)] });
     }
-    this.sliced(trunkGeo, this.keep(new THREE.MeshLambertMaterial({ color: this.env.trunk })), items.map(({ z, m }) => ({ z, m })));
-    this.sliced(leafGeo, this.keep(new THREE.MeshLambertMaterial({ color: 0xffffff })), items);
+    this.sliced(trunkGeo, this.keep(toonMaterial({ color: this.env.trunk })), items.map(({ z, m }) => ({ z, m })));
+    this.sliced(leafGeo, this.keep(toonMaterial({ color: 0xffffff })), items);
   }
 
   /** Crash-test target boards on poles, every 120 m on alternating sides. */
@@ -288,7 +289,7 @@ export class Track {
     poleGeo.translate(0, 2, 0);
     const boardGeo = this.keep(new THREE.PlaneGeometry(3.2, 3.2));
     boardGeo.translate(0, 5.2, 0);
-    const poles = new THREE.InstancedMesh(poleGeo, this.keep(new THREE.MeshLambertMaterial({ color: 0x2a2a2e })), n * 2);
+    const poles = new THREE.InstancedMesh(poleGeo, this.keep(toonMaterial({ color: 0x2a2a2e })), n * 2);
     const board = new THREE.InstancedMesh(boardGeo, this.keep(new THREE.MeshBasicMaterial({ map: this.keep(testSymbolTexture()), side: THREE.DoubleSide })), n);
     const o = new THREE.Object3D();
     let k = 0;
@@ -327,7 +328,7 @@ export class Track {
       // and across the closed lane where the taper starts
       for (let x = LANE_X[3] - 1.2; x <= ROAD_HALF; x += 1.2) this.conePos.push({ x, z: w.z0 - WORKS.taper - 3, down: false });
     }
-    const mesh = new THREE.InstancedMesh(geo, this.keep(new THREE.MeshLambertMaterial({ vertexColors: true })), this.conePos.length);
+    const mesh = new THREE.InstancedMesh(geo, this.keep(toonMaterial({ vertexColors: true })), this.conePos.length);
     const o = new THREE.Object3D();
     this.conePos.forEach((c, i) => {
       place(o, c.x, 0, c.z);
@@ -371,10 +372,10 @@ export class Track {
     pole.translate(0, 0.9, 0);
     const signMat = this.keep(new THREE.MeshBasicMaterial({ map: signTex, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide, forceSinglePass: true }));
     const arrowMat = this.keep(new THREE.MeshBasicMaterial({ map: arrowTex, side: THREE.DoubleSide }));
-    const poleMat = this.keep(new THREE.MeshLambertMaterial({ color: 0x2a2a2e }));
+    const poleMat = this.keep(toonMaterial({ color: 0x2a2a2e }));
     // a road roller parked in the closed lane
-    const yellow = this.keep(new THREE.MeshLambertMaterial({ color: 0xf2b630 }));
-    const dark = this.keep(new THREE.MeshLambertMaterial({ color: 0x35353a }));
+    const yellow = this.keep(toonMaterial({ color: 0xf2b630 }));
+    const dark = this.keep(toonMaterial({ color: 0x35353a }));
     const body = this.keep(new THREE.BoxGeometry(1.6, 1.3, 3));
     body.translate(0, 1.15, 0);
     const cab = this.keep(new THREE.BoxGeometry(1.4, 1, 1.2));
@@ -412,7 +413,7 @@ export class Track {
       this.group.add(new THREE.Mesh(this.strip(c.z0 - 4, c.z1 + 4, xs, () => 0.015), mat));
       for (let z = c.z0 + CUT.gap; z <= c.z1 - CUT.merge; z += 3) spots.push([c.side * (CUT.outer + 1.1), z]);
     }
-    const tyres = new THREE.InstancedMesh(tyre, this.keep(new THREE.MeshLambertMaterial({ color: 0x26262b })), spots.length);
+    const tyres = new THREE.InstancedMesh(tyre, this.keep(toonMaterial({ color: 0x26262b })), spots.length);
     const o = new THREE.Object3D();
     spots.forEach(([x, z], i) => {
       place(o, x, 0, z);
@@ -466,10 +467,10 @@ export class Track {
     const lineHolder = new THREE.Group();
     lineHolder.add(line);
     place(lineHolder, 0, 0.03, z);
-    const mat = this.keep(new THREE.MeshLambertMaterial({ color: finish ? 0xf2c230 : 0xdedede }));
+    const mat = this.keep(toonMaterial({ color: finish ? 0xf2c230 : 0xdedede }));
     const post = this.keep(new THREE.BoxGeometry(0.6, 6, 0.6));
     post.translate(0, 3, 0);
-    const beam = new THREE.Mesh(this.keep(new THREE.BoxGeometry(span + 1.2, 1.4, 0.5)), this.keep(new THREE.MeshLambertMaterial({ map: checker })));
+    const beam = new THREE.Mesh(this.keep(new THREE.BoxGeometry(span + 1.2, 1.4, 0.5)), this.keep(toonMaterial({ map: checker })));
     beam.position.y = 6.2;
     const g = new THREE.Group();
     const l = new THREE.Mesh(post, mat);
