@@ -59,7 +59,7 @@ export function react(e: SimEvent, w: World, view: RaceView, hud: Hud, feel: Fee
         else if (w.grudgeKos > feel.lastGrudgeKos) {
           feel.lastGrudgeKos = w.grudgeKos;
           hud.flash(t('grudgeSettled', { n: C.GRUDGE_BONUS + C.SHOVE_BONUS }), 'ko');
-        } else hud.flash(t(e.into === 'car' ? 'intoTraffic' : e.into === 'cones' ? 'intoCones' : 'intoWall', { n: C.SHOVE_BONUS }), 'ko');
+        } else if (!w.chase) hud.flash(t(e.into === 'car' ? 'intoTraffic' : e.into === 'cones' ? 'intoCones' : 'intoWall', { n: C.SHOVE_BONUS }), 'ko');
       }
       break;
     case 'hit': {
@@ -89,7 +89,7 @@ export function react(e: SimEvent, w: World, view: RaceView, hud: Hud, feel: Fee
         else if (w.grudgeKos > feel.lastGrudgeKos) {
           feel.lastGrudgeKos = w.grudgeKos;
           hud.flash(t('grudgeSettled', { n: C.GRUDGE_BONUS + C.KO_BONUS }), 'ko');
-        } else hud.flash(t('ko', { n: C.KO_BONUS }), 'ko');
+        } else if (!w.chase) hud.flash(t('ko', { n: C.KO_BONUS }), 'ko');
       }
       break;
     }
@@ -133,6 +133,10 @@ export function react(e: SimEvent, w: World, view: RaceView, hud: Hud, feel: Fee
     case 'ambush':
       hud.flash(t(e.riders.length > 1 ? 'thugs' : 'thug'), 'warn');
       sfx.alarm();
+      break;
+    case 'caught':
+      hud.flash(t('caught', { name: w.riders[e.rider].name, n: Math.round(C.CHASE.bounty * w.div.prize) }), 'ko');
+      buzz(25);
       break;
     case 'grudge':
       hud.flash(t('holdsGrudge', { name: w.riders[e.rider].name }), 'warn');

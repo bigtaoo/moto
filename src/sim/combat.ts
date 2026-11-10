@@ -4,6 +4,7 @@ import * as C from './config';
 import { clamp, type Rider, type Pickup, type CrashCause } from './types';
 import type { World } from './world';
 import { chainKo } from './flair';
+import { onCredit } from './chase';
 
 /** The rider `r` could hit right now on either side, nearest first. */
 export function targetFor(w: World, r: Rider, tol = 0): Rider | null {
@@ -132,6 +133,7 @@ export function credit(w: World, v: Rider, by: Rider): void {
     chainKo(w);
     v.koByPlayer++;
     if (v.id === w.nemesis) w.revenge++;
+    if (w.chase) onCredit(w, v);
   }
   if (v.isPlayer && !by.isPlayer && !by.thug) {
     by.koPlayer++;
@@ -183,5 +185,22 @@ export function crash(w: World, r: Rider, c: CrashCause, vx: number): void {
     const p: Pickup = { id: w.nextId++, x: w.road.clampX(r.x + Math.sign(vx || 1) * 1.2, r.z + 6), z: r.z + 6, kind: r.weapon };
     w.pickups.push(p);
     r.weapon = null;
+  }
+}
+
+/** A rider in the race running over a weapon on the road picks it up. */
+export function updatePickups(w: World): void {
+  for (let i = w.pickups.length - 1; i >= 0; i--) {
+    const k = w.pickups[i];
+    for (const r of w.riders) {
+      if (r.state !== 'ride' || r.finished || r.thug) continue;
+      if (Math.abs(r.x - k.x) < 1.2 && Math.abs(r.z - k.z) < 1.6) {
+        r.weapon = k.kind;
+        w.pickups.splice(i, 1);
+        w.events.push({ type: 'pickup', rider: r.id, kind: k.kind });
+        w.events.push({ type: 'drop', pickup: k.id });
+        break;
+      }
+    }
   }
 }

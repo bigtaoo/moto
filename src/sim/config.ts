@@ -4,7 +4,7 @@
  * Bump on any change to the race rules that alters what a seed plus inputs produce, and record the new
  * golden hash in world.test.ts. Replays and (later) online rooms only mix the same version.
  */
-export const SIM_VERSION = 18;
+export const SIM_VERSION = 19;
 
 export const TICK_HZ = 30;
 export const DT = 1 / TICK_HZ;
@@ -266,6 +266,11 @@ export const GRUDGE_BONUS = 150;
  */
 export const FLAIR = { nearGap: 1, nearSpeed: 10, nearPay: 25, chainS: 3, chainPay: 20, chainMax: 3 };
 /** Knock the player off this many times and a rival becomes a grudge. */
+/**
+ * Security shift (src/sim/chase.ts): runners' top speed times `slow`, the player held for `hold` seconds, cash per
+ * runner caught and for catching them all (times the stage's prize multiplier); offered after `unlock` races.
+ */
+export const CHASE = { slow: 0.93, hold: 4, bounty: 120, sweep: 400, unlock: 3 };
 export const GRUDGE_AT = 2;
 
 /**

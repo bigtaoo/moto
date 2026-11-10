@@ -224,7 +224,8 @@ export class Hud {
 
   update(w: World, view: RaceView, cash: number, dt: number): void {
     const p = w.player;
-    const place = `<b>${w.standing}</b><span>/${w.racers}</span>`;
+    // on a security shift: runners caught out of the field
+    const place = w.chase ? `${icon('target')}<b>${w.caught}</b><span>/${w.racers - 1}</span>` : `<b>${w.standing}</b><span>/${w.racers}</span>`;
     if (place !== this.last.place) { this.placeEl.innerHTML = place; this.last.place = place; }
     const hp = `${p.state === 'down' ? 0 : p.hp}/${p.maxHp}`;
     if (hp !== this.last.hp) {
@@ -237,6 +238,7 @@ export class Hud {
     const len = w.length;
     this.fill.style.transform = `scaleX(${Math.min(1, p.z / len)})`;
     for (let i = 0; i < w.riders.length; i++) {
+      if (w.chase) this.dots[i].classList.toggle('gone', w.riders[i].state === 'away'); // a runner caught
       const px = Math.round(Math.min(1, Math.max(0, w.riders[i].z / len)) * this.barW);
       if (px === this.dotPx[i]) continue;
       this.dotPx[i] = px;

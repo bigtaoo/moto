@@ -6,7 +6,8 @@ import * as C from './config';
 import { rivalThink, laneClearance, nearestLane } from './ai';
 import { Road } from './road';
 import { clamp, type Rider, type Side, type Car, type Pickup, type Patrol, type SimEvent, type Input, type WorldOpts, type Seen } from './types';
-import { targetFor, tryAttack, playerAttack, resolveAttack, knockOff, crash } from './combat';
+import { targetFor, tryAttack, playerAttack, resolveAttack, knockOff, crash, updatePickups } from './combat';
+import { chaseSetup, chaseEnd, nabbed } from './chase';
 import { spawnCar, updateTraffic } from './traffic';
 import { updatePatrol } from './patrol';
 import { leaderThreats } from './threats';
@@ -69,9 +70,13 @@ export class World {
   readonly road: Road;
   readonly trafficBase: number;
   readonly trafficExtra: number;
+  /** A security shift (src/sim/chase.ts): the player hunts the field down; runners knocked off are caught. */
+  readonly chase: boolean;
+  caught = 0;
 
   constructor(opts: WorldOpts) {
     this.seed = opts.seed;
+    this.chase = opts.chase === true;
     this.divIndex = clamp(Math.floor(opts.div ?? 0), 0, C.DIVISIONS.length - 1);
     this.div = C.stage(this.divIndex, Math.floor(opts.tier ?? 0), opts.endless ?? 0);
     this.length = opts.length ?? Math.round(C.RACE_LEN * this.div.len);
@@ -129,6 +134,7 @@ export class World {
       r.latAcc = A.latAcc[0] + (A.latAcc[1] - A.latAcc[0]) * r.aware;
       r.intentT = this.aiRng.int(C.TICK_HZ);
     }
+    if (this.chase) chaseSetup(this);
     for (let z = 70; z < 70 + C.TRAFFIC.ahead; z += 25 + this.traffic.float() * 20) spawnCar(this, z);
     for (const f of C.PICKUP_AT) {
       let x: number = C.LANE_X[1 + this.traffic.int(3)];
@@ -232,9 +238,9 @@ export class World {
     updateTraffic(this);
     updateFlair(this);
     for (const r of this.riders) resolveAttack(this, r);
-    this.updatePickups();
-    updatePatrol(this);
-    leaderThreats(this);
+    updatePickups(this);
+    // on a security shift the player is the security: no buggies, hunters or thugs
+    if (!this.chase) { updatePatrol(this); leaderThreats(this); }
     this.checkFinish();
     this.remember();
   }
@@ -247,7 +253,7 @@ export class World {
     const hi = hiB === this.road.worksHi(p.z) ? C.EDGE : hiB;
     if (inp.targetX !== null) p.wantX = clamp(inp.targetX, lo, hi);
     else p.wantX = clamp(p.x + inp.steer * 3, lo, hi);
-    p.braking = inp.brake;
+    p.braking = inp.brake || (this.chase && this.time < C.CHASE.hold);
     playerAttack(this, p);
     if (inp.remount && p.state === 'down') {
       // straight back onto the scooter, with a moment's grace
@@ -281,7 +287,7 @@ export class World {
         r.x = this.road.clampX(r.x + r.vx * C.DT, r.z);
         if (r.downT > 0) r.downT--;
         if (r.downT === 0 && r.speed < 2) {
-          if (r.thug) return this.recover(r); // thugs limp off instead
+          if (r.thug || nabbed(this, r)) return this.recover(r); // thugs and caught runners limp off instead
           r.runT = 1;
           r.speed = 0;
         }
@@ -374,7 +380,7 @@ export class World {
   }
 
   private recover(r: Rider): void {
-    if (r.thug) {
+    if (r.thug || nabbed(this, r)) {
       // Knocked-off thugs limp away instead of rejoining.
       r.state = 'away';
       r.weapon = null;
@@ -457,24 +463,6 @@ export class World {
     return laneClearance(this, r, x);
   }
 
-  // --- pickups ---
-
-  private updatePickups(): void {
-    for (let i = this.pickups.length - 1; i >= 0; i--) {
-      const k = this.pickups[i];
-      for (const r of this.riders) {
-        if (r.state !== 'ride' || r.finished || r.thug) continue;
-        if (Math.abs(r.x - k.x) < 1.2 && Math.abs(r.z - k.z) < 1.6) {
-          r.weapon = k.kind;
-          this.pickups.splice(i, 1);
-          this.events.push({ type: 'pickup', rider: r.id, kind: k.kind });
-          this.events.push({ type: 'drop', pickup: k.id });
-          break;
-        }
-      }
-    }
-  }
-
   // --- finish ---
 
   private checkFinish(): void {
@@ -485,6 +473,7 @@ export class World {
       this.events.push({ type: 'finish', rider: r.id, place: r.place });
       if (r.isPlayer) this.overT = this.tick + Math.round(1.6 * C.TICK_HZ);
     }
+    if (this.chase) chaseEnd(this);
     const timeUp = this.time >= C.TIME_CAP_S;
     if (!this.over && ((this.overT > 0 && this.tick >= this.overT) || timeUp)) {
       // Riders still on the road get places by distance.

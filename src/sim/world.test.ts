@@ -10,7 +10,7 @@ import { knockOff } from './combat';
 // The golden hashes pin what a seed plus inputs produce. If one changes, either the change was meant
 // to alter the race (bump SIM_VERSION in config.ts and paste the new hashes here) or the sim lost
 // its determinism (find out why before touching anything).
-const GOLDEN = { version: 18, mid: '74005fe4', end: '905fc763', endTick: 5439 };
+const GOLDEN = { version: 19, mid: '7c6f3a0b', end: '62f59dc4', endTick: 5439 };
 
 const OPTS: WorldOpts = { seed: 1, upgrades: { top: 2, steer: 2, hp: 2 }, div: 2, nemesis: 3, tier: 1, vehicle: 2 };
 const MID = 60 * TICK_HZ;

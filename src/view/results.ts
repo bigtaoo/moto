@@ -3,7 +3,7 @@
 // doesn't buy something or skip it.
 
 import { icon } from './icons';
-import { GRUDGE_BONUS, UPGRADE_MAX, UPGRADE_CAP, VEHICLES, DIVISIONS, stage, type Vehicle, type WeaponKind } from '../sim/config';
+import { CHASE, GRUDGE_BONUS, UPGRADE_MAX, UPGRADE_CAP, VEHICLES, DIVISIONS, stage, type Vehicle, type WeaponKind } from '../sim/config';
 import type { Save } from '../meta';
 import { BREAK_AT, rideState, upgradeLock, upgradePrice, type CupEnd, type FeudOutcome, type Nemesis, type UpKey } from '../career';
 import type { DailyOutcome, DailyRow, Kind } from '../daily';
@@ -11,6 +11,7 @@ import type { Flair } from '../sim/flair';
 import { t, ord, money, type Key } from '../i18n';
 import { shopHtml, bindShop } from './shop';
 import type { Unlocked } from '../rewards';
+import { shiftOpen, type ShiftResult } from '../shift';
 
 export interface League {
   /** The division this race was in. */
@@ -62,7 +63,19 @@ export interface ResultActions {
   carry: (k: WeaponKind) => void;
   double: () => void;
   again: () => void;
+  /** A security shift instead of the next race (offered once they are open). */
+  shift: () => void;
 }
+
+/** A finished shift's buttons: back to the cup, or another shift. */
+export interface ShiftActions {
+  again: () => void;
+  shift: () => void;
+}
+
+/** The secondary button that starts a security shift. */
+export const shiftButton = (save: Save, cls = 'shift'): string =>
+  `<button class="${cls}"><span>${icon('target')} ${t('shiftGo')}</span><small>${t('shiftTip', { n: Math.round(CHASE.bounty * stage(save.div, save.tier, save.endless).prize) })}</small></button>`;
 
 const UP_NAMES: Record<UpKey, Key> = { top: 'upTop', steer: 'upSteer', hp: 'upHp' };
 const DAILY_NAMES: Record<Kind, Key> = { kos: 'dKos', shoves: 'dShoves', podium: 'dPodium', win: 'dWin', races: 'dRaces', clean: 'dClean', grudge: 'dGrudge' };
@@ -130,6 +143,18 @@ export class Results {
     return true;
   }
 
+  /** A finished security shift. */
+  showShift(r: ShiftResult, save: Save, on: ShiftActions): void {
+    this.shownAt = performance.now();
+    const card = this.el.querySelector('.card') as HTMLElement;
+    card.innerHTML = shiftHtml(r, save);
+    const guard = (f: () => void) => () => { if (this.armed) f(); };
+    this.again = on.again;
+    (card.querySelector('.again') as HTMLButtonElement).onclick = guard(on.again);
+    (card.querySelector('.shift') as HTMLButtonElement).onclick = guard(on.shift);
+    this.el.classList.remove('hidden');
+  }
+
   /** Show (or redraw, after a purchase) the screen; a redraw keeps the time it came up. */
   show(res: RaceResult, save: Save, on: ResultActions): void {
     if (!this.open) this.shownAt = performance.now();
@@ -169,17 +194,35 @@ export class Results {
       ${res.grudges.length ? `<div class="grudges">${t('holding')} <b>${res.grudges.join(', ')}</b><br><small>${t('grudgeTip', { n: GRUDGE_BONUS })}</small></div>` : ''}
       <div class="cashline">${t('cash')} <b>${money(save.cash)}</b></div>
       <div class="ups">${ups}${garageHtml(save)}${shopHtml(save)}</div>
-      <button class="primary again">${againLabel(res.league)}</button>`;
+      <button class="primary again">${againLabel(res.league)}</button>
+      ${shiftOpen(save) ? shiftButton(save) : ''}`;
     const guard = (f: () => void) => () => { if (this.armed) f(); };
     card.querySelectorAll<HTMLButtonElement>('.up button').forEach((b) => { b.onclick = guard(() => on.buy(b.dataset.k as UpKey)); });
     card.querySelectorAll<HTMLButtonElement>('.ride').forEach((b) => { b.onclick = guard(() => on.ride(Number(b.dataset.v))); });
     bindShop(card, guard, on);
     this.again = on.again;
     (card.querySelector('.again') as HTMLButtonElement).onclick = guard(on.again);
+    const sh = card.querySelector<HTMLButtonElement>('.shift');
+    if (sh) sh.onclick = guard(on.shift);
     const dbl = card.querySelector<HTMLButtonElement>('.double');
     if (dbl) dbl.onclick = guard(() => { dbl.disabled = true; on.double(); });
     this.el.classList.remove('hidden');
   }
+}
+
+/** A finished security shift: who was caught and what it paid. */
+export function shiftHtml(r: ShiftResult, save: Save): string {
+  return `
+    <h2 class="${r.caught >= r.of ? 'win' : ''}">${t('shiftOver')}</h2>
+    <div class="sub">${r.time.toFixed(1)} s</div>
+    <div class="rows">
+      ${row(t('shiftCaught', { n: r.caught, m: r.of }), money(r.bounty))}
+      ${r.sweep ? row(t('shiftSweep'), money(r.sweep), 'good') : ''}
+      ${row(t('earned'), money(r.earned), 'total')}
+    </div>
+    <div class="cashline">${t('cash')} <b>${money(save.cash)}</b></div>
+    <button class="primary again">${t('backToCup')}</button>
+    ${shiftButton(save)}`;
 }
 
 /** The rides: the one being ridden, the others owned, the next to buy, and what is still locked. */

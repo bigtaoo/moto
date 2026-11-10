@@ -23,7 +23,9 @@ import * as platform from './platform';
 import { setLang, t } from './i18n';
 import { setHaptics } from './haptics';
 import { PAINTS } from './shop';
-import { shopActions, counted } from './shopping';
+import { shopActions, counted, streakDouble } from './shopping';
+import { settleShift } from './shift';
+import { blocker } from './view/blocker';
 import { afterRace, unlock, visit, type Unlocked } from './rewards';
 
 const params = new URLSearchParams(location.search);
@@ -55,6 +57,9 @@ let world!: World;
 let view!: RaceView;
 let recorder!: Recorder;
 let state: 'title' | 'race' | 'results' = 'title';
+/** This race is a security shift (src/shift.ts), and how many this session has run (each its own seed). */
+let chase = false;
+let shifts = 0;
 
 /** Change screens: the HUD layout and the music follow. */
 function setState(s: typeof state): void {
@@ -105,8 +110,10 @@ const controls = new Controls(canvas, () => (world ? world.player.x : 0), () => 
 function newRace(): void {
   view?.dispose();
   const seed = ((save.races * 7919 + 17) % 99991) + 1;
-  const nem = save.feud.nemesis;
-  const opts = { seed, upgrades: save.up, grudges: save.grudges, length: LEN, div: save.div, tier: save.tier, endless: save.endless, vehicle: save.garage.cur, nemesis: nem?.id, weapon: save.carry ?? undefined };
+  // a shift has no feuds, and the weapon bought for the next race waits for it
+  const nem = chase ? null : save.feud.nemesis;
+  const opts = { seed: chase ? seed + 5003 * ++shifts : seed, chase, upgrades: save.up, grudges: chase ? [] : save.grudges, length: LEN, div: save.div, tier: save.tier, endless: save.endless,
+    vehicle: save.garage.cur, nemesis: nem?.id, weapon: chase ? undefined : save.carry ?? undefined };
   world = new World(opts);
   recorder = new Recorder(opts);
   const paint = PAINTS[save.paint.cur];
@@ -126,8 +133,8 @@ function newRace(): void {
 
 /** The division pill and the nemesis card, over the countdown. */
 function intro(): void {
-  const nem = save.feud.nemesis;
-  hud.setLeague(t('pill', { div: world.div.name, n: save.cup.race + 1, m: CUP_RACES }));
+  const nem = world.chase ? null : save.feud.nemesis;
+  hud.setLeague(world.chase ? t('shiftPill') : t('pill', { div: world.div.name, n: save.cup.race + 1, m: CUP_RACES }));
   hud.setNemesis(nem, nem ? riderName(nem.id) : '', Math.round(REVENGE_PAY * world.div.prize));
 }
 
@@ -138,16 +145,19 @@ function startRace(): void {
   unlockAudio();
   titleEl.classList.add('hidden');
   setState('race');
+  if (chase) return;
   platform.lifecycle('level_started', { world: world.div.name, level: String(save.cup.race + 1) });
   if (!BOT) tele.raceStart(world);
 }
 
 /** From the results (or a restart): the next race, straight into its countdown. */
-function nextRace(placement: string): void {
+function nextRace(placement: string, shift = false): void {
   platform.interstitial(placement);
+  chase = shift;
   newRace();
   stage.raceStart();
   setState('race');
+  if (chase) return;
   platform.lifecycle('level_started', { world: world.div.name, level: String(save.cup.race + 1) });
   tele.raceStart(world);
 }
@@ -156,6 +166,7 @@ function finishRace(): void {
   const w = world;
   if (settled === w) return;
   settled = w;
+  if (w.chase) return finishShift(w);
   const place = w.player.place;
   const of = (f: (r: (typeof w.riders)[number]) => number) => w.riders.map((r) => (r.thug ? 0 : f(r)));
   const s = settleRace(save, {
@@ -187,7 +198,7 @@ function finishRace(): void {
   if (res.double) tele.adOffer('double_cash');
   setState('results');
   platform.lifecycle(place <= C.PROMOTE ? 'level_completed' : 'level_failed', { world: w.div.name, level: String(s.cupRace) });
-  const show = () => hud.results.show(res, save, { ...shop, double, again: () => nextRace('race_end') });
+  const show = () => hud.results.show(res, save, { ...shop, double, again: () => nextRace('race_end'), shift: () => nextRace('race_end', true) });
   const double = () => {
     void platform.showRewarded('double_cash').then((ok) => {
       if (ok && !res.doubled) {
@@ -202,6 +213,15 @@ function finishRace(): void {
   };
   const shop = shopActions(save, () => show(), (u) => res.ach.push(...u));
   show();
+}
+
+/** A security shift is over: its bounty, then back to the cup or another shift. */
+function finishShift(w: World): void {
+  const r = settleShift(save, w);
+  storeSave(save);
+  funnel.event('shift_end', { caught: r.caught, of: r.of, cash: r.earned, n: shifts });
+  setState('results');
+  hud.results.showShift(r, save, { again: () => nextRace('shift_end'), shift: () => nextRace('shift_end', true) });
 }
 
 function tick(): void {
@@ -282,10 +302,12 @@ hud.menu.on = {
   resume: () => setPaused(false),
   restart: () => {
     if (state !== 'race') return;
-    tele.raceRestart();
-    platform.lifecycle('level_failed', { world: world.div.name, level: String(save.cup.race + 1) });
+    if (!world.chase) {
+      tele.raceRestart();
+      platform.lifecycle('level_failed', { world: world.div.name, level: String(save.cup.race + 1) });
+    }
     setPaused(false);
-    nextRace('restart');
+    nextRace('restart', world.chase);
   },
   music: (on) => { save.musicOff = !on; setChannel('music', on); setting('music', on); },
   sfx: (on) => { save.sfxOff = !on; setChannel('sfx', on); setting('sfx', on); },
@@ -309,15 +331,6 @@ function remount(): void {
   });
 }
 
-/** A screen in place of the game: no WebGL, or it went and didn't come back. */
-function blocker(key: 'noGl' | 'glLost'): HTMLElement {
-  const el = document.createElement('div');
-  el.className = 'overlay blocker';
-  el.innerHTML = `<div class="card small"><p>${t(key)}</p><button class="primary">${t('reload')}</button></div>`;
-  el.querySelector('button')!.addEventListener('click', () => location.reload());
-  app.appendChild(el);
-  return el;
-}
 
 controls.onPause = () => setPaused(!paused);
 controls.onAny = () => { unlockAudio(); funnel.input(); };
@@ -402,18 +415,9 @@ function showTitle(): void {
   info.innerHTML = titleInfo(save, bootAch, ad);
   if (ad) tele.adOffer('streak_double');
   const x2 = info.querySelector<HTMLButtonElement>('.x2');
-  if (x2) x2.onclick = () => {
-    x2.disabled = true;
-    void platform.showRewarded('streak_double').then((ok) => {
-      if (ok && !save.streak.doubled) {
-        save.cash += save.streak.pay;
-        save.streak.doubled = true;
-        storeSave(save);
-        sfx.coin();
-      }
-      if (state === 'title') showTitle();
-    });
-  };
+  if (x2) streakDouble(save, x2, () => { if (state === 'title') showTitle(); });
+  const sh = info.querySelector<HTMLButtonElement>('.shiftgo');
+  if (sh) sh.onclick = () => { if (state !== 'title') return; chase = true; newRace(); startRace(); };
 }
 /** Achievements the boot found won (an older save, a long streak): marked new on the title card. */
 let bootAch: Unlocked[] = [];
@@ -430,14 +434,14 @@ async function boot(): Promise<void> {
   } catch (e) {
     console.error(e);
     titleEl.classList.add('hidden');
-    blocker('noGl');
+    blocker(app, 'noGl');
     tele.noWebgl();
     return;
   }
   canvas.addEventListener('webglcontextlost', () => {
     glLost = true;
     setPaused(true);
-    const el = blocker('glLost');
+    const el = blocker(app, 'glLost');
     canvas.addEventListener('webglcontextrestored', () => { glLost = false; el.remove(); }, { once: true });
   });
   if (params.has('stats')) showStats = statsOverlay(stage.renderer);

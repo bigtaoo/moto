@@ -213,6 +213,7 @@ export type SimEvent =
   | { type: 'nearMiss'; pay: number }
   | { type: 'combo'; n: number; pay: number }
   | { type: 'go' }
+  | { type: 'caught'; rider: number }
   | { type: 'over' };
 
 export interface Upgrades {
@@ -251,6 +252,8 @@ export interface WorldOpts {
   vehicle?: number;
   /** A weapon the player brings to the start (bought in the shop). */
   weapon?: C.WeaponKind;
+  /** A security shift instead of a race (src/sim/chase.ts). */
+  chase?: boolean;
 }
 
 export function clamp(v: number, lo: number, hi: number): number {

@@ -7,6 +7,7 @@ import { storeSave, type Save } from './meta';
 import { unlock, type Unlocked } from './rewards';
 import type { WeaponKind } from './sim/config';
 import * as funnel from './funnel';
+import * as platform from './platform';
 import * as tele from './telemetry';
 import { sfx } from './view/audio';
 
@@ -17,6 +18,22 @@ export function counted(save: Save, got: Unlocked[]): Unlocked[] {
   for (const a of got) funnel.event('achievement', { id: a.id, n: save.ach.length, cash: a.pay });
   if (got.length) sfx.coin();
   return got;
+}
+
+/** The title card's "watch an ad, double today's streak pay" button. */
+export function streakDouble(save: Save, btn: HTMLButtonElement, redraw: () => void): void {
+  btn.onclick = () => {
+    btn.disabled = true;
+    void platform.showRewarded('streak_double').then((ok) => {
+      if (ok && !save.streak.doubled) {
+        save.cash += save.streak.pay;
+        save.streak.doubled = true;
+        storeSave(save);
+        sfx.coin();
+      }
+      redraw();
+    });
+  };
 }
 
 /** The results screen's shop buttons; `got` hears of achievements a purchase won (owning every ride ..). */
