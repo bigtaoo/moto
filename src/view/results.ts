@@ -174,6 +174,9 @@ export class Results {
         <button data-k="${k}" ${cost === null || save.cash < cost ? 'disabled' : ''}>${label}</button></div>`;
     }).join('');
     const d = res.daily;
+    // a new player's first results are the race and what to upgrade: the challenges and the garage come in
+    // from the 2nd, the paint, hat and weapon shop from the 3rd (save.races counts this race already)
+    const n = save.races;
     card.innerHTML = `
       <h2 class="${res.place === 1 ? 'win' : ''}">${t('place', { o: ord(res.place) })}</h2>
       <div class="sub">${res.time.toFixed(1)} s</div>
@@ -197,10 +200,10 @@ export class Results {
       ${res.double > 0 && !res.doubled ? `<button class="double"><span>${icon('play')} ${t('double', { n: res.double })}</span><small>${t('watchAd')}</small></button>` : ''}
       ${feudCard(res)}
       ${leagueHtml(res.league)}
-      ${dailyHtml(d.rows, d.done, d.done.length ? d.cash / d.done.length : 0)}
+      ${n >= NEW.daily ? dailyHtml(d.rows, d.done, d.done.length ? d.cash / d.done.length : 0) : ''}
       ${res.grudges.length ? `<div class="grudges">${t('holding')} <b>${res.grudges.join(', ')}</b><br><small>${t('grudgeTip', { n: GRUDGE_BONUS })}</small></div>` : ''}
       <div class="cashline">${t('cash')} <b>${money(save.cash)}</b></div>
-      <div class="ups">${ups}${garageHtml(save)}${shopHtml(save)}</div>
+      <div class="ups">${ups}${n >= NEW.garage ? garageHtml(save) : ''}${n >= NEW.shop ? shopHtml(save) : ''}</div>
       <button class="primary again">${againLabel(res.league)}</button>
       ${shiftOpen(save) ? shiftButton(save) : ''}`;
     const guard = (f: () => void) => () => { if (this.armed) f(); };
@@ -231,6 +234,9 @@ export function shiftHtml(r: ShiftResult, save: Save): string {
     <button class="primary again">${t('backToCup')}</button>
     ${shiftButton(save)}`;
 }
+
+/** From which race's results each part of the card shows (a new player's first results stay short). */
+export const NEW = { daily: 2, garage: 2, shop: 3 };
 
 /** The rides: the one being ridden, the others owned, the next to buy, and what is still locked. */
 function garageHtml(save: Save): string {

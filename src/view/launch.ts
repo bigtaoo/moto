@@ -16,6 +16,7 @@ import { carGeo, CAR_SHAPES, Shadows } from './props';
 import { Fx } from './fx';
 import { Kit, cached, kitMaterial, paintedMaterial, isShared } from './toon';
 import { sfx } from './audio';
+import { MOTION } from './motion';
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const NO_ROAD = { works: [], cuts: [], ramps: [] } as unknown as Road;
@@ -159,6 +160,7 @@ export class LaunchView {
   }
 
   shake(a: number): void {
+    if (MOTION.calm) return;
     this.shakeAmp = Math.max(this.shakeAmp, a);
   }
 

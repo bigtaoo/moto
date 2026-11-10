@@ -148,6 +148,7 @@ export const RU: Table = {
   nearMisses: "На волоске × {n}",
   koChains: "Серии нокаутов (лучшая {n}×)",
   vibration: "Вибрация",
+  shake: "Тряска камеры",
   qAuto: "Авто",
   qLow: "Низкая",
   qHigh: "Высокая",

@@ -10,7 +10,7 @@ import { Stage, RaceView } from './view/scene';
 import { Controls, DESKTOP, keysReach } from './view/input';
 import { Hud } from './view/hud';
 import { titleInfo } from './view/title';
-import { sfx, unlockAudio, hold, setMuted, setChannel, music, raceTrack, preloadAudio } from './view/audio';
+import { sfx, unlockAudio, hold, setMuted, setChannel, music, raceTrack, shiftTrack, preloadAudio } from './view/audio';
 import { installIconCss } from './view/icons';
 import { statsOverlay } from './view/stats';
 import * as funnel from './funnel';
@@ -25,6 +25,7 @@ import { today } from './daily';
 import * as platform from './platform';
 import { setLang, t } from './i18n';
 import { setHaptics } from './haptics';
+import { MOTION, setCalm } from './view/motion';
 import { PAINTS, HATS } from './shop';
 import { shopActions, counted, streakDouble } from './shopping';
 import { settleShift } from './shift';
@@ -74,7 +75,7 @@ function setState(s: typeof state): void {
   state = s;
   funnel.setScreen(s);
   app.classList.toggle('racing', s === 'race');
-  music(s === 'race' ? raceTrack(save.div) : 'title');
+  music(s !== 'race' ? 'title' : chase ? shiftTrack(shifts) : raceTrack(save.div, save.tier, save.cup.race, save.cup.race === CUP_RACES - 1));
 }
 let paused = false;
 /** The host (or an ad) has the game paused; separate from the player's own pause menu. */
@@ -268,7 +269,7 @@ function setPaused(on: boolean): void {
   if (state !== 'race' || paused === on) return;
   paused = on;
   if (on && !document.hidden) tele.paused();
-  hud.menu.show(on, { music: !save.musicOff, sfx: !save.sfxOff, haptics: !save.hapticsOff, quality: save.quality });
+  hud.menu.show(on, { music: !save.musicOff, sfx: !save.sfxOff, haptics: !save.hapticsOff, quality: save.quality, shake: !MOTION.calm });
   hold('pause', on);
 }
 
@@ -306,6 +307,7 @@ hud.menu.on = {
   music: (on) => { save.musicOff = !on; setChannel('music', on); setting('music', on); },
   sfx: (on) => { save.sfxOff = !on; setChannel('sfx', on); setting('sfx', on); },
   haptics: (on) => { save.hapticsOff = !on; setHaptics(on); setting('haptics', on); },
+  shake: (on) => { save.calm = !on; setCalm(save.calm); setting('shake', on); },
   quality: (q) => { save.quality = q; stage.setQualityMode(q); setting('quality', q); },
 };
 
@@ -382,7 +384,7 @@ function frame(now: number): void {
   if (launch) return launch.frame(dt);
   let simDt = dt;
   if (feel.hitstop > 0) { feel.hitstop -= dt; simDt = 0; }
-  else if (feel.slow > 0) { feel.slow -= dt; simDt *= 0.35; }
+  else if (feel.slow > 0) { feel.slow -= dt; if (!MOTION.calm) simDt *= 0.35; }
   if (state !== 'title' && !waiting) {
     acc += simDt;
     let n = 0;
@@ -469,6 +471,7 @@ async function boot(): Promise<void> {
   setChannel('music', !save.musicOff);
   setChannel('sfx', !save.sfxOff);
   setHaptics(!save.hapticsOff);
+  setCalm(save.calm);
   hud.setSound(!save.muted);
   newRace();
   // every shader built before the first frame, so the race doesn't hitch on its first hits

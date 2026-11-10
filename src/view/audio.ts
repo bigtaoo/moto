@@ -4,11 +4,15 @@
 // pause or mute button, a hidden page, an ad) goes through `hold`/`setMuted`, so the rules live here.
 
 import { SYNTHS, type SynthName } from './synth';
+import { compose, Renderer } from './tune';
 
-type Track = 'title' | 'race1' | 'race2' | 'race3';
+type FileTrack = 'title' | 'race1' | 'race2' | 'race3';
+/** A file, or a tune made in code (./tune) from a seed: `gen12`, or a boss race's faster minor one, `boss12`. */
+type Track = FileTrack | `gen${number}` | `boss${number}`;
 const SFX = ['thunk1', 'thunk2', 'thunk3', 'thunk_big', 'scrape', 'whoosh1', 'whoosh2', 'dodge', 'crash', 'siren',
   'alarm', 'tell', 'pickup', 'count', 'go', 'coin', 'cash', 'click'] as const;
 type Name = (typeof SFX)[number] | Track | SynthName;
+const isMade = (t: Track): t is `gen${number}` | `boss${number}` => t.startsWith('gen') || t.startsWith('boss');
 
 const url = (n: Name) => `${import.meta.env.BASE_URL}audio/${n}.mp3`;
 const MUSIC_VOL = 0.32;
@@ -42,8 +46,32 @@ function fetchRaw(n: Name): Promise<ArrayBuffer | null> {
   return p;
 }
 
+/** A tune made in code, in slices of about 4 ms between frames so the countdown doesn't hitch. */
+function made(t: `gen${number}` | `boss${number}`): Promise<AudioBuffer | null> {
+  return new Promise((done) => {
+    if (!ctx) return done(null);
+    const boss = t.startsWith('boss');
+    const r = new Renderer(compose({ seed: Number(t.slice(boss ? 4 : 3)), boss }), ctx.sampleRate);
+    const slice = () => {
+      if (!ctx) return done(null);
+      const t0 = performance.now();
+      do r.step(4); while (!r.done && performance.now() - t0 < 4);
+      if (!r.done) return void setTimeout(slice, 0);
+      const b = ctx.createBuffer(1, r.out.length, ctx.sampleRate);
+      b.getChannelData(0).set(r.out);
+      buffers.set(t, b);
+      done(b);
+    };
+    slice();
+  });
+}
+
 function decode(n: Name): Promise<AudioBuffer | null> {
   let p = decoding.get(n);
+  if (!p && isMade(n as Track)) {
+    p = made(n as `gen${number}`);
+    decoding.set(n, p);
+  }
   if (!p) {
     p = fetchRaw(n).then(async (data) => {
       if (!data || !ctx) return null;
@@ -152,8 +180,20 @@ export function music(track: Track | null): void {
   });
 }
 
-/** The race track for a division, so the music changes as the player moves up. */
-export const raceTrack = (div: number): Track => (['race1', 'race2', 'race3'] as const)[div % 3];
+/**
+ * The music for a race: the cup's first race keeps the division's file (and in the first season its third
+ * too), the others get a tune made for that division and season, and the boss race a faster minor one. So a
+ * career hears 3 files and some 40 tunes, not the same 3 files for three hours.
+ */
+export function raceTrack(div: number, tier = 0, race = 0, boss = false): Track {
+  const id = div * 3 + tier;
+  if (boss) return `boss${id}`;
+  if (race === 0 || (race === 2 && tier === 0)) return (['race1', 'race2', 'race3'] as const)[div % 3];
+  return `gen${id * 2 + (race === 2 ? 1 : 0)}`;
+}
+
+/** A security shift's music: a tune of its own per shift. */
+export const shiftTrack = (n: number): Track => `gen${900 + (n % 8)}`;
 
 function play(n: Name, vol = 1, rate = 1, delay = 0): void {
   const b = buffers.get(n);

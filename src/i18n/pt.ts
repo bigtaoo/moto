@@ -148,6 +148,7 @@ export const PT: Table = {
   nearMisses: "Quase batidas × {n}",
   koChains: "Sequências de KO (melhor {n}×)",
   vibration: "Vibração",
+  shake: "Tremor da câmera",
   qAuto: "Auto",
   qLow: "Baixa",
   qHigh: "Alta",

@@ -148,6 +148,7 @@ export const FR: Table = {
   nearMisses: "Frôlements × {n}",
   koChains: "Séries de KO (meilleure {n}×)",
   vibration: "Vibration",
+  shake: "Tremblement caméra",
   qAuto: "Auto",
   qLow: "Basse",
   qHigh: "Haute",

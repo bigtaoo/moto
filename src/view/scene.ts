@@ -13,6 +13,7 @@ import { Ragdoll } from './ragdoll';
 import { Traffic, PatrolView, Pickups, Shadows } from './props';
 import { Fx } from './fx';
 import { isShared } from './toon';
+import { MOTION } from './motion';
 import { Governor, TIERS, TOP, forcedTier, isSoftware, probeDevice, startTier, type QualityMode } from './quality';
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -344,6 +345,7 @@ export class RaceView {
   }
 
   shake(amount: number): void {
+    if (MOTION.calm) return;
     this.shakeAmp = Math.max(this.shakeAmp, amount);
   }
 
@@ -476,7 +478,7 @@ export class RaceView {
     }
     cam.position.copy(this.camPos);
     cam.lookAt(this.camLook);
-    const boost = Math.min(10, Math.max(0, p.speed - 12) * 0.55);
+    const boost = Math.min(10, Math.max(0, p.speed - 12) * 0.55) * (MOTION.calm ? 0.4 : 1);
     this.fovBoost += (boost - this.fovBoost) * Math.min(1, dt * 3);
     const fov = cfg.fov + this.fovBoost;
     if (Math.abs(cam.fov - fov) > 0.05) {

@@ -148,6 +148,7 @@ export const ES: Table = {
   nearMisses: "Por los pelos × {n}",
   koChains: "Cadenas de KO (mejor {n}×)",
   vibration: "Vibración",
+  shake: "Temblor de cámara",
   qAuto: "Auto",
   qLow: "Baja",
   qHigh: "Alta",

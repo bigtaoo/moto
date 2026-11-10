@@ -153,6 +153,7 @@ export const EN = {
   nearMisses: "Near misses × {n}",
   koChains: "KO chains (best {n}×)",
   vibration: "Vibration",
+  shake: "Screen shake",
   qAuto: "Auto",
   qLow: "Low",
   qHigh: "High",

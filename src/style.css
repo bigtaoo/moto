@@ -240,6 +240,8 @@ button.primary {
   border: 4px solid var(--ink); border-radius: 14px; box-shadow: 0 5px 0 var(--ink);
 }
 button.primary:active { transform: translateY(4px); box-shadow: 0 1px 0 var(--ink); }
+/* The results card runs long (upgrades, garage, shop): its next-race button stays in reach at the bottom. */
+.card .again { position: sticky; bottom: max(8px, env(safe-area-inset-bottom)); z-index: 2; }
 
 .rows { margin: 12px 0 8px; text-align: left; }
 .row { display: flex; justify-content: space-between; padding: 4px 2px; font-size: 16px; }
@@ -395,11 +397,10 @@ button.primary:active { transform: translateY(4px); box-shadow: 0 1px 0 var(--in
 .lbest { margin: 10px 0 0; font-weight: 800; }
 .lbest em { font-style: normal; color: #c99a00; font-size: 20px; }
 
-@media (prefers-reduced-motion: reduce) {
-  .remount, .hint.ask, .chaser.on, .inc.on, .heat.hot, .tag.tell, .taunt.on, .replaytag.on { animation: none; }
-  .ljudge.on, .lpop.on { animation-name: lfade; }
-  .banner.show { animation-duration: 0.9s; }
-}
+/* Calm motion (src/view/motion.ts: the system's reduce-motion, or the pause menu's screen-shake switch). */
+.calm .remount, .calm .hint.ask, .calm .chaser.on, .calm .inc.on, .calm .heat.hot, .calm .tag.tell, .calm .taunt.on, .calm .replaytag.on { animation: none; }
+.calm .ljudge.on, .calm .lpop.on { animation-name: lfade; }
+.calm .banner.show { animation-duration: 0.9s; }
 
 /* Landscape phones: short screens get a smaller HUD and a two-column results card. */
 @media (orientation: landscape) and (max-height: 500px) {

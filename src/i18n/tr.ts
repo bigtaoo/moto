@@ -148,6 +148,7 @@ export const TR: Table = {
   nearMisses: "Kıl payı × {n}",
   koChains: "KO serileri (en iyi {n}×)",
   vibration: "Titreşim",
+  shake: "Kamera sarsıntısı",
   qAuto: "Otomatik",
   qLow: "Düşük",
   qHigh: "Yüksek",
