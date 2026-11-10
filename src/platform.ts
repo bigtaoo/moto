@@ -11,6 +11,12 @@ const params = new URLSearchParams(typeof location === 'undefined' ? '' : locati
 let bridge: Bridge | null = null;
 let fake = false;
 let rewardedBusy = false;
+type Props = Record<string, string | number | boolean>;
+/** Fields on every analytics event (src/telemetry.ts sets them: device, cohort, build ...). */
+let common: () => Props = () => ({});
+export const setCommonFields = (f: () => Props): void => { common = f; };
+/** Events from before the Bridge was up (a boot error, the boot marks) wait here, then go out. */
+let early: [string, Props | undefined][] | null = [];
 
 /** Callbacks the game sets: the host wants the game paused, or the sound off. */
 export const host = {
@@ -37,7 +43,16 @@ export async function initPlatform(): Promise<void> {
   fake = mock && (import.meta.env.DEV || params.has('fakeads')) && !params.has('noads');
 }
 
+/** The Bridge is up and the save is read: the common fields can be filled, the held events go out. */
+export function flushEarly(): void {
+  const q = early ?? [];
+  early = null;
+  for (const [n, d] of q) track(n, d);
+}
+
 export const platformId = (): string => (bridge ? String(bridge.platform.id) : 'none');
+/** Bridge's device type (`mobile`, `tablet`, `desktop`), or null where it does not say. */
+export const deviceType = (): string | null => (bridge?.device?.type ? String(bridge.device.type) : null);
 export const audioEnabled = (): boolean => (bridge ? bridge.platform.isAudioEnabled !== false : true);
 /** The player's language as the platform reports it; English when there is no Bridge (3.4.2). */
 export const language = (): string => String(bridge?.platform.language ?? 'en').slice(0, 2).toLowerCase();
@@ -48,9 +63,11 @@ export function gameReady(): void {
 }
 
 /** A game event for Playgama analytics (src/funnel.ts); dropped where there is no Bridge. */
-export function track(name: string, data?: Record<string, string | number | boolean>): void {
-  if (params.has('trace')) console.info('track', name, data ?? '');
-  try { bridge?.analytics?.send(name, data); } catch { /* not supported here */ }
+export function track(name: string, data?: Props): void {
+  if (early) { if (early.length < 40) early.push([name, data]); return; }
+  const all = { ...common(), ...data };
+  if (params.has('trace')) console.info('track', name, all);
+  try { bridge?.analytics?.send(name, all); } catch { /* not supported here */ }
 }
 
 /** Lifecycle message (`level_started`, `level_completed` ...), for the platforms that use them. */
@@ -101,29 +118,35 @@ export const rewardedReady = (): boolean => !rewardedBusy && (fake || !!bridge?.
 
 /** Show a rewarded ad; resolves true only if the player watched it to the reward. */
 export function showRewarded(placement: string): Promise<boolean> {
-  if (!rewardedReady()) return Promise.resolve(false);
+  const t0 = performance.now();
+  /** The ad funnel's other half (the offer is the game's): how the ad the player asked for went. */
+  const result = (r: 'rewarded' | 'closed' | 'failed' | 'timeout' | 'unavailable') =>
+    track('ad_result', { placement, result: r, sec: Math.round((performance.now() - t0) / 1000) });
+  if (!rewardedReady()) return result('unavailable'), Promise.resolve(false);
   rewardedBusy = true;
   const done = (ok: boolean) => { rewardedBusy = false; return ok; };
-  if (fake) return fakeAd(placement).then(done);
+  if (fake) return fakeAd(placement).then((ok) => (result('rewarded'), done(ok)));
   return new Promise<boolean>((resolve) => {
     const b = bridge;
     const E = b.EVENT_NAME.REWARDED_STATE_CHANGED;
     let granted = false;
     let over = false;
-    const finish = () => {
+    let failed = false;
+    const finish = (timeout?: boolean) => {
       if (over) return;
       over = true;
+      result(granted ? 'rewarded' : timeout ? 'timeout' : failed ? 'failed' : 'closed');
       try { b.advertisement.off?.(E, onState); } catch { /* old Bridge */ }
       clearTimeout(guard);
       resolve(done(granted));
     };
     const onState = (s: string) => {
       if (s === 'rewarded') granted = true;
-      else if (s === 'closed' || s === 'failed') finish();
+      else if (s === 'closed' || s === 'failed') { failed = s === 'failed'; finish(); }
     };
-    const guard = setTimeout(finish, 120_000); // never leave the game waiting on a lost event
+    const guard = setTimeout(() => finish(true), 120_000); // never leave the game waiting on a lost event
     b.advertisement.on(E, onState);
-    try { b.advertisement.showRewarded(placement); } catch { finish(); }
+    try { b.advertisement.showRewarded(placement); } catch { failed = true; finish(); }
   });
 }
 

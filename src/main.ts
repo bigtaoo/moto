@@ -12,6 +12,7 @@ import { sfx, unlockAudio, hold, setMuted, music, raceTrack, preloadAudio } from
 import { installIconCss } from './view/icons';
 import { statsOverlay } from './view/stats';
 import * as funnel from './funnel';
+import * as tele from './telemetry';
 import { parseSave, storeSave, type Save } from './meta';
 import { CUP_RACES, riderName, settleRace, buyUpgrade, chooseRide, REVENGE_PAY, type UpKey } from './career';
 import * as platform from './platform';
@@ -122,6 +123,7 @@ function startRace(): void {
   titleEl.classList.add('hidden');
   setState('race');
   platform.lifecycle('level_started', { world: world.div.name, level: String(save.cup.race + 1) });
+  if (!BOT) tele.raceStart(world);
 }
 
 const near = (id: number) => id === 0 || Math.abs(world.riders[id].z - world.player.z) < 28;
@@ -266,7 +268,8 @@ function finishRace(): void {
     places: of((r) => r.place), koPlayer: of((r) => r.koPlayer), koByPlayer: of((r) => r.koByPlayer),
   });
   storeSave(save);
-  funnel.raceDone(place, save.races);
+  funnel.raceDone(place);
+  tele.raceEnd(s);
   const table = s.table.map((t) => ({ name: riderName(t.id), pts: t.pts, rank: t.rank, me: t.id === 0 }));
   const res: RaceResult = {
     place, total: w.racers, prize: s.prize, kos: w.kos, koBonus: s.koBonus, grudgeKos: w.grudgeKos, grudgeBonus: s.grudgeBonus,
@@ -276,6 +279,7 @@ function finishRace(): void {
     double: s.earned > 0 && platform.rewardedReady() ? s.earned : 0,
     doubled: false,
   };
+  if (res.double) tele.adOffer('double_cash');
   setState('results');
   platform.lifecycle(place <= C.PROMOTE ? 'level_completed' : 'level_failed', { world: w.div.name, level: String(s.cupRace) });
   const show = () => hud.showResults(res, save, buy, again, double, ride);
@@ -292,9 +296,11 @@ function finishRace(): void {
     });
   };
   const buy = (k: UpKey) => {
+    const had = save.cash;
     if (!buyUpgrade(save, k)) return;
     storeSave(save);
-    funnel.event('upgrade_purchased', { upgrade_id: k, level: save.up[k] });
+    funnel.event('upgrade_purchased', { upgrade_id: k, level: save.up[k], price: had - save.cash, cash: save.cash });
+    tele.bought();
     sfx.coin();
     show();
   };
@@ -302,7 +308,8 @@ function finishRace(): void {
     const had = save.cash;
     if (!chooseRide(save, v)) return;
     storeSave(save);
-    funnel.event('ride_chosen', { ride: v, bought: save.cash < had });
+    funnel.event('ride_chosen', { ride: v, bought: save.cash < had, price: had - save.cash, cash: save.cash });
+    if (save.cash < had) tele.bought();
     if (save.cash < had) sfx.coin();
     show();
   };
@@ -311,6 +318,7 @@ function finishRace(): void {
     newRace();
     setState('race');
     platform.lifecycle('level_started', { world: world.div.name, level: String(save.cup.race + 1) });
+    tele.raceStart(world);
   };
   show();
 }
@@ -356,6 +364,7 @@ function tick(): void {
 function setPaused(on: boolean): void {
   if (state !== 'race' || paused === on) return;
   paused = on;
+  if (on && !document.hidden) tele.paused();
   hud.setPaused(on);
   hold('pause', on);
 }
@@ -409,7 +418,8 @@ window.addEventListener('resize', () => { stage.resize(); hud.resize(); });
 let lastT = performance.now();
 function frame(now: number): void {
   requestAnimationFrame(frame);
-  const dt = Math.min(0.1, (now - lastT) / 1000);
+  const ms = now - lastT;
+  const dt = Math.min(0.1, ms / 1000);
   lastT = now;
   // a keyboard player in a portal's iframe has no keys until a click in it (they scroll the portal page, and
   // the Bridge holds the game paused while it lacks the focus): the HUD asks for that click, paused or not,
@@ -422,6 +432,7 @@ function frame(now: number): void {
     funnel.event('keys_wait', { seconds: Math.round(keysWait) });
     keysWait = 0;
   }
+  tele.frame(ms, state === 'race' && !BOT, !paused && !hostPaused && !waiting);
   if (paused || hostPaused) return;
   let simDt = dt;
   if (hitstop > 0) { hitstop -= dt; simDt = 0; }
@@ -434,7 +445,9 @@ function frame(now: number): void {
   view.update(simDt, Math.min(1, acc / C.DT));
   hud.update(world, view, save.cash, dt);
   downClock = world.player.state === 'down' ? downClock + dt : 0;
-  hud.showRemount(state === 'race' && !BOT && !remountUsed && downClock > 0.6 && platform.rewardedReady());
+  const offer = state === 'race' && !BOT && !remountUsed && downClock > 0.6 && platform.rewardedReady();
+  hud.showRemount(offer);
+  if (offer) tele.remountOffer();
   if (state === 'race' && !BOT) funnel.playing(dt);
   showStats?.(dt);
 }
@@ -443,12 +456,16 @@ const showStats = params.has('stats') ? statsOverlay(stage.renderer) : null;
 
 async function boot(): Promise<void> {
   await platform.initPlatform();
+  tele.bootMark('bridge');
   preloadAudio(); // after the Bridge is up (its required step 2), small and in the background
   if (!params.has('lang')) {
     setLang(platform.language());
     localize();
   }
   save = parseSave(await platform.loadData());
+  tele.bootMark('save');
+  tele.begin(save, canvas);
+  storeSave(save);
   setMuted('host', !platform.audioEnabled());
   setMuted('player', save.muted);
   hud.setSound(!save.muted);
@@ -463,9 +480,9 @@ async function boot(): Promise<void> {
   if (BOT || save.races === 0) startRace();
   if (!BOT && save.races === 0) funnel.startTutorial();
   platform.gameReady();
-  funnel.loaded();
+  tele.bootDone();
 }
-void boot();
+boot().catch((e) => { console.error(e); tele.bootFailed(); });
 
 // For poking at the game from the console while testing.
 Object.assign(window, { __game: { get world() { return world; }, get view() { return view; }, get state() { return state; }, get paused() { return { player: paused, host: hostPaused }; }, hud, get save() { return save; }, botInput, platform,

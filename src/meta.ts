@@ -24,6 +24,9 @@ export interface Save {
   garage: { cur: number; owned: number[] };
   /** The player's own sound switch (the host's is separate and not saved). */
   muted: boolean;
+  /** Sessions started (analytics: the session number) and the day (UTC days since 1970) of the first one. */
+  sessions: number;
+  firstDay: number;
 }
 
 const num = (v: unknown) => Number(v) || 0;
@@ -42,7 +45,7 @@ function readFeud(f: Partial<Feud> | undefined): Feud {
 export function parseSave(raw: string | null): Save {
   const fresh: Save = {
     cash: 0, up: { top: 0, steer: 0, hp: 0 }, grudges: [], races: 0, best: 0, div: 0, cup: newCup(), titles: 0, feud: newFeud(), tier: 0,
-    garage: { cur: 0, owned: [0] }, muted: false,
+    garage: { cur: 0, owned: [0] }, muted: false, sessions: 0, firstDay: 0,
   };
   try {
     if (!raw) return fresh;
@@ -69,6 +72,8 @@ export function parseSave(raw: string | null): Save {
       tier: Math.max(0, Math.min(TIERS.length - 1, Math.floor(num(s.tier)))),
       garage: { cur: owned.includes(cur) ? cur : 0, owned },
       muted: s.muted === true,
+      sessions: Math.max(0, Math.floor(num(s.sessions))),
+      firstDay: Math.max(0, Math.floor(num(s.firstDay))),
     };
   } catch {
     return fresh;

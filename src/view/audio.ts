@@ -25,10 +25,14 @@ const mutes = { host: false, player: false };
 let wanted: Track | null = null;
 let playing: { track: Track; src: AudioBufferSourceNode; gain: GainNode } | null = null;
 
+/** Sound files that failed to load (for the asset_load_error_count in src/telemetry.ts). */
+export const loadErrors = { n: 0 };
+const failed = () => (loadErrors.n++, null);
+
 function fetchRaw(n: Name): Promise<ArrayBuffer | null> {
   let p = raw.get(n);
   if (!p) {
-    p = fetch(url(n)).then((r) => (r.ok ? r.arrayBuffer() : null)).catch(() => null);
+    p = fetch(url(n)).then((r) => (r.ok ? r.arrayBuffer() : failed())).catch(failed);
     raw.set(n, p);
   }
   return p;

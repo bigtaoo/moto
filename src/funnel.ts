@@ -15,9 +15,9 @@ let screen = 'title';
 let tutorial = false;
 const steps = new Set<string>();
 
-/** The first frame is up and the game can be played. */
-export function loaded(): void {
-  track('game_loaded', { ms: Math.round(performance.now() - t0) });
+/** The first frame is up and the game can be played; `boot` the boot's stages (src/telemetry.ts). */
+export function loaded(boot: Record<string, number> = {}): void {
+  track('game_loaded', { ms: Math.round(performance.now() - t0), ...boot });
 }
 
 /** Any tap or key; only the first one of the session is sent. */
@@ -31,6 +31,7 @@ export function input(): void {
 export function setScreen(s: string): void {
   screen = s;
 }
+export const currentScreen = (): string => screen;
 
 /** Seconds of actual racing (not paused); sends play_30s, play_60s ... as they pass. */
 export function playing(dt: number): void {
@@ -38,14 +39,13 @@ export function playing(dt: number): void {
   while (marks.length && played >= marks[0]) track(`play_${marks.shift()}s`, { races: racesThisSession });
 }
 
-/** A race is over. */
-export function raceDone(place: number, career: number): void {
+/** A race is over (its progression event is src/telemetry.ts's). */
+export function raceDone(place: number): void {
   racesThisSession++;
   if (tutorial) {
     tutorial = false;
     track('tutorial_completed', { place, sec: sec() });
   }
-  if (career <= 5) track('early_race', { n: career, place });
 }
 
 /** The first race of a new player is the tutorial; its steps are the first steer and the first slap. */
@@ -64,10 +64,14 @@ export function event(name: string, data?: Record<string, string | number | bool
   track(name, data);
 }
 
+/** What the player was in the middle of as they left (the race's state, the cash left unspent ...). */
+let leaveFields: () => Record<string, string | number | boolean> = () => ({});
+export const onLeave = (f: typeof leaveFields): void => { leaveFields = f; };
+
 // leaving: the last screen, how long, how many races (pagehide is the one that fires on phones too)
 let left = false;
 addEventListener('pagehide', () => {
   if (left) return;
   left = true;
-  track('session_end', { reason: screen, sec: sec(), races: racesThisSession, played: Math.round(played) });
+  track('session_end', { reason: screen, sec: sec(), races: racesThisSession, played: Math.round(played), ...leaveFields() });
 });
