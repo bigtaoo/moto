@@ -70,7 +70,7 @@ export class Menu {
     const card = this.el.querySelector('.card') as HTMLElement;
     const s = this.settings;
     if (this.help) {
-      const tips = [t(DESKTOP ? 'hintKeys' : 'hint'), t('howTell'), t('howShove'), t('howHeat'), t('howCup', { n: CUP_RACES }), `${t('nem')}: ${t('nemTip')}`];
+      const tips = [t(DESKTOP ? 'hintKeys' : 'hint'), t('howTell'), t(DESKTOP ? 'howChargeKeys' : 'howCharge'), t('howShove'), t('howHeat'), t('howCup', { n: CUP_RACES }), `${t('nem')}: ${t('nemTip')}`];
       card.innerHTML = `<h2>${t('howTo')}</h2><ul class="howto">${tips.map((x) => `<li>${x}</li>`).join('')}</ul>
         <button class="primary" data-a="back">${t('back')}</button>`;
       return;

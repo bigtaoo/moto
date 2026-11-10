@@ -2,7 +2,7 @@
 
 import * as THREE from 'three';
 import type { World } from '../sim/world';
-import { CAR, DOWN, TICK_HZ, VEHICLES, rung } from '../sim/config';
+import { CAR, CHARGE, DOWN, TICK_HZ, VEHICLES, rung } from '../sim/config';
 import { Track, toWorld, place, rampLift, RAMP_LOOK } from './track';
 import { ENVS, type Env } from './env';
 import { RiderView } from './rider';
@@ -345,6 +345,7 @@ export class RaceView {
       const z = down ? lerp(r.bikePZ, r.bikeZ, alpha) : lerp(r.pz, r.z, alpha);
       place(rv.root, x, down ? 0 : this.lift(i, x, z, alpha), z, rv.yaw);
       rv.setWeapon(r.weapon);
+      rv.charge = r.isPlayer ? Math.max(0, Math.min(1, (r.charge - 6) / (CHARGE.full - 6))) : 0;
       rv.update(dt, r.speed, this.drawVx[i], r.rubT > 0 ? r.rubSide : 0);
       // Blink while invulnerable after getting back up.
       rv.root.visible = r.invT <= 0 || Math.floor(r.invT / 3) % 2 === 0;

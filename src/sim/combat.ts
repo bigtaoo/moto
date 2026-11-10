@@ -22,8 +22,25 @@ export function targetFor(w: World, r: Rider, tol = 0): Rider | null {
   return best;
 }
 
-export function tryAttack(w: World, r: Rider): boolean {
+/** The player's blows from this tick's input: a tap slaps; holding winds up, and letting go throws a haymaker. */
+export function playerAttack(w: World, p: Rider): void {
+  const inp = w.input;
+  if (inp.attack) tryAttack(w, p);
+  inp.attack = false;
+  const K = C.CHARGE;
+  if (inp.charge && p.state === 'ride' && !p.finished) {
+    if (p.charge < K.full) p.charge++;
+    if (p.charge >= K.min) p.speed *= K.drag;
+    return;
+  }
+  if (p.charge >= K.min) tryAttack(w, p, p.charge / K.full);
+  p.charge = 0;
+}
+
+/** Start a swing; `power` (0..1) makes it a haymaker (C.CHARGE). */
+export function tryAttack(w: World, r: Rider, power = 0): boolean {
   if (r.state !== 'ride' || r.airT > 0 || r.atkT > 0 || r.atkCd > 0) return false;
+  r.power = power;
   const t = targetFor(w, r, 0.3);
   r.atkSide = t ? (t.x >= r.x ? 1 : -1) : r.atkSide === 1 ? -1 : 1;
   r.atkT = r.isPlayer ? C.ATTACK.windup : C.ATTACK.windupAI;
@@ -37,7 +54,7 @@ export function tryAttack(w: World, r: Rider): boolean {
     r.aimVx = (t.x - t.px) * C.TICK_HZ;
     r.aimV = t.speed;
   }
-  w.events.push({ type: 'swing', rider: r.id, side: r.atkSide, aim: r.aim, windup: r.atkT });
+  w.events.push({ type: 'swing', rider: r.id, side: r.atkSide, aim: r.aim, windup: r.atkT, power });
   return true;
 }
 
@@ -46,7 +63,7 @@ export function resolveAttack(w: World, r: Rider): void {
   if (--r.atkT > 0 || r.state !== 'ride' || r.airT > 0) return;
   const A = C.ATTACK;
   if (!r.isPlayer) r.speed *= A.selfSlow;
-  const reach = A.reachX + (r.weapon ? C.WEAPON[r.weapon].reach : 0) + 0.4;
+  const reach = A.reachX + (r.weapon ? C.WEAPON[r.weapon].reach : 0) + 0.4 + r.power * C.CHARGE.reach;
   // an AI rider swings at where its target was heading when it wound up: off that line by now, it misses them
   let dodged: Rider | null = null;
   if (!r.isPlayer && r.aim >= 0) {
@@ -74,9 +91,9 @@ export function resolveAttack(w: World, r: Rider): void {
     return;
   }
   const counter = r.isPlayer && victim.openT > 0;
-  const dmg = (r.weapon ? C.WEAPON[r.weapon].dmg : 1) + (counter ? A.counterDmg : 0);
+  const dmg = (r.weapon ? C.WEAPON[r.weapon].dmg : 1) + (counter ? A.counterDmg : 0) + (r.power >= 1 ? C.CHARGE.dmg : 0);
   victim.hp -= dmg;
-  victim.vx += r.atkSide * (A.push + (r.weapon ? C.WEAPON[r.weapon].push : 0));
+  victim.vx += r.atkSide * (A.push + (r.weapon ? C.WEAPON[r.weapon].push : 0) + r.power * C.CHARGE.push);
   victim.latV = 0;
   victim.stagT = victim.isPlayer ? A.stagger.player : A.stagger.ai;
   victim.shoveT = C.SHOVE.ticks;
@@ -85,7 +102,7 @@ export function resolveAttack(w: World, r: Rider): void {
   victim.hitT = 6;
   victim.hitBy = r.id;
   const ko = victim.hp <= 0;
-  w.events.push({ type: 'hit', from: r.id, to: victim.id, side: r.atkSide, dmg, ko, counter });
+  w.events.push({ type: 'hit', from: r.id, to: victim.id, side: r.atkSide, dmg, ko, counter, power: r.power });
   if (r.isPlayer && patrolSees(w)) addHeat(w, ko ? C.HEAT.hit + C.HEAT.down : C.HEAT.hit);
   if (ko) return knockOff(w, victim, r);
   // the blow can knock their weapon loose: an empty hand takes it, an armed one knocks it to the road

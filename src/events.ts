@@ -73,6 +73,13 @@ export function react(e: SimEvent, w: World, view: RaceView, hud: Hud, feel: Fee
         view.shake(e.to === 0 ? 0.45 : 0.22);
         buzz(e.to === 0 ? (e.ko ? 70 : 30) : e.ko ? 45 : 15);
       }
+      // a full haymaker landing: a longer freeze and a bigger jolt
+      if (e.from === 0 && e.power >= 1) {
+        feel.hitstop = 0.13;
+        view.shake(0.4);
+        buzz(55);
+        hud.pop(t('haymaker'), 'big');
+      }
       // the nemesis going down is the race's moment: let it play slowly
       if (e.from === 0 && e.ko && e.to === w.nemesis) feel.slow = 0.5;
       if (near(e.to)) sfx.thunk(e.ko);

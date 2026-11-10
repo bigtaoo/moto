@@ -236,10 +236,12 @@ function tick(): void {
     inp.brake = controls.brake;
     if (controls.attack) { atkBuffer = 8; controls.attack = false; }
     inp.attack = atkBuffer > 0;
+    inp.charge = controls.charge;
   } else {
     inp.steer = 0;
     inp.brake = false;
     inp.attack = false;
+    inp.charge = false;
   }
   recorder.capture(world);
   world.step();

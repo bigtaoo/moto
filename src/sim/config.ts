@@ -4,7 +4,7 @@
  * Bump on any change to the race rules that alters what a seed plus inputs produce, and record the new
  * golden hash in world.test.ts. Replays and (later) online rooms only mix the same version.
  */
-export const SIM_VERSION = 17;
+export const SIM_VERSION = 18;
 
 export const TICK_HZ = 30;
 export const DT = 1 / TICK_HZ;
@@ -70,6 +70,12 @@ export const ATTACK = {
   /** Swinging costs the swinger speed too, hit or miss: a landed blow still gains ground, a wild one loses it. */
   selfSlow: 0.9,
 };
+/**
+ * Holding the slap winds up a haymaker (the player only): held `min` ticks or more, letting go swings with
+ * power held/full (up to 1) for more reach and push, and at full one more damage. The wind-up drags the pace.
+ * `min` is past the cooldown of the slap that pressing the key throws first.
+ */
+export const CHARGE = { min: 15, full: 27, reach: 0.5, push: 5, dmg: 1, drag: 0.997 };
 export const WEAPON = {
   pan: { dmg: 2, reach: 0.2, push: 1 },
   bat: { dmg: 2, reach: 0.6, push: 2 },

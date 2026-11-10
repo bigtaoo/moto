@@ -38,6 +38,9 @@ export interface Rider {
   atkT: number;
   atkSide: Side;
   atkCd: number;
+  /** Ticks the player has held the slap (C.CHARGE), and the power of the swing under way (0: a plain one). */
+  charge: number;
+  power: number;
   hitT: number;
   weapon: C.WeaponKind | null;
   finished: boolean;
@@ -189,8 +192,8 @@ export interface Patrol {
 }
 
 export type SimEvent =
-  | { type: 'swing'; rider: number; side: Side; aim: number; windup: number }
-  | { type: 'hit'; from: number; to: number; side: Side; dmg: number; ko: boolean; counter: boolean }
+  | { type: 'swing'; rider: number; side: Side; aim: number; windup: number; power: number }
+  | { type: 'hit'; from: number; to: number; side: Side; dmg: number; ko: boolean; counter: boolean; power: number }
   | { type: 'whiff'; rider: number; dodged: boolean }
   | { type: 'shove'; from: number; to: number; into: 'car' | 'wall' | 'cones' }
   | { type: 'steal'; from: number; to: number; kind: C.WeaponKind; took: boolean }
@@ -224,6 +227,8 @@ export interface Input {
   steer: number;
   brake: boolean;
   attack: boolean;
+  /** The slap held down: winds up a haymaker, thrown on letting go (C.CHARGE). */
+  charge: boolean;
   /** Down: back on the scooter right now (paid for with a rewarded ad, once a race). */
   remount: boolean;
 }

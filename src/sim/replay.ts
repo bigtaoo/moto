@@ -6,7 +6,7 @@ import { SIM_VERSION } from './config';
 import { hashState } from './hash';
 import { World, type Input, type WorldOpts } from './world';
 
-/** [tick, targetX, steer, brake (0/1), taps (bits: 1 attack, 2 remount; they last one tick)] */
+/** [tick, targetX, steer, brake (0/1), bits: 1 attack and 2 remount (taps: they last one tick), 4 charge (held)] */
 export type InputRow = [number, number | null, number, number, number];
 
 export interface Replay {
@@ -32,7 +32,7 @@ export class Recorder {
   /** Call right before `w.step()`, after the input is set for this tick. */
   capture(w: World): void {
     const i = w.input;
-    const row: InputRow = [w.tick, i.targetX, i.steer, i.brake ? 1 : 0, (i.attack ? 1 : 0) | (i.remount ? 2 : 0)];
+    const row: InputRow = [w.tick, i.targetX, i.steer, i.brake ? 1 : 0, (i.attack ? 1 : 0) | (i.remount ? 2 : 0) | (i.charge ? 4 : 0)];
     const l = this.last;
     if (l && !row[4] && l[1] === row[1] && l[2] === row[2] && l[3] === row[3] && !l[4]) return;
     this.rows.push(row);
@@ -51,6 +51,8 @@ function apply(inp: Input, row: InputRow, tick: number): void {
   const now = row[0] === tick;
   inp.attack = now && (row[4] & 1) !== 0;
   inp.remount = now && (row[4] & 2) !== 0;
+  // a row is kept every tick it is held, and for the tick it is let go
+  inp.charge = (row[4] & 4) !== 0;
 }
 
 /** Re-run a replay. `ok` is false when the final state differs from the recorded one. */

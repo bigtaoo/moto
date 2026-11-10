@@ -6,7 +6,7 @@ import * as C from './config';
 import { rivalThink, laneClearance, nearestLane } from './ai';
 import { Road } from './road';
 import { clamp, type Rider, type Side, type Car, type Pickup, type Patrol, type SimEvent, type Input, type WorldOpts, type Seen } from './types';
-import { targetFor, tryAttack, resolveAttack, knockOff, crash } from './combat';
+import { targetFor, tryAttack, playerAttack, resolveAttack, knockOff, crash } from './combat';
 import { spawnCar, updateTraffic } from './traffic';
 import { updatePatrol } from './patrol';
 import { leaderThreats } from './threats';
@@ -35,7 +35,7 @@ export class World {
   readonly patrolFrom: number;
   readonly events: SimEvent[] = [];
   readonly grudges: Set<number>;
-  readonly input: Input = { targetX: null, steer: 0, brake: false, attack: false, remount: false };
+  readonly input: Input = { targetX: null, steer: 0, brake: false, attack: false, charge: false, remount: false };
   /** The nemesis' rider id, or -1. */
   readonly nemesis: number;
   /** Times the player knocked the nemesis off this race. */
@@ -153,7 +153,7 @@ export class World {
     this.riders.push({
       id: this.riders.length, name: o.name, isPlayer: o.isPlayer, x: o.x, z: o.z, px: o.x, pz: o.z, vx: 0, speed: 0,
       top: o.top, accel: o.accel ?? C.PLAYER_BASE.accel, steer: o.steer, hp: o.hp, maxHp: o.hp, wantX: o.x, braking: false,
-      state: 'ride', downT: 0, runT: 0, bikeX: o.x, bikeZ: o.z, bikePX: o.x, bikePZ: o.z, bikeV: 0, bikeVx: 0, invT: 0, atkT: 0, atkSide: 1, atkCd: 0, hitT: 0, weapon: o.weapon ?? null,
+      state: 'ride', downT: 0, runT: 0, bikeX: o.x, bikeZ: o.z, bikePX: o.x, bikePZ: o.z, bikeV: 0, bikeVx: 0, invT: 0, atkT: 0, atkSide: 1, atkCd: 0, charge: 0, power: 0, hitT: 0, weapon: o.weapon ?? null,
       finished: false, place: 0, aggr: o.aggr, aware: o.aware, body: o.body, ride: o.ride, koPlayer: 0, koByPlayer: 0, rubT: 0, rubSide: 1,
       thug: false, huntT: 0, gang: 'lurk', gangT: 0, role: 'strike', pace: 0,
       react: 10, latV: 0, latAcc: 16, intent: 'race', intentT: 0, lane: nearestLane(o.x), escX: o.x, escT: 0,
@@ -248,8 +248,7 @@ export class World {
     if (inp.targetX !== null) p.wantX = clamp(inp.targetX, lo, hi);
     else p.wantX = clamp(p.x + inp.steer * 3, lo, hi);
     p.braking = inp.brake;
-    if (inp.attack) tryAttack(this, p);
-    inp.attack = false;
+    playerAttack(this, p);
     if (inp.remount && p.state === 'down') {
       // straight back onto the scooter, with a moment's grace
       p.bikeX = this.road.clampX(p.bikeX, p.bikeZ);

@@ -72,6 +72,39 @@ describe('fights: shoves, dodges, counters, steals', () => {
     expect(r.shoveT).toBe(0);
   });
 
+  it('holding the slap winds up a haymaker: thrown on letting go, it reaches further and hits harder', () => {
+    const w = quietRoad();
+    const r = w.riders[1];
+    const p = w.player;
+    const x = C.LANE_X[1];
+    const far = x + C.ATTACK.reachX + 0.4 + C.CHARGE.reach * 0.6; // past a slap's reach, inside a full haymaker's
+    alongside(w, r, far, x);
+    r.latAcc = 0;
+    const keep = () => { r.x = r.px = r.wantX = far; r.z = r.pz = p.z; r.speed = p.speed; r.latV = r.vx = 0; };
+    // let go too soon: nothing thrown
+    w.input.charge = true;
+    let ev = run(w, C.CHARGE.min - 2, [r], keep);
+    w.input.charge = false;
+    ev.push(...run(w, 10, [r], keep));
+    expect(ev.some((e) => e.type === 'swing' && e.rider === 0)).toBe(false);
+    // a plain slap from here misses
+    w.tryAttack(p);
+    expect(run(w, 20, [r], keep).some((e) => e.type === 'hit')).toBe(false);
+    // held to full, then a two-damage blow that lands from out here
+    const hp = r.hp;
+    w.input.charge = true;
+    run(w, C.CHARGE.full + 3, [r], keep);
+    expect(p.charge).toBe(C.CHARGE.full);
+    w.input.charge = false;
+    ev = run(w, 10, [r], keep);
+    const sw = ev.find((e) => e.type === 'swing' && e.rider === 0);
+    expect(sw && sw.type === 'swing' && sw.power).toBe(1);
+    const hit = ev.find((e) => e.type === 'hit');
+    expect(hit && hit.type === 'hit' && [hit.dmg, hit.power]).toEqual([2, 1]);
+    expect(r.hp).toBe(hp - 2);
+    expect(p.charge).toBe(0);
+  });
+
   it("an AI rider's blow lands only after its wind-up, at where the target was heading", () => {
     const w = quietRoad();
     const r = w.riders[1];

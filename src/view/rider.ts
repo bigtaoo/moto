@@ -266,6 +266,8 @@ export class RiderView {
   private downSide: 1 | -1 = 1;
   /** Extra heading for the whole model (the slewed scooter), applied by the scene. */
   yaw = 0;
+  /** The player's haymaker wind-up, 0..1 (set by the scene): the arm cocks back and shakes harder as it fills. */
+  charge = 0;
   /** Height of the torso pivot: lower when seated. */
   private readonly torsoY: number;
 
@@ -363,6 +365,11 @@ export class RiderView {
       this.arms[sw === 1 ? 1 : 0].rotation.set(0.55 - 1.55 * k + shake, sw * 0.75 * k, 0, 'YXZ');
       twist = sw * 0.55 * k;
       if (this.holdT >= this.holdFor) { this.holdFor = 0; this.swingT = 0.2; }
+    } else if (this.charge > 0 && this.swingT === 0) {
+      const k = easeOut(this.charge);
+      const shake = Math.sin(performance.now() * (this.charge >= 1 ? 0.09 : 0.05)) * (this.charge >= 1 ? 0.12 : 0.05) * k;
+      this.arms[sw === 1 ? 1 : 0].rotation.set(0.55 - 1.7 * k + shake, sw * 0.9 * k, 0, 'YXZ');
+      twist = sw * 0.65 * k;
     } else if (this.swingT > 0) {
       this.swingT += dt / 0.42;
       const t = this.swingT;
