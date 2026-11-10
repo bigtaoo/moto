@@ -3,6 +3,7 @@
 
 import * as C from './sim/config';
 import type { Save } from './meta';
+import { t } from './i18n';
 
 export const CUP_RACES = 4;
 /** Cup points by finishing place. */
@@ -19,7 +20,7 @@ export interface Cup {
 
 export const newCup = (): Cup => ({ race: 0, pts: Array.from({ length: C.ROSTER.length + 1 }, () => 0) });
 
-export const riderName = (id: number) => (id === 0 ? 'You' : C.ROSTER[id - 1]?.name ?? '?');
+export const riderName = (id: number) => (id === 0 ? t('you') : C.ROSTER[id - 1]?.name ?? '?');
 
 /** Add one race's finishing places (per rider id; 0 or missing: did not race) to the cup. */
 export function scoreRace(cup: Cup, places: number[]): void {

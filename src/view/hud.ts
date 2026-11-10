@@ -1,10 +1,11 @@
 // DOM overlay. Per-frame changes go through transform/opacity only; text is touched only when it changes.
 
 import type { World } from '../sim/world';
-import { ATTACK, WEAPON, UPGRADE_MAX, UPGRADE_CAP, VEHICLES, DIVISIONS, stage, type Vehicle } from '../sim/config';
+import { ATTACK, WEAPON, GRUDGE_BONUS, UPGRADE_MAX, UPGRADE_CAP, VEHICLES, DIVISIONS, stage, type Vehicle } from '../sim/config';
 import type { RaceView } from './scene';
 import type { Save } from '../meta';
 import { BREAK_AT, rideState, upgradeLock, upgradePrice, type CupEnd, type FeudOutcome, type Nemesis, type UpKey } from '../career';
+import { t, ord, type Key } from '../i18n';
 
 export interface League {
   /** The division this race was in. */
@@ -23,19 +24,20 @@ export interface League {
 /** What a vehicle adds over the scooter, in the player's words. */
 function statLine(v: Vehicle): string {
   const sg = (n: number) => (n > 0 ? '+' : n < 0 ? '−' : '±') + Math.abs(n);
-  if (!v.top && !v.steer && !v.hp && !v.accel) return 'The baseline';
+  if (!v.top && !v.steer && !v.hp && !v.accel) return t('baseline');
   return [
-    v.top ? `${sg(Math.round(v.top * 3.6))} km/h` : '', v.accel ? `${sg(v.accel)} kick` : '', v.steer ? `${sg(v.steer)} grip` : '', v.hp ? `${sg(v.hp)} tough` : '',
+    v.top ? `${sg(Math.round(v.top * 3.6))} ${t('kmh')}` : '', v.accel ? `${sg(v.accel)} ${t('kick')}` : '',
+    v.steer ? `${sg(v.steer)} ${t('grip')}` : '', v.hp ? `${sg(v.hp)} ${t('tough')}` : '',
   ].filter(Boolean).join(' · ');
 }
 
 function againLabel(l: League): string {
   const e = l.end;
-  if (!e) return 'Next race';
-  if (e.nextTier) return `On to the ${l.season} season`;
-  if (e.promoted) return `On to ${l.next}`;
-  if (e.champion) return 'Defend the title';
-  return `Retry the ${l.next} cup`;
+  if (!e) return t('nextRace');
+  if (e.nextTier) return t('onSeason', { s: l.season });
+  if (e.promoted) return t('onTo', { d: l.next });
+  if (e.champion) return t('defend');
+  return t('retry', { d: l.next });
 }
 
 const $ = <T extends HTMLElement = HTMLElement>(root: ParentNode, sel: string) => root.querySelector(sel) as T;
@@ -63,9 +65,7 @@ export interface RaceResult {
   doubled: boolean;
 }
 
-const UP_NAMES: Record<UpKey, string> = { top: 'Top speed', steer: 'Handling', hp: 'Toughness' };
-
-const ordinal = (n: number) => n + (n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th');
+const UP_NAMES: Record<UpKey, Key> = { top: 'upTop', steer: 'upSteer', hp: 'upHp' };
 
 export class Hud {
   readonly root: HTMLElement;
@@ -111,19 +111,19 @@ export class Hud {
         </div>
         <div class="prog"><div class="fill"></div></div>
         <div class="labels"></div>
-        <div class="slap l">◀ SLAP</div>
-        <div class="slap r">SLAP ▶</div>
+        <div class="slap l"></div>
+        <div class="slap r"></div>
         <div class="inc l">⚠</div>
         <div class="inc r">⚠</div>
         <div class="banner"></div>
         <div class="chaser"></div>
-        <div class="hint">Drag to steer · Tap to slap</div>
+        <div class="hint"></div>
         <div class="league"></div>
         <div class="nemcard"></div>
-        <button class="remount hidden">▶ Back on now<small>watch an ad</small></button>
+        <button class="remount hidden"></button>
       </div>
       <div id="results" class="overlay hidden"><div class="card"></div></div>
-      <div id="paused" class="overlay hidden"><div class="card small"><h2>Paused</h2><button class="primary">Resume</button></div></div>
+      <div id="paused" class="overlay hidden"><div class="card small"><h2></h2><button class="primary"></button></div></div>
     `);
     this.root = $(host, '#hud');
     this.placeEl = $(this.root, '.place');
@@ -145,7 +145,19 @@ export class Hud {
     this.results = $(host, '#results');
     this.pauseEl = $(host, '#paused');
     this.pauseBtn = $(this.root, '.pausebtn');
+    this.localize();
     this.resize();
+  }
+
+  /** The fixed text, in the current language (again once the platform has said which). */
+  localize(): void {
+    this.slapL.textContent = `◀ ${t('slap')}`;
+    this.slapR.textContent = `${t('slap')} ▶`;
+    this.hint.textContent = t('hint');
+    this.remountBtn.innerHTML = `${t('backOnNow')}<small>${t('watchAd')}</small>`;
+    this.pauseBtn.setAttribute('aria-label', t('pause'));
+    $(this.pauseEl, 'h2').textContent = t('paused');
+    this.pauseResume.textContent = t('resume');
   }
 
   get pauseResume(): HTMLButtonElement {
@@ -194,7 +206,7 @@ export class Hud {
   setNemesis(n: Nemesis | null, name: string, bounty: number): void {
     this.nemEl.className = 'nemcard';
     if (!n) return;
-    this.nemEl.innerHTML = `<b>☠ NEMESIS: ${name}</b><span>Knocked you off ${n.hurt}× · beaten ${n.paid}/${BREAK_AT}</span><span>$${bounty} every time you knock them off</span>`;
+    this.nemEl.innerHTML = `<b>${t('nemTitle', { name })}</b><span>${t('nemRecord', { hurt: n.hurt, paid: n.paid, max: BREAK_AT })}</span><span>${t('nemBounty', { n: bounty })}</span>`;
     void this.nemEl.offsetWidth;
     this.nemEl.className = 'nemcard show';
   }
@@ -334,28 +346,28 @@ export class Hud {
       const lock = upgradeLock(save, k);
       const cap = UPGRADE_CAP[save.tier][k];
       const pips = Array.from({ length: UPGRADE_MAX[k] }, (_, i) => `<i class="${i < lvl ? 'on' : i >= cap ? 'lock' : ''}"></i>`).join('');
-      const label = cost !== null ? '$' + cost : lock ? `🔒 ${lock}` : 'MAX';
-      return `<div class="up"><div class="upname">${UP_NAMES[k]}<div class="pips">${pips}</div></div>
+      const label = cost !== null ? '$' + cost : lock ? `🔒 ${lock}` : t('max');
+      return `<div class="up"><div class="upname">${t(UP_NAMES[k])}<div class="pips">${pips}</div></div>
         <button data-k="${k}" ${cost === null || save.cash < cost ? 'disabled' : ''}>${label}</button></div>`;
     }).join('');
     card.innerHTML = `
-      <h2 class="${res.place === 1 ? 'win' : ''}">${ordinal(res.place)} place</h2>
+      <h2 class="${res.place === 1 ? 'win' : ''}">${t('place', { o: ord(res.place) })}</h2>
       <div class="sub">${res.time.toFixed(1)} s</div>
       <div class="rows">
-        ${row(`Prize (${ordinal(res.place)})`, `$${res.prize}`)}
-        ${row(`Knockouts × ${res.kos}`, `$${res.koBonus}`)}
-        ${res.shoves ? row(`Into traffic or the wall × ${res.shoves}`, `$${res.shoveBonus}`, 'good') : ''}
-        ${res.grudgeKos ? row(`Grudges settled × ${res.grudgeKos}`, `$${res.grudgeBonus}`, 'good') : ''}
-        ${res.fines ? row('Security fines', `−$${res.fines}`, 'bad') : ''}
+        ${row(t('prize', { o: ord(res.place) }), `$${res.prize}`)}
+        ${row(t('kos', { n: res.kos }), `$${res.koBonus}`)}
+        ${res.shoves ? row(t('shoves', { n: res.shoves }), `$${res.shoveBonus}`, 'good') : ''}
+        ${res.grudgeKos ? row(t('grudgeKos', { n: res.grudgeKos }), `$${res.grudgeBonus}`, 'good') : ''}
+        ${res.fines ? row(t('fines'), `−$${res.fines}`, 'bad') : ''}
         ${this.feudRows(res, row)}
-        ${res.doubled ? row('Ad bonus ×2', `$${res.earned / 2}`, 'good') : ''}
-        ${row('Earned', `$${res.earned}`, 'total')}
+        ${res.doubled ? row(t('adBonus'), `$${res.earned / 2}`, 'good') : ''}
+        ${row(t('earned'), `$${res.earned}`, 'total')}
       </div>
-      ${res.double > 0 && !res.doubled ? `<button class="double">▶ Double it: +$${res.double}<small>watch an ad</small></button>` : ''}
+      ${res.double > 0 && !res.doubled ? `<button class="double">${t('double', { n: res.double })}<small>${t('watchAd')}</small></button>` : ''}
       ${this.feudCard(res)}
       ${this.leagueHtml(res.league)}
-      ${res.grudges.length ? `<div class="grudges">Holding a grudge: <b>${res.grudges.join(', ')}</b><br><small>Knock them off next race for +$150 each</small></div>` : ''}
-      <div class="cashline">Cash <b>$${save.cash}</b></div>
+      ${res.grudges.length ? `<div class="grudges">${t('holding')} <b>${res.grudges.join(', ')}</b><br><small>${t('grudgeTip', { n: GRUDGE_BONUS })}</small></div>` : ''}
+      <div class="cashline">${t('cash')} <b>$${save.cash}</b></div>
       <div class="ups">${ups}${this.garageHtml(save)}</div>
       <button class="primary again">${againLabel(res.league)}</button>`;
     card.querySelectorAll<HTMLButtonElement>('.up button').forEach((b) => {
@@ -374,11 +386,11 @@ export class Hud {
   private garageHtml(save: Save): string {
     const cards = VEHICLES.map((v, i) => {
       const st = rideState(save, i);
-      const label = st === 'riding' ? 'Riding' : st === 'owned' ? 'Ride it' : st === 'buy' ? `$${v.price}` : `🔒 ${stage(v.rung % DIVISIONS.length, Math.floor(v.rung / DIVISIONS.length)).name}`;
+      const label = st === 'riding' ? t('riding') : st === 'owned' ? t('rideIt') : st === 'buy' ? `$${v.price}` : `🔒 ${stage(v.rung % DIVISIONS.length, Math.floor(v.rung / DIVISIONS.length)).name}`;
       const off = st === 'riding' || st === 'locked' || (st === 'buy' && save.cash < v.price);
-      return `<button class="ride ${st}" data-v="${i}" ${off ? 'disabled' : ''}><b>${v.name}</b><span>${statLine(v)}</span><small>${v.blurb}</small><i>${label}</i></button>`;
+      return `<button class="ride ${st}" data-v="${i}" ${off ? 'disabled' : ''}><b>${v.name}</b><span>${statLine(v)}</span><small>${t(`blurb${i}` as Key)}</small><i>${label}</i></button>`;
     }).join('');
-    return `<div class="garage"><div class="cuphead">Garage</div><div class="rides">${cards}</div></div>`;
+    return `<div class="garage"><div class="cuphead">${t('garage')}</div><div class="rides">${cards}</div></div>`;
   }
 
   private feudRows(res: RaceResult, row: (a: string, b: string, cls?: string) => string): string {
@@ -386,20 +398,20 @@ export class Hud {
     if (o.vs === null) return '';
     const name = res.feud.name(o.vs);
     let html = '';
-    if (o.revenge) html += row(`Revenge on ${name} × ${o.revenge}`, '', 'good');
-    if (o.ahead) html += row(`Beat ${name} home`, '', 'good');
-    if (o.beaten && !o.broken) html += row(`${name} beaten`, `${res.feud.nemesis?.paid ?? 0}/${BREAK_AT}`, 'good');
-    if (o.broken) html += row(`${name} broken!`, '', 'good');
-    if (o.cash) html += row('Nemesis bounty', `$${o.cash}`, 'good');
+    if (o.revenge) html += row(t('revengeRow', { name, n: o.revenge }), '', 'good');
+    if (o.ahead) html += row(t('beatHome', { name }), '', 'good');
+    if (o.beaten && !o.broken) html += row(t('beaten', { name }), `${res.feud.nemesis?.paid ?? 0}/${BREAK_AT}`, 'good');
+    if (o.broken) html += row(t('broken', { name }), '', 'good');
+    if (o.cash) html += row(t('bounty'), `$${o.cash}`, 'good');
     return html;
   }
 
   /** A new nemesis, or one just broken: the big news of the race. */
   private feudCard(res: RaceResult): string {
     const { out, nemesis, name } = res.feud;
-    if (out.broken) return `<div class="nemres win">☠ ${name(out.vs!)} is BROKEN. They won't bother you again.</div>`;
-    if (out.fresh !== null) return `<div class="nemres">☠ NEW NEMESIS: <b>${name(out.fresh)}</b><small>They're coming for you every race, faster and meaner. Knock them off and beat them home in ${BREAK_AT} races to break them. Bounty for every knockdown.</small></div>`;
-    if (nemesis) return `<div class="nemres small">☠ Nemesis <b>${name(nemesis.id)}</b> · beaten ${nemesis.paid}/${BREAK_AT}<small>Knock them off and beat them home</small></div>`;
+    if (out.broken) return `<div class="nemres win">${t('brokenCard', { name: name(out.vs!) })}</div>`;
+    if (out.fresh !== null) return `<div class="nemres">${t('newNem')} <b>${name(out.fresh)}</b><small>${t('newNemTip', { n: BREAK_AT })}</small></div>`;
+    if (nemesis) return `<div class="nemres small">${t('nem')} <b>${name(nemesis.id)}</b> · ${t('nemBeaten', { p: nemesis.paid, n: BREAK_AT })}<small>${t('nemTip')}</small></div>`;
     return '';
   }
 
@@ -409,10 +421,10 @@ export class Hud {
       `<div class="st ${t.me ? 'me' : ''} ${t.rank <= 3 ? 'up' : ''}"><span>${t.rank}. ${t.name}</span><b>${t.pts}</b></div>`).join('');
     const e = l.end;
     const head = e
-      ? e.champion ? `<div class="cupend win">CHAMPION! +$${e.bonus}</div>`
-        : e.promoted ? `<div class="cupend win">${ordinal(e.rank)} in the cup · PROMOTED${e.bonus ? ` +$${e.bonus}` : ''}</div>`
-        : `<div class="cupend">${ordinal(e.rank)} in the cup${e.bonus ? ` +$${e.bonus}` : ''} · top 3 go up</div>`
+      ? e.champion ? `<div class="cupend win">${t('champion', { n: e.bonus })}</div>`
+        : e.promoted ? `<div class="cupend win">${t('promoted', { o: ord(e.rank) })}${e.bonus ? ` +$${e.bonus}` : ''}</div>`
+        : `<div class="cupend">${t('cupRank', { o: ord(e.rank) })}${e.bonus ? ` +$${e.bonus}` : ''} · ${t('top3')}</div>`
       : '';
-    return `<div class="cup"><div class="cuphead">${l.div} cup · ${e ? 'final' : `race ${l.race}/${l.races}`}</div>${head}${rows}</div>`;
+    return `<div class="cup"><div class="cuphead">${t('cupHead', { div: l.div })} · ${e ? t('final') : t('raceN', { n: l.race, m: l.races })}</div>${head}${rows}</div>`;
   }
 }

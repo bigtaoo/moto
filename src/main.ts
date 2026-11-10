@@ -12,8 +12,11 @@ import { sfx, unlockAudio, suspendAudio, setMuted } from './view/audio';
 import { parseSave, storeSave, type Save } from './meta';
 import { CUP_RACES, riderName, settleRace, buyUpgrade, chooseRide, REVENGE_PAY, type UpKey } from './career';
 import * as platform from './platform';
+import { setLang, t, ord } from './i18n';
 
 const params = new URLSearchParams(location.search);
+// the browser's language until the platform says otherwise; ?lang=xx wins over both
+setLang(params.get('lang') ?? navigator.language);
 const BOT = params.has('bot');
 const LEN = Number(params.get('len')) || undefined;
 
@@ -23,6 +26,14 @@ const titleEl = document.getElementById('title')!;
 const stage = new Stage(canvas);
 const hud = new Hud(app);
 let save!: Save;
+
+/** The title screen and the HUD's fixed text, in the current language. */
+function localize(): void {
+  titleEl.querySelector('p')!.textContent = t('tagline');
+  titleEl.querySelector('button')!.textContent = t('race');
+  hud.localize();
+}
+localize();
 
 let world!: World;
 let view!: RaceView;
@@ -85,7 +96,7 @@ function newRace(): void {
 /** The division pill and the nemesis card, over the countdown. */
 function intro(): void {
   const nem = save.feud.nemesis;
-  hud.setLeague(`${world.div.name} · race ${save.cup.race + 1}/${CUP_RACES}`);
+  hud.setLeague(t('pill', { div: world.div.name, n: save.cup.race + 1, m: CUP_RACES }));
   hud.setNemesis(nem, nem ? riderName(nem.id) : '', Math.round(REVENGE_PAY * world.div.prize));
 }
 
@@ -99,13 +110,12 @@ function startRace(): void {
 }
 
 const near = (id: number) => id === 0 || Math.abs(world.riders[id].z - world.player.z) < 28;
-const ordinal = (n: number) => n + (n === 1 ? 'st' : n === 2 ? 'nd' : n === 3 ? 'rd' : 'th');
 
 function handle(e: SimEvent): void {
   const w = world;
   switch (e.type) {
     case 'go':
-      hud.flash('GO!', 'go');
+      hud.flash(t('go'), 'go');
       sfx.beep(true);
       break;
     case 'swing':
@@ -118,25 +128,25 @@ function handle(e: SimEvent): void {
       break;
     case 'whiff':
       if (e.dodged) {
-        hud.flash('DODGED!', 'go');
+        hud.flash(t('dodged'), 'go');
         sfx.dodge();
       }
       break;
     case 'steal':
       if (e.from === 0) {
-        hud.flash(e.took ? `STOLE A ${e.kind === 'pan' ? 'PAN' : 'BAT'}!` : 'KNOCKED IT LOOSE!', 'go');
+        hud.flash(t(!e.took ? 'knockedLoose' : e.kind === 'pan' ? 'stolePan' : 'stoleBat'), 'go');
         sfx.pickup();
-      } else if (e.to === 0) hud.flash(e.took ? `${w.riders[e.from].name} TOOK YOUR ${e.kind === 'pan' ? 'PAN' : 'BAT'}!` : 'WEAPON KNOCKED LOOSE!', 'bad');
+      } else if (e.to === 0) hud.flash(t(!e.took ? 'weaponLoose' : e.kind === 'pan' ? 'tookPan' : 'tookBat', { name: w.riders[e.from].name }), 'bad');
       break;
     case 'shove':
       if (e.from === 0) {
         slow = 0.6;
         view.shake(0.35);
-        if (e.to === w.nemesis) hud.flash(`REVENGE! +$${Math.round(REVENGE_PAY * w.div.prize) + C.SHOVE_BONUS}`, 'ko');
+        if (e.to === w.nemesis) hud.flash(t('revenge', { n: Math.round(REVENGE_PAY * w.div.prize) + C.SHOVE_BONUS }), 'ko');
         else if (w.grudgeKos > lastGrudgeKos) {
           lastGrudgeKos = w.grudgeKos;
-          hud.flash(`GRUDGE SETTLED +$${C.GRUDGE_BONUS + C.SHOVE_BONUS}`, 'ko');
-        } else hud.flash(`${e.into === 'car' ? 'INTO TRAFFIC!' : e.into === 'cones' ? 'INTO THE CONES!' : 'INTO THE WALL!'} +$${C.SHOVE_BONUS}`, 'ko');
+          hud.flash(t('grudgeSettled', { n: C.GRUDGE_BONUS + C.SHOVE_BONUS }), 'ko');
+        } else hud.flash(t(e.into === 'car' ? 'intoTraffic' : e.into === 'cones' ? 'intoCones' : 'intoWall', { n: C.SHOVE_BONUS }), 'ko');
       }
       break;
     case 'hit': {
@@ -150,13 +160,13 @@ function handle(e: SimEvent): void {
         view.shake(e.to === 0 ? 0.45 : 0.22);
       }
       if (near(e.to)) sfx.thunk(e.ko);
-      if (e.from === 0 && e.counter && !e.ko) hud.flash('COUNTER!', 'ko');
+      if (e.from === 0 && e.counter && !e.ko) hud.flash(t('counter'), 'ko');
       if (e.from === 0 && e.ko) {
-        if (e.to === w.nemesis) hud.flash(`REVENGE! +$${Math.round(REVENGE_PAY * w.div.prize) + C.KO_BONUS}`, 'ko');
+        if (e.to === w.nemesis) hud.flash(t('revenge', { n: Math.round(REVENGE_PAY * w.div.prize) + C.KO_BONUS }), 'ko');
         else if (w.grudgeKos > lastGrudgeKos) {
           lastGrudgeKos = w.grudgeKos;
-          hud.flash(`GRUDGE SETTLED +$${C.GRUDGE_BONUS + C.KO_BONUS}`, 'ko');
-        } else hud.flash(`KO! +$${C.KO_BONUS}`, 'ko');
+          hud.flash(t('grudgeSettled', { n: C.GRUDGE_BONUS + C.KO_BONUS }), 'ko');
+        } else hud.flash(t('ko', { n: C.KO_BONUS }), 'ko');
       }
       break;
     }
@@ -169,7 +179,7 @@ function handle(e: SimEvent): void {
       if (e.rider === 0) {
         slow = 0.55;
         view.shake(0.8);
-        hud.flash(e.cause === 'car' ? 'WIPEOUT!' : e.cause === 'wall' ? 'SLAMMED!' : e.cause === 'cones' ? 'CONES!' : 'KNOCKED OFF!', 'bad');
+        hud.flash(t(e.cause === 'car' ? 'wipeout' : e.cause === 'wall' ? 'slammed' : e.cause === 'cones' ? 'cones' : 'knockedOff'), 'bad');
       }
       if (near(e.rider)) sfx.crash();
       break;
@@ -180,31 +190,31 @@ function handle(e: SimEvent): void {
       break;
     case 'pickup':
       if (e.rider === 0) {
-        hud.flash(e.kind === 'pan' ? 'FRYING PAN!' : 'BASEBALL BAT!', 'go');
+        hud.flash(t(e.kind === 'pan' ? 'fryingPan' : 'baseballBat'), 'go');
         sfx.pickup();
       }
       break;
     case 'patrolWarn':
-      hud.flash('SECURITY!', 'warn');
+      hud.flash(t('security'), 'warn');
       sfx.siren();
       break;
     case 'patrolLetGo':
-      hud.flash(`FINED $${e.fine} · MOVE ALONG`, 'warn');
+      hud.flash(t('fined', { n: e.fine }), 'warn');
       break;
     case 'hunt':
-      hud.flash(`${w.riders[e.rider].name} is hunting you!`, 'warn');
+      hud.flash(t('hunting', { name: w.riders[e.rider].name }), 'warn');
       sfx.alarm();
       break;
     case 'ambush':
-      hud.flash(e.riders.length > 1 ? 'THUGS AHEAD!' : 'THUG AHEAD!', 'warn');
+      hud.flash(t(e.riders.length > 1 ? 'thugs' : 'thug'), 'warn');
       sfx.alarm();
       break;
     case 'grudge':
-      hud.flash(`${w.riders[e.rider].name} holds a grudge!`, 'warn');
+      hud.flash(t('holdsGrudge', { name: w.riders[e.rider].name }), 'warn');
       break;
     case 'finish':
       if (e.rider === 0) {
-        hud.flash(`${ordinal(e.place)} place!`, e.place === 1 ? 'go' : '');
+        hud.flash(t('finished', { o: ord(e.place) }), e.place === 1 ? 'go' : '');
         sfx.coin();
       }
       break;
@@ -219,15 +229,15 @@ function handle(e: SimEvent): void {
       break;
     case 'jump':
       if (near(e.rider)) sfx.whoosh();
-      if (e.rider === 0) hud.flash('AIR!', 'go');
+      if (e.rider === 0) hud.flash(t('air'), 'go');
       break;
     case 'land':
       if (near(e.rider)) sfx.thunk(e.stomp >= 0);
       if (e.rider === 0) view.shake(e.stomp >= 0 ? 0.5 : 0.2);
       if (e.stomp >= 0 && e.rider === 0) {
         hitstop = 0.1;
-        hud.flash(e.stomp === w.nemesis ? `REVENGE! +$${Math.round(REVENGE_PAY * w.div.prize) + C.KO_BONUS}` : `STOMPED ${w.riders[e.stomp].name}! +$${C.KO_BONUS}`, 'ko');
-      } else if (e.stomp === 0) hud.flash(`${w.riders[e.rider].name} LANDED ON YOU!`, 'bad');
+        hud.flash(e.stomp === w.nemesis ? t('revenge', { n: Math.round(REVENGE_PAY * w.div.prize) + C.KO_BONUS }) : t('stomped', { name: w.riders[e.stomp].name, n: C.KO_BONUS }), 'ko');
+      } else if (e.stomp === 0) hud.flash(t('landedOn', { name: w.riders[e.rider].name }), 'bad');
       break;
   }
 }
@@ -347,7 +357,7 @@ function remount(): void {
   void platform.showRewarded('remount').then((ok) => {
     if (ok && state === 'race' && world.player.state === 'down') {
       world.input.remount = true;
-      hud.flash('BACK ON!', 'go');
+      hud.flash(t('backOn'), 'go');
     } else if (!ok) remountUsed = false; // no ad, no charge
   });
 }
@@ -403,13 +413,17 @@ function showStats(dt: number): void {
 
 async function boot(): Promise<void> {
   await platform.initPlatform();
+  if (!params.has('lang')) {
+    setLang(platform.language());
+    localize();
+  }
   save = parseSave(await platform.loadData());
   hostMuted = !platform.audioEnabled();
   setMuted(hostMuted);
   newRace();
   const best = document.getElementById('best');
   if (best && save.races > 0) {
-    best.textContent = `${C.stage(save.div, save.tier).name} · race ${save.cup.race + 1}/${CUP_RACES} · cash $${save.cash}` + (save.titles ? ` · ${save.titles}× champion` : '');
+    best.textContent = t('best', { div: C.stage(save.div, save.tier).name, n: save.cup.race + 1, m: CUP_RACES, cash: save.cash }) + (save.titles ? t('champs', { n: save.titles }) : '');
   }
   if (BOT) startRace();
   requestAnimationFrame(frame);
