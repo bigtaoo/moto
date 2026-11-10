@@ -320,6 +320,13 @@ button.primary:active { transform: translateY(4px); box-shadow: 0 1px 0 var(--in
 .achs { background: #f3efe2; border-radius: 10px; padding: 6px 8px; font-size: 13px; margin: 6px 0; text-align: left; }
 .achs summary { font-weight: 900; cursor: pointer; min-height: 28px; line-height: 28px; }
 .achs[open] { max-height: 40vh; overflow-y: auto; }
+.title-card .board, .card .board { margin: 4px auto 0; }
+.boardview .rows { max-height: 50vh; overflow-y: auto; margin: 8px 0; text-align: left; }
+.boardview .br { display: grid; grid-template-columns: 2.4em 1fr auto; gap: 6px; padding: 4px 6px; border-radius: 6px; font-size: 14px; }
+.boardview .br:nth-child(odd) { background: #f3efe2; }
+.boardview .br.me { background: #ffd84a; font-weight: 900; }
+.boardview .br i { font-style: normal; opacity: .6; }
+.boardview .br span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ac { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 3px 2px; opacity: 0.6; }
 .ac span { display: flex; flex-direction: column; }
 .ac small { font-size: 11px; opacity: 0.8; }

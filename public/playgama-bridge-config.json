@@ -1,12 +1,32 @@
 {
   "advertisement": {
     "interstitial": {
-      "placements": [{ "id": "race_end" }],
+      "placements": [
+        {
+          "id": "race_end"
+        }
+      ],
       "placementFallback": "race_end"
     },
     "rewarded": {
-      "placements": [{ "id": "double_cash" }, { "id": "remount" }],
+      "placements": [
+        {
+          "id": "double_cash"
+        },
+        {
+          "id": "remount"
+        },
+        {
+          "id": "streak_double"
+        }
+      ],
       "placementFallback": "double_cash"
     }
-  }
+  },
+  "leaderboards": [
+    {
+      "id": "takedowns",
+      "isMain": true
+    }
+  ]
 }

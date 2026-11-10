@@ -220,3 +220,40 @@ function fakeAd(placement: string): Promise<boolean> {
     }, 1200);
   });
 }
+
+// ---- leaderboard -------------------------------------------------------------------------------
+
+/** The one board: lifetime takedowns (public/playgama-bridge-config.json; on Playgama it runs on Bridge SaaS). */
+const BOARD = 'takedowns';
+export type BoardType = 'not_available' | 'in_game' | 'native' | 'native_popup';
+export interface BoardEntry { name: string; score: number; rank: number; me: boolean; }
+
+export const boardType = (): BoardType => {
+  const ty = bridge?.leaderboards?.type;
+  return ty === 'in_game' || ty === 'native' || ty === 'native_popup' ? ty : 'not_available';
+};
+
+let sent = -1;
+/** The player's score after a race; skipped where there is no board, or when it hasn't changed. */
+export function submitScore(score: number): void {
+  if (boardType() === 'not_available' || score <= sent) return;
+  sent = score;
+  try { bridge.leaderboards.setScore(BOARD, score).catch((e: unknown) => console.warn('Leaderboard write failed', e)); } catch { /* none */ }
+}
+
+/** The board's top entries (an `in_game` board only). */
+export async function boardEntries(): Promise<BoardEntry[]> {
+  const me = String(bridge?.player?.id ?? '');
+  const raw = await within<any[]>(bridge.leaderboards.getEntries(BOARD), READ_MS, 'leaderboard read');
+  return (Array.isArray(raw) ? raw : []).slice(0, 50).map((e, i) => ({
+    name: String(e?.name ?? '').slice(0, 24),
+    score: Number(e?.score) || 0,
+    rank: Number(e?.rank) || i + 1,
+    me: !!me && String(e?.id ?? '') === me,
+  }));
+}
+
+/** The platform's own board overlay (a `native_popup` board). */
+export function showBoardPopup(): void {
+  try { bridge.leaderboards.showNativePopup(BOARD).catch(() => { /* closed or none */ }); } catch { /* none */ }
+}

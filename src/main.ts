@@ -26,6 +26,7 @@ import { PAINTS } from './shop';
 import { shopActions, counted, streakDouble } from './shopping';
 import { settleShift } from './shift';
 import { blocker } from './view/blocker';
+import { wireBoard } from './view/board';
 import { afterRace, unlock, visit, type Unlocked } from './rewards';
 
 const params = new URLSearchParams(location.search);
@@ -178,6 +179,7 @@ function finishRace(): void {
   const daily = scoreDaily(save.daily, { place, kos: w.kos, shoves: w.shoves, falls, grudge: w.grudgeKos + w.revenge }, w.div.prize);
   save.cash += daily.cash + daily.firstWin;
   const ach = afterRace(save, { place, falls, kos: w.kos, near: w.flair.near, chain: w.flair.best });
+  platform.submitScore(save.life.kos);
   storeSave(save);
   funnel.raceDone(place);
   tele.raceEnd(s);
@@ -418,6 +420,7 @@ function showTitle(): void {
   if (x2) streakDouble(save, x2, () => { if (state === 'title') showTitle(); });
   const sh = info.querySelector<HTMLButtonElement>('.shiftgo');
   if (sh) sh.onclick = () => { if (state !== 'title') return; chase = true; newRace(); startRace(); };
+  wireBoard(info, app);
 }
 /** Achievements the boot found won (an older save, a long streak): marked new on the title card. */
 let bootAch: Unlocked[] = [];
