@@ -17,6 +17,8 @@ export function setHaptics(enabled: boolean): void {
 /** One buzz of `ms` (or a pattern); buzzes closer than 60 ms apart are dropped so a brawl doesn't drone. */
 export function buzz(ms: number | number[]): void {
   if (!on || !CAN_BUZZ) return;
+  // before the first tap Chrome refuses and logs an error each time (a new player's first race starts untouched)
+  if (navigator.userActivation && !navigator.userActivation.hasBeenActive) return;
   const now = performance.now();
   if (now - last < 60) return;
   last = now;

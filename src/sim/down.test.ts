@@ -37,6 +37,6 @@ describe('knocked off', () => {
     expect(crashes).toBeGreaterThan(10);
     expect(ran).toBeGreaterThan(crashes * 0.8);
     expect(away).toBe(0);
-    expect(longest).toBeLessThanOrEqual((C.DOWN.maxRun + 1) * C.TICK_HZ);
+    expect(longest).toBeLessThanOrEqual((C.DOWN.maxRun + C.DOWN.stand + 1) * C.TICK_HZ);
   });
 });

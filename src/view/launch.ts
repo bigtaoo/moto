@@ -168,8 +168,8 @@ export class LaunchView {
   screenOf(out: { x: number; y: number }): boolean {
     this.rag.active ? this.rag.centre(this.c) : this.c.set(this.l.x, this.l.y + 1.2, this.l.z);
     toWorld(this.c.x, this.c.y + 1, this.c.z, this.c).project(this.stage.camera);
-    out.x = (this.c.x * 0.5 + 0.5) * window.innerWidth;
-    out.y = (-this.c.y * 0.5 + 0.5) * window.innerHeight;
+    out.x = (this.c.x * 0.5 + 0.5) * this.stage.cssW;
+    out.y = (-this.c.y * 0.5 + 0.5) * this.stage.cssH;
     return this.c.z < 1;
   }
 

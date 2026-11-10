@@ -4,7 +4,7 @@
  * Bump on any change to the race rules that alters what a seed plus inputs produce, and record the new
  * golden hash in world.test.ts. Replays and (later) online rooms only mix the same version.
  */
-export const SIM_VERSION = 20;
+export const SIM_VERSION = 21;
 
 export const TICK_HZ = 30;
 export const DT = 1 / TICK_HZ;
@@ -95,10 +95,11 @@ export type WeaponKind = keyof typeof WEAPON;
 
 /**
  * Knocked off: the body tumbles to a stop while the scooter slides on further (the faster the crash, the
- * further), then the rider gets up and runs back to it.
+ * further), then the rider gets up (slowly, and with some clowning about) and runs back to it.
  */
 export const DOWN = {
   lie: { ko: 30, car: 40, wall: 36, cones: 36, oil: 36, cow: 40 }, // ticks on the ground at least before getting up
+  stand: 1.7, // seconds getting up and on their feet before the run (the view: a slow climb up, then a gag)
   body: 20, // m/s² the body slows at ...
   bike: 11, // ... and the scooter
   bikeSide: 0.6, // share of the sideways shove the scooter takes

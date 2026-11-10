@@ -10,6 +10,7 @@ import type { Hat, Paint } from '../shop';
 import { makeHat } from './hats';
 import { HazardView } from './hazards';
 import { Ragdoll } from './ragdoll';
+import { standTicks } from '../sim/down';
 import { Traffic, PatrolView, Pickups, Shadows } from './props';
 import { Fx } from './fx';
 import { isShared } from './toon';
@@ -44,6 +45,9 @@ export class Stage {
   /** The GPU's name ('' when the browser won't say), for telemetry. */
   readonly gpu: string;
   portrait = false;
+  /** Canvas size in CSS px, kept on resize (window.innerWidth per name tag forced a style recalc each time). */
+  cssW = 1;
+  cssH = 1;
   /** Set once RaceView.prewarm has compiled the programs. */
   warmed = false;
   /** Called when the quality tier changes, with the tier before (e.g. for telemetry). */
@@ -66,6 +70,8 @@ export class Stage {
     // MSAA multiplies the pixels a phone fills and crawls on a CPU renderer; desktops keep it
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: !dev.touch && !isSoftware(dev.gpu), powerPreference: 'high-performance' });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    // reading program logs blocks on each compile (~350 ms of a Mali phone's first frame); dev keeps the checks
+    this.renderer.debug.checkShaderErrors = import.meta.env.DEV;
     this.start = startTier(dev);
     // the dev server shows the best picture (a hidden preview pane would talk the governor down); ?quality=auto there still lets it run
     this.forced = forcedTier(location.search) ?? (import.meta.env.DEV && !/[?&]quality=auto/.test(location.search) ? TOP : null);
@@ -115,8 +121,8 @@ export class Stage {
   }
 
   resize(): void {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
+    const w = (this.cssW = window.innerWidth);
+    const h = (this.cssH = window.innerHeight);
     // the screen's own ratio can change too (the window moved to another monitor, the page was zoomed)
     const r = this.ratio();
     if (this.renderer.getPixelRatio() !== r) this.renderer.setPixelRatio(r);
@@ -354,8 +360,8 @@ export class RaceView {
   project(x: number, y: number, z: number, out: { x: number; y: number }): boolean {
     toWorld(x, y, z, this.v).project(this.stage.camera);
     if (this.v.z > 1) return false;
-    out.x = (this.v.x * 0.5 + 0.5) * window.innerWidth;
-    out.y = (-this.v.y * 0.5 + 0.5) * window.innerHeight;
+    out.x = (this.v.x * 0.5 + 0.5) * this.stage.cssW;
+    out.y = (-this.v.y * 0.5 + 0.5) * this.stage.cssH;
     return true;
   }
 
@@ -365,8 +371,8 @@ export class RaceView {
     this.v.y += h;
     this.v.project(this.stage.camera);
     if (this.v.z > 1) return false;
-    out.x = (this.v.x * 0.5 + 0.5) * window.innerWidth;
-    out.y = (-this.v.y * 0.5 + 0.5) * window.innerHeight;
+    out.x = (this.v.x * 0.5 + 0.5) * this.stage.cssW;
+    out.y = (-this.v.y * 0.5 + 0.5) * this.stage.cssH;
     return true;
   }
 
@@ -399,9 +405,13 @@ export class RaceView {
       // the player leaning the tumbling body (bowling): the ragdoll moves with the sim's slide
       if (down) rd.nudge(r.slide - (this.slid[i] ?? 0));
       this.slid[i] = down ? r.slide : 0;
-      if (down && r.runT > 0) {
+      const stand = standTicks();
+      if (down && r.runT > 0 && r.runT <= stand) {
+        // getting up (the sim keeps it where it lay): the time since, between ticks
+        rd.getUp(Math.max(0, r.runT - 2 + alpha) / TICK_HZ, r.bikeX, r.bikeZ, dt);
+      } else if (down && r.runT > 0) {
         // up and running back to the scooter
-        const pace = DOWN.run * Math.min(1, r.runT / (DOWN.runUp * TICK_HZ));
+        const pace = DOWN.run * Math.min(1, (r.runT - stand) / (DOWN.runUp * TICK_HZ));
         rd.run(lerp(r.px, r.x, alpha), lerp(r.pz, r.z, alpha), r.bikeX, r.bikeZ, pace, DOWN.reach, dt);
       } else rd.update(dt);
       if (rd.active) {

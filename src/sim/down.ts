@@ -1,5 +1,5 @@
 // Off the scooter: the body tumbles to a stop (the player can lean it to bowl riders over, src/sim/stunts.ts),
-// lies there a moment, then gets up and runs back to the scooter, which slid on by itself.
+// lies there a moment, then gets up (slowly: the view clowns about in that time) and runs back to the scooter, which slid on by itself.
 
 import * as C from './config';
 import { clamp, type Rider } from './types';
@@ -29,18 +29,28 @@ export function moveDown(w: World, r: Rider): void {
     }
     return;
   }
+  // getting up: on their feet, not moving yet
+  const t = r.runT - standTicks();
+  if (t <= 0) {
+    r.speed = 0;
+    r.runT++;
+    return;
+  }
   // up and running back to the scooter
   const dx = r.bikeX - r.x;
   const dz = r.bikeZ - r.z;
-  if (dx * dx + dz * dz < D.reach * D.reach || r.runT > D.maxRun * C.TICK_HZ) return recover(w, r);
+  if (dx * dx + dz * dz < D.reach * D.reach || t > D.maxRun * C.TICK_HZ) return recover(w, r);
   // along the road at running pace, across at a bit less (no square roots in the sim)
-  const s = D.run * Math.min(1, r.runT / (D.runUp * C.TICK_HZ)) * C.DT;
+  const s = D.run * Math.min(1, t / (D.runUp * C.TICK_HZ)) * C.DT;
   const sz = clamp(dz, -s, s);
   r.z += sz;
   r.x += clamp(dx, -s * 0.7, s * 0.7);
   r.speed = Math.max(0, sz / C.DT);
   r.runT++;
 }
+
+/** Ticks of runT spent getting up before the run starts (runT counts from 1). */
+export const standTicks = (): number => Math.round(C.DOWN.stand * C.TICK_HZ);
 
 export function recover(w: World, r: Rider): void {
   if (r.thug || nabbed(w, r)) {

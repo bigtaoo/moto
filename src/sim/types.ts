@@ -27,7 +27,7 @@ export interface Rider {
   braking: boolean;
   /** 'away': a thug not on the road right now. */
   state: 'ride' | 'down' | 'away';
-  /** Down: ticks left lying on the road; then runT counts ticks spent running back to the scooter. */
+  /** Down: ticks left lying on the road; then runT counts ticks since getting up (DOWN.stand on their feet, then running back to the scooter). */
   downT: number;
   runT: number;
   /** Down: where the scooter is (it slides on without the rider), last tick's spot, and its speed. */

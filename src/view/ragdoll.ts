@@ -1,9 +1,10 @@
 // View-only ragdoll for a dummy thrown off its scooter: 12 Verlet points in sim space (x across, y up,
 // z along) with elbows and knees, drawn with the same chunky parts as the riding dummy. Once the sim
-// has the rider up and running back to the scooter, the same points are posed by a run cycle instead,
-// blended in from wherever the body came to rest: a panicky cartoon scurry, legs going far faster than
-// the body moves, arms flailing over the head, head wobbling, and stars circling it from the moment it
-// lands. This never feeds back into the sim.
+// has the rider up, the same points are posed instead: a slow climb to its feet from wherever the body
+// came to rest (on all fours, on one knee, standing up with a wobble), one of eight gags while the sim
+// keeps it standing (DOWN.stand; the poses are in getup.ts), then a panicky cartoon scurry back to the
+// scooter, legs going far faster than the body moves, arms flailing over the head, head wobbling, and
+// stars circling it from the moment it lands. This never feeds back into the sim.
 
 import * as THREE from 'three';
 import { ROAD_HALF } from '../sim/config';
@@ -11,7 +12,7 @@ import { toWorld } from './track';
 import { Kit, cached, rigidParts, rigidMesh } from './toon';
 import { JOINT, TARGET, INK_W, rbox, ball, rod, headKit } from './rider';
 
-const HEAD = 0, SH_L = 1, SH_R = 2, PELVIS = 3, EL_L = 4, HAND_L = 5, EL_R = 6, HAND_R = 7, KNEE_L = 8, FOOT_L = 9, KNEE_R = 10, FOOT_R = 11;
+import { HEAD, SH_L, SH_R, PELVIS, EL_L, HAND_L, EL_R, HAND_R, KNEE_L, FOOT_L, KNEE_R, FOOT_R, L, GagState, nextGag, getUpPose } from './getup';
 // Rest pose, roughly as it stands on the scooter. Sim -x is the dummy's left.
 const REST: [number, number, number][] = [
   [0, 1.94, 0.12], [-0.27, 1.64, 0.05], [0.27, 1.64, 0.05], [0, 1.1, -0.05],
@@ -113,9 +114,16 @@ export class Ragdoll {
   private roll = 0;
   private acc = 0;
   private bumpT = 0;
-  /** Running: blend from the lying pose (0) to the run cycle (1), stride phase, and the lying pose. */
-  private running = false;
+  /** Tumbling (the physics), getting up (posed, standing still) or running back (posed). */
+  private mode: 'tumble' | 'up' | 'run' = 'tumble';
+  /** Running: blend from the pose it was in (0) to the run cycle (1), how long that takes, stride phase. */
   private upT = 0;
+  private blendT = 0.35;
+  /** Getting up: which way it faces (towards the scooter, up the road), the gag (also the last one done). */
+  private fx = 0;
+  private fz = 1;
+  private gag: GagState = { gag: -1, puffs: 0 };
+  private readonly puff = (n: number) => this.onImpact?.(this.sx, this.sz, n);
   private stride = 0;
   private readonly from = REST.map(() => new THREE.Vector3());
   /** Where the body came to rest (it rarely matches the sim's body), and the sim's distance left then. */
@@ -156,7 +164,7 @@ export class Ragdoll {
       this.q[i].copy(this.p[i]).addScaledVector(v, -STEP);
     }
     this.active = true;
-    this.running = false;
+    this.mode = 'tumble';
     this.roll = 0;
     this.age = 0;
     this.acc = 0;
@@ -175,7 +183,7 @@ export class Ragdoll {
       this.q[i].copy(this.p[i]).addScaledVector(vel, -STEP);
     }
     this.active = true;
-    this.running = false;
+    this.mode = 'tumble';
     this.roll = 0;
     this.age = 0;
     this.acc = 0;
@@ -188,7 +196,7 @@ export class Ragdoll {
    * tumble stays on the path the sim flies; `y` null leaves the height to the physics (rolling on the ground).
    */
   pull(x: number, y: number | null, z: number, k: number): void {
-    if (!this.active || this.running) return;
+    if (!this.active || this.mode !== 'tumble') return;
     const c = this.p[PELVIS];
     const dx = (x - c.x) * k;
     const dy = y === null ? 0 : (y - c.y) * k;
@@ -214,7 +222,7 @@ export class Ragdoll {
 
   /** The player leaning the tumbling body sideways (sim metres): the whole body moves with it. */
   nudge(dx: number): void {
-    if (!this.active || this.running || dx === 0) return;
+    if (!this.active || this.mode !== 'tumble' || dx === 0) return;
     for (let i = 0; i < this.p.length; i++) {
       this.p[i].x += dx;
       this.q[i].x += dx;
@@ -232,7 +240,7 @@ export class Ragdoll {
   }
 
   update(dt: number): void {
-    if (!this.active || this.running) return;
+    if (!this.active || this.mode !== 'tumble') return;
     this.age += dt;
     this.bumpT -= dt;
     this.acc += Math.min(dt, 0.1);
@@ -252,8 +260,10 @@ export class Ragdoll {
     if (!this.active) return;
     const { p } = this;
     const simD = Math.hypot(tx - x, tz - z);
-    if (!this.running) {
-      this.running = true;
+    if (this.mode !== 'run') {
+      // from standing after the gag a quick blend; straight off the road (no get-up seen) a slower one
+      this.blendT = this.mode === 'up' ? 0.2 : 0.35;
+      this.mode = 'run';
       this.upT = 0;
       this.stride = 0;
       for (let i = 0; i < p.length; i++) this.from[i].copy(p[i]);
@@ -262,7 +272,7 @@ export class Ragdoll {
       this.simD0 = Math.max(simD, reach + 0.01);
     }
     this.age += dt;
-    this.upT = Math.min(1, this.upT + dt / 0.35);
+    this.upT = Math.min(1, this.upT + dt / this.blendT);
     const prog = Math.min(1, Math.max(0, (this.simD0 - simD) / (this.simD0 - reach)));
     const ox = this.sx + (tx - this.sx) * prog;
     const oz = this.sz + (tz - this.sz) * prog;
@@ -309,6 +319,41 @@ export class Ragdoll {
       const wx = ox + fz * lx + fx * lz;
       const wz = oz - fx * lx + fz * lz;
       p[i].lerpVectors(this.from[i], a.set(wx, ly, wz), k);
+      this.q[i].copy(p[i]);
+    }
+    this.draw();
+  }
+
+  /**
+   * Getting up, `t` seconds into the sim's DOWN.stand (the rider stays where it lay): a slow climb to its
+   * feet facing the scooter at (tx, tz), then a gag picked at random (never the same one twice running).
+   */
+  getUp(t: number, tx: number, tz: number, dt: number): void {
+    if (!this.active) return;
+    const { p } = this;
+    if (this.mode !== 'up') {
+      this.mode = 'up';
+      for (let i = 0; i < p.length; i++) this.from[i].copy(p[i]);
+      this.sx = p[PELVIS].x;
+      this.sz = p[PELVIS].z;
+      // the scooter slid on ahead: face up the road, turned a little towards it
+      const fx = tx - this.sx;
+      const fz = Math.max(2, tz - this.sz);
+      const n = Math.hypot(fx, fz);
+      this.fx = fx / n;
+      this.fz = fz / n;
+      nextGag(this.gag);
+    }
+    this.age += dt;
+    const { k, yaw, roll } = getUpPose(t, this.gag, this.puff);
+    this.roll = roll;
+    const c = Math.cos(yaw);
+    const sn = Math.sin(yaw);
+    for (let i = 0; i < p.length; i++) {
+      const lx = L[i].x * c + L[i].z * sn;
+      const lz = L[i].z * c - L[i].x * sn;
+      a.set(this.sx + this.fz * lx + this.fx * lz, L[i].y, this.sz - this.fx * lx + this.fz * lz);
+      p[i].lerpVectors(this.from[i], a, k);
       this.q[i].copy(p[i]);
     }
     this.draw();
