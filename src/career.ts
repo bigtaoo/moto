@@ -72,6 +72,9 @@ export interface RaceSummary {
   kos: number;
   grudgeKos: number;
   shoves: number;
+  /** Flair cash (src/sim/flair.ts): near misses and KO chains. */
+  nearPay: number;
+  chainPay: number;
   fines: number;
   places: number[];
   koPlayer: number[];
@@ -85,6 +88,8 @@ export interface Settlement {
   koBonus: number;
   grudgeBonus: number;
   shoveBonus: number;
+  nearPay: number;
+  chainPay: number;
   fines: number;
   feud: FeudOutcome;
   /** The race of the cup this was (1-based), and the cup's division and tier. */
@@ -107,7 +112,7 @@ export function settleRace(save: Save, s: RaceSummary): Settlement {
   const koBonus = s.kos * C.KO_BONUS;
   const grudgeBonus = s.grudgeKos * C.GRUDGE_BONUS;
   const shoveBonus = s.shoves * C.SHOVE_BONUS;
-  let earned = Math.max(0, prize + koBonus + grudgeBonus + shoveBonus - s.fines);
+  let earned = Math.max(0, prize + koBonus + grudgeBonus + shoveBonus + s.nearPay + s.chainPay - s.fines);
   scoreRace(save.cup, s.places);
   const table = standings(save.cup);
   const feud = settleFeud(save.feud, s, st.prize);
@@ -128,7 +133,7 @@ export function settleRace(save: Save, s: RaceSummary): Settlement {
   save.races++;
   if (save.best === 0 || s.place < save.best) save.best = s.place;
   save.grudges = [...s.grudges];
-  return { prize, koBonus, grudgeBonus, shoveBonus, fines: s.fines, feud, cupRace, div, tier, table, end, earned };
+  return { prize, koBonus, grudgeBonus, shoveBonus, nearPay: s.nearPay, chainPay: s.chainPay, fines: s.fines, feud, cupRace, div, tier, table, end, earned };
 }
 
 // ---- the garage --------------------------------------------------------------------------------

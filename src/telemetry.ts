@@ -175,6 +175,7 @@ function raceFields(r: Race): Props {
   const w = r.world;
   return {
     ...r.step, place: w.standing, racers: w.racers, kos: w.kos, grudge_kos: w.grudgeKos, shoves: w.shoves, fines: w.fines,
+    near_misses: w.flair.near, best_chain: w.flair.best, flair_cash: w.flair.nearPay + w.flair.chainPay,
     falls: r.falls, falls_ko: r.by.ko, falls_car: r.by.car, falls_wall: r.by.wall, falls_cones: r.by.cones, down_s: Math.round(r.downMs / 1000), time_s: Math.round(w.time), pauses: r.pauses, hides: r.hides,
     revenge: w.revenge, input: inputKind(r.presses), capped: w.time >= C.TIME_CAP_S, ...stutter.fields(),
   };

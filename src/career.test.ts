@@ -102,7 +102,7 @@ describe('nemesis', () => {
 
 describe('career settlement, seasons and the garage', () => {
   const summary = (place: number, extra: Partial<RaceSummary> = {}): RaceSummary => ({
-    place, kos: 0, grudgeKos: 0, shoves: 0, fines: 0, grudges: [], places: places(place),
+    place, kos: 0, grudgeKos: 0, shoves: 0, nearPay: 0, chainPay: 0, fines: 0, grudges: [], places: places(place),
     koPlayer: Array(C.ROSTER.length + 1).fill(0), koByPlayer: Array(C.ROSTER.length + 1).fill(0), ...extra,
   });
 

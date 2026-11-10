@@ -7,6 +7,7 @@ import { GRUDGE_BONUS, UPGRADE_MAX, UPGRADE_CAP, VEHICLES, DIVISIONS, stage, typ
 import type { Save } from '../meta';
 import { BREAK_AT, rideState, upgradeLock, upgradePrice, type CupEnd, type FeudOutcome, type Nemesis, type UpKey } from '../career';
 import type { DailyOutcome, DailyRow, Kind } from '../daily';
+import type { Flair } from '../sim/flair';
 import { t, ord, money, type Key } from '../i18n';
 
 export interface League {
@@ -33,6 +34,8 @@ export interface RaceResult {
   grudgeBonus: number;
   shoves: number;
   shoveBonus: number;
+  /** Near misses and KO chains, and what each paid. */
+  flair: Flair;
   fines: number;
   earned: number;
   time: number;
@@ -143,6 +146,8 @@ export class Results {
         ${row(t('prize', { o: ord(res.place) }), money(res.prize))}
         ${row(t('kos', { n: res.kos }), money(res.koBonus))}
         ${res.shoves ? row(t('shoves', { n: res.shoves }), money(res.shoveBonus), 'good') : ''}
+        ${res.flair.near ? row(t('nearMisses', { n: res.flair.near }), money(res.flair.nearPay), 'good') : ''}
+        ${res.flair.chainPay ? row(t('koChains', { n: res.flair.best }), money(res.flair.chainPay), 'good') : ''}
         ${res.grudgeKos ? row(t('grudgeKos', { n: res.grudgeKos }), money(res.grudgeBonus), 'good') : ''}
         ${res.fines ? row(t('fines'), money(-res.fines), 'bad') : ''}
         ${feudRows(res)}

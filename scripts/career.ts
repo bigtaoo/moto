@@ -40,7 +40,7 @@ for (let run = 0; run < careers; run++) {
     edge = w.player.top - (C.PLAYER_BASE.top + w.div.top);
     raceSecs = Math.max(raceSecs, w.time);
     const s = settleRace(save, {
-      place: w.player.place, kos: w.kos, grudgeKos: w.grudgeKos, shoves: w.shoves, fines: w.fines, grudges: [...w.grudges],
+      place: w.player.place, kos: w.kos, grudgeKos: w.grudgeKos, shoves: w.shoves, nearPay: w.flair.nearPay, chainPay: w.flair.chainPay, fines: w.fines, grudges: [...w.grudges],
       places: of((r) => r.place), koPlayer: of((r) => r.koPlayer), koByPlayer: of((r) => r.koByPlayer),
     });
     const m = (w.time + OVERHEAD_S) / 60;

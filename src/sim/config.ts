@@ -4,7 +4,7 @@
  * Bump on any change to the race rules that alters what a seed plus inputs produce, and record the new
  * golden hash in world.test.ts. Replays and (later) online rooms only mix the same version.
  */
-export const SIM_VERSION = 16;
+export const SIM_VERSION = 17;
 
 export const TICK_HZ = 30;
 export const DT = 1 / TICK_HZ;
@@ -253,6 +253,12 @@ export const KO_BONUS = 60;
 /** Knocking someone into traffic or the barrier pays more than a plain knockout. */
 export const SHOVE_BONUS = 100;
 export const GRUDGE_BONUS = 150;
+/**
+ * Flair (src/sim/flair.ts). A near miss: passing a car at `nearSpeed` m/s or more with at most `nearGap` m
+ * of air between rider and car. A KO chain: each KO within `chainS` s of the last one pays `chainPay` per
+ * link after the first, up to `chainMax` links' worth.
+ */
+export const FLAIR = { nearGap: 1, nearSpeed: 10, nearPay: 25, chainS: 3, chainPay: 20, chainMax: 3 };
 /** Knock the player off this many times and a rival becomes a grudge. */
 export const GRUDGE_AT = 2;
 

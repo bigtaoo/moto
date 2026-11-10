@@ -3,6 +3,7 @@
 import * as C from './config';
 import { clamp, type Rider, type Pickup, type CrashCause } from './types';
 import type { World } from './world';
+import { chainKo } from './flair';
 
 /** The rider `r` could hit right now on either side, nearest first. */
 export function targetFor(w: World, r: Rider, tol = 0): Rider | null {
@@ -111,6 +112,7 @@ export function addHeat(w: World, v: number): void {
 export function credit(w: World, v: Rider, by: Rider): void {
   if (by.isPlayer && w.grudges.has(v.id)) { w.grudgeKos++; w.grudges.delete(v.id); }
   if (by.isPlayer) {
+    chainKo(w);
     v.koByPlayer++;
     if (v.id === w.nemesis) w.revenge++;
   }

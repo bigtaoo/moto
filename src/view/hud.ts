@@ -75,6 +75,7 @@ export class Hud {
         <div class="inc l">${icon('warn')}</div>
         <div class="inc r">${icon('warn')}</div>
         <div class="banner"></div>
+        <div class="pops"></div>
         <div class="chaser"></div>
         <div class="hint"></div>
         <div class="league"></div>
@@ -201,6 +202,18 @@ export class Hud {
     void this.banner.offsetWidth; // restart the animation
     this.banner.className = `banner show ${kind}`;
     this.bannerT = 1.4;
+  }
+
+  /** A small call-out under the banner (near misses, KO chains): several can stack, each fades on its own. */
+  pop(text: string, kind = ''): void {
+    const box = this.root.querySelector('.pops');
+    if (!box) return;
+    while (box.childElementCount >= 3) box.firstElementChild!.remove();
+    const el = document.createElement('div');
+    el.className = `pop ${kind}`;
+    el.textContent = text;
+    el.addEventListener('animationend', () => el.remove());
+    box.appendChild(el);
   }
 
   /** Rider `id` has wound up a swing at the player that lands in `secs`. */

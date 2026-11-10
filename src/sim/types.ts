@@ -127,6 +127,8 @@ export interface Car {
   cruise: number;
   lane: number;
   color: number;
+  /** The player already passed it close (a near miss counts once a car). */
+  brushed: boolean;
 }
 
 export interface Pickup {
@@ -205,6 +207,8 @@ export type SimEvent =
   | { type: 'ambush'; riders: number[] }
   | { type: 'jump'; rider: number }
   | { type: 'land'; rider: number; stomp: number }
+  | { type: 'nearMiss'; pay: number }
+  | { type: 'combo'; n: number; pay: number }
   | { type: 'go' }
   | { type: 'over' };
 

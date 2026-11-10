@@ -116,9 +116,9 @@ describe('road features and divisions', () => {
       place(w, 0, start - 60);
       w.player.speed = 0;
       w.input.brake = true;
-      const car = { id: 900, x: C.LANE_X[3], z: start - 50, pz: start - 50, speed: 15, cruise: 15, lane: 3, color: 0 };
+      const car = { id: 900, x: C.LANE_X[3], z: start - 50, pz: start - 50, speed: 15, cruise: 15, lane: 3, color: 0, brushed: false };
       w.cars.push(car);
-      if (boxedIn) w.cars.push({ id: 901, x: C.LANE_X[2], z: start - 50, pz: start - 50, speed: 15, cruise: 15, lane: 2, color: 0 });
+      if (boxedIn) w.cars.push({ id: 901, x: C.LANE_X[2], z: start - 50, pz: start - 50, speed: 15, cruise: 15, lane: 2, color: 0, brushed: false });
       let intoCones = false;
       run(w, () => car.z > wk.z1 || !w.cars.includes(car), () => {
         w.cars.splice(0, w.cars.length, ...w.cars.filter((c) => c.id >= 900));

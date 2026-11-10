@@ -5,11 +5,12 @@ import { Prng } from './rng';
 import * as C from './config';
 import { rivalThink, laneClearance, nearestLane } from './ai';
 import { Road } from './road';
-import { clamp, type Rider, type Side, type Car, type Pickup, type Patrol, type SimEvent, type Input, type WorldOpts, type Seen, type CrashCause } from './types';
+import { clamp, type Rider, type Side, type Car, type Pickup, type Patrol, type SimEvent, type Input, type WorldOpts, type Seen } from './types';
 import { targetFor, tryAttack, resolveAttack, knockOff, crash } from './combat';
 import { spawnCar, updateTraffic } from './traffic';
 import { updatePatrol } from './patrol';
 import { leaderThreats } from './threats';
+import { newFlair, updateFlair } from './flair';
 
 export * from './types';
 
@@ -47,6 +48,8 @@ export class World {
   /** Riders the player knocked into traffic or the barrier. */
   shoves = 0;
   grudgeKos = 0;
+  /** Near misses with traffic and KO chains (src/sim/flair.ts). */
+  readonly flair = newFlair();
   crashes = 0;
   /** Fines paid for pulling over, and the heat (see C.HEAT). */
   fines = 0;
@@ -227,6 +230,7 @@ export class World {
     for (const r of this.riders) this.move(r);
     this.contacts();
     updateTraffic(this);
+    updateFlair(this);
     for (const r of this.riders) resolveAttack(this, r);
     this.updatePickups();
     updatePatrol(this);
@@ -447,10 +451,6 @@ export class World {
 
   tryAttack(r: Rider): boolean {
     return tryAttack(this, r);
-  }
-
-  crash(r: Rider, c: CrashCause, vx: number): void {
-    crash(this, r, c, vx);
   }
 
   /** Free distance ahead of `r` along lateral position x. */

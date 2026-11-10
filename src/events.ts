@@ -144,6 +144,14 @@ export function react(e: SimEvent, w: World, view: RaceView, hud: Hud, feel: Fee
       break;
     case 'drop':
       break;
+    case 'nearMiss':
+      hud.pop(t('closeCall', { n: e.pay }));
+      sfx.whoosh();
+      buzz(12);
+      break;
+    case 'combo':
+      hud.pop(t('combo', { c: e.n, n: e.pay }), 'big');
+      break;
     case 'jump':
       if (near(e.rider)) sfx.whoosh();
       if (e.rider === 0) hud.flash(t('air'), 'go');

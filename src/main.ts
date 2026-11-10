@@ -155,7 +155,7 @@ function finishRace(): void {
   const place = w.player.place;
   const of = (f: (r: (typeof w.riders)[number]) => number) => w.riders.map((r) => (r.thug ? 0 : f(r)));
   const s = settleRace(save, {
-    place, kos: w.kos, grudgeKos: w.grudgeKos, shoves: w.shoves, fines: w.fines, grudges: [...w.grudges],
+    place, kos: w.kos, grudgeKos: w.grudgeKos, shoves: w.shoves, nearPay: w.flair.nearPay, chainPay: w.flair.chainPay, fines: w.fines, grudges: [...w.grudges],
     places: of((r) => r.place), koPlayer: of((r) => r.koPlayer), koByPlayer: of((r) => r.koByPlayer),
   });
   // the day's challenges and first win, paid at the division the race was run in
@@ -170,7 +170,7 @@ function finishRace(): void {
   const table = s.table.map((r) => ({ name: riderName(r.id), pts: r.pts, rank: r.rank, me: r.id === 0 }));
   const res: RaceResult = {
     place, total: w.racers, prize: s.prize, kos: w.kos, koBonus: s.koBonus, grudgeKos: w.grudgeKos, grudgeBonus: s.grudgeBonus,
-    shoves: w.shoves, shoveBonus: s.shoveBonus, fines: s.fines, earned: s.earned, time: w.time, grudges: save.grudges.map((id) => w.riders[id].name),
+    shoves: w.shoves, shoveBonus: s.shoveBonus, flair: { ...w.flair }, fines: s.fines, earned: s.earned, time: w.time, grudges: save.grudges.map((id) => w.riders[id].name),
     league: { div: w.div.name, race: s.cupRace, races: CUP_RACES, table, end: s.end, next: C.stage(save.div, save.tier).name, season: C.TIERS[save.tier].name },
     feud: { out: s.feud, nemesis: save.feud.nemesis, name: riderName },
     daily,
