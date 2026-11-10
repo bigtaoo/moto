@@ -37,6 +37,10 @@ export class Hud {
   private readonly heatEl: HTMLElement;
   private readonly leagueEl: HTMLElement;
   private readonly nemEl: HTMLElement;
+  private readonly speedEl: HTMLElement;
+  private readonly unitEl: HTMLElement;
+  /** Seconds until the speedometer is next written: a few times a second, so the number can be read. */
+  private speedT = 0;
   readonly remountBtn: HTMLButtonElement;
   /** The taunt, up for a moment after the player puts someone down. */
   readonly tauntBtn: HTMLButtonElement;
@@ -83,6 +87,7 @@ export class Hud {
         <div class="hint"></div>
         <div class="league"></div>
         <div class="nemcard"></div>
+        <div class="speedo"><b>0</b><span></span></div>
         <button class="remount hidden"></button>
         <button class="taunt"></button>
       </div>
@@ -105,6 +110,8 @@ export class Hud {
     this.heatEl = $(this.root, '.heat');
     this.leagueEl = $(this.root, '.league');
     this.nemEl = $(this.root, '.nemcard');
+    this.speedEl = $(this.root, '.speedo b');
+    this.unitEl = $(this.root, '.speedo span');
     this.remountBtn = $(this.root, '.remount');
     this.tauntBtn = $(this.root, '.taunt');
     this.results = new Results($(host, '#results'));
@@ -123,6 +130,7 @@ export class Hud {
     this.hint.textContent = t(this.hintMode === 'click' ? 'clickForKeys' : CONTROLS);
     this.remountBtn.innerHTML = `<span>${icon('play')} ${t('backOnNow')}</span><small>${t('watchAd')}</small>`;
     this.pauseBtn.setAttribute('aria-label', t('pause'));
+    this.unitEl.textContent = t('kmh');
     this.tauntBtn.textContent = DESKTOP ? `${t('taunt')} [T]` : t('taunt');
     this.setSound(!this.soundOff);
     this.menu.localize();
@@ -162,6 +170,7 @@ export class Hud {
       this.labels.push(l);
     }
     this.last = { place: '', hp: '', cash: -1, slapL: false, slapR: false, chaser: '', incL: false, incR: false, heat: '' };
+    this.speedT = 0;
     this.tellT = w.riders.map(() => 0);
     this.dotPx = w.riders.map(() => -1);
     this.chaser.classList.remove('on');
@@ -207,6 +216,7 @@ export class Hud {
     if (mode !== 'off') this.hint.textContent = t(mode === 'click' ? 'clickForKeys' : CONTROLS);
     this.hint.classList.toggle('on', mode !== 'off');
     this.hint.classList.toggle('ask', mode === 'click');
+    this.root.classList.toggle('hinting', mode !== 'off');
   }
 
   flash(text: string, kind = ''): void {
@@ -246,6 +256,16 @@ export class Hud {
       this.hpEl.innerHTML = Array.from({ length: p.maxHp }, (_, i) => `<i class="${i < cur ? 'on' : ''}"></i>`).join('');
     }
     if (cash !== this.last.cash) { this.cashEl.textContent = money(cash); this.last.cash = cash; }
+    // speedometer: 0 while off the scooter; yellow past the scooter's top speed (a ramp's boost)
+    this.speedT -= dt;
+    if (this.speedT <= 0) {
+      this.speedT = 0.12;
+      const kmh = p.state === 'ride' ? Math.round(p.speed * 3.6) : 0;
+      const txt = String(kmh);
+      if (txt !== this.speedEl.textContent) this.speedEl.textContent = txt;
+      const fast = p.state === 'ride' && p.speed > p.top + 0.5;
+      if (this.speedEl.classList.contains('fast') !== fast) this.speedEl.classList.toggle('fast', fast);
+    }
     // progress
     const len = w.length;
     this.fill.style.transform = `scaleX(${Math.min(1, p.z / len)})`;
