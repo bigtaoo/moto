@@ -858,16 +858,17 @@ export class World {
     const p = this.player;
     const progress = clamp(p.z / this.length, 0, 1);
     const want = this.trafficBase + Math.round(progress * this.trafficExtra);
-    const R = this.road;
+    const [R, pt] = [this.road, this.patrol];
     for (const c of this.cars) {
       if (c.speed > 0 || c.cruise > 0) {
         let cap = c.cruise;
-        // the lane closes ahead (cones, a ramp): merge over when there's room, else stop short of it
+        // the lane closes ahead (cones, a ramp): merge over when there's room (cars and buggy), else stop short of it
         const block = R.blockAhead(c.lane, c.z, C.WORKS.carMerge);
         if (block < Infinity) {
           const opts = c.lane === 3 ? [2] : c.lane === 2 ? [1, 3] : [2];
           const to = opts.find((l) => R.blockAhead(l, c.z - 10, C.WORKS.carMerge + 20) === Infinity &&
-            this.cars.every((o) => o === c || o.lane !== l || Math.abs(o.z - c.z) > C.TRAFFIC.gap));
+            this.cars.every((o) => o === c || o.lane !== l || Math.abs(o.z - c.z) > C.TRAFFIC.gap) &&
+            !(pt.active && Math.abs(pt.x - C.LANE_X[l]) < C.CAR.halfW + C.PATROL.halfW + 0.15 && Math.abs(pt.z - c.z) < C.TRAFFIC.gap));
           if (to !== undefined) c.lane = to;
           else cap = Math.min(cap, Math.max(0, (block - 8 - c.z) * 0.8));
         }
@@ -876,7 +877,6 @@ export class World {
           if (o !== c && o.lane === c.lane && o.z > c.z && o.z - c.z < 9 && o.speed < cap) cap = Math.max(0, o.speed);
         }
         // ...and behind the security buggy when it is in their lane
-        const pt = this.patrol;
         if (pt.active && Math.abs(pt.x - c.x) < C.CAR.halfW + C.PATROL.halfW + 0.15 &&
           pt.z > c.z && pt.z - c.z < 10 && pt.speed < cap) cap = pt.speed;
         c.speed = c.speed < cap ? Math.min(cap, c.speed + 3 * C.DT) : cap;

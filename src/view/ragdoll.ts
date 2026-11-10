@@ -1,7 +1,9 @@
 // View-only ragdoll for a dummy thrown off its scooter: 12 Verlet points in sim space (x across, y up,
 // z along) with elbows and knees, drawn with the same chunky parts as the riding dummy. Once the sim
 // has the rider up and running back to the scooter, the same points are posed by a run cycle instead,
-// blended in from wherever the body came to rest. This never feeds back into the sim.
+// blended in from wherever the body came to rest: a panicky cartoon scurry, legs going far faster than
+// the body moves, arms flailing over the head, head wobbling, and stars circling it from the moment it
+// lands. This never feeds back into the sim.
 
 import * as THREE from 'three';
 import { ROAD_HALF } from '../sim/config';
@@ -63,6 +65,17 @@ function torsoKit(body: number, ride: number): Kit {
     .decal(0.085, TARGET, { at: [0, 0.4, -0.151], rot: [0, Math.PI, 0] });
 }
 
+/** A chunky five-pointed star (puffed out to a point front and back), for the ones circling a dazed head. */
+function starGeo(): THREE.BufferGeometry {
+  const at = (i: number) => { const r = i % 2 ? 0.045 : 0.11, t = (i / 10) * Math.PI * 2; return [Math.sin(t) * r, Math.cos(t) * r, 0]; };
+  const pts: number[] = [];
+  for (let i = 0; i < 10; i++) pts.push(0, 0, 0.035, ...at(i + 1), ...at(i), 0, 0, -0.035, ...at(i), ...at(i + 1));
+  const g = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+  g.computeVertexNormals();
+  return new Kit(INK_W * 0.6).add(g, 0xffd23a).build();
+}
+const STARS = 3;
+
 function headKit(body: number): Kit {
   const head = new Kit(INK_W).add(ball(0.175, 12), body, { scale: [0.95, 1.06, 1] });
   for (const s of [-1, 1]) head.decal(0.06, TARGET, { at: [s * 0.172, 0.01, 0], rot: [0, (s * Math.PI) / 2, 0] });
@@ -87,6 +100,9 @@ export class Ragdoll {
   private readonly torso: THREE.Mesh;
   private readonly head: THREE.Mesh;
   private readonly limbs: THREE.Mesh[];
+  private readonly stars: THREE.Mesh[];
+  /** Head roll (radians) on top of the torso's turn: the wobble while running. */
+  private roll = 0;
   private acc = 0;
   private bumpT = 0;
   /** Running: blend from the lying pose (0) to the run cycle (1), stride phase, and the lying pose. */
@@ -111,7 +127,9 @@ export class Ragdoll {
     this.head = new THREE.Mesh(cached(`rag-head:${body}`, () => headKit(body).build()), mat);
     const parts = LIMB_KITS.map((kit, i) => cached(`rag-limb${i}:${body}`, () => kit(body).build()));
     this.limbs = LIMBS.map(([, , part]) => new THREE.Mesh(parts[part], mat));
-    this.group.add(this.torso, this.head, ...this.limbs);
+    const star = cached('rag-star', starGeo);
+    this.stars = Array.from({ length: STARS }, () => new THREE.Mesh(star, mat));
+    this.group.add(this.torso, this.head, ...this.limbs, ...this.stars);
     this.group.visible = false;
   }
 
@@ -135,6 +153,7 @@ export class Ragdoll {
     }
     this.active = true;
     this.running = false;
+    this.roll = 0;
     this.age = 0;
     this.acc = 0;
     this.bumpT = 0.15;
@@ -188,30 +207,44 @@ export class Ragdoll {
     const oz = this.sz + (tz - this.sz) * prog;
     const viewD0 = Math.hypot(tx - this.sx, tz - this.sz);
     const speed = pace * (viewD0 / (this.simD0 - reach));
-    this.stride += dt * (4 + Math.min(14, speed) * 0.9);
+    // little legs going flat out, whatever the pace
+    this.stride += dt * (13 + Math.min(10, speed) * 0.5);
     let fx = tx - ox;
     let fz = tz - oz;
     const n = Math.hypot(fx, fz);
     if (n > 0.2) { fx /= n; fz /= n; } else { fx = 0; fz = 1; }
     const k = this.upT * this.upT * (3 - 2 * this.upT);
     const ph = this.stride;
-    const bob = Math.abs(Math.sin(ph)) * 0.07;
+    const sw = Math.sin(ph);
+    const bob = Math.abs(sw) * 0.1;
+    const lean = 0.18 + 0.14 * Math.sin(ph * 0.37);
+    this.roll = 0.3 * Math.sin(ph * 0.5) * k;
     for (let i = 0; i < REST.length; i++) {
       let [lx, ly, lz] = REST[i];
       ly -= 0.15; // feet on the road, not the deck
       const leg = i === KNEE_L || i === FOOT_L ? 0 : i === KNEE_R || i === FOOT_R ? Math.PI : -1;
-      const arm = i === EL_L || i === HAND_L ? Math.PI : i === EL_R || i === HAND_R ? 0 : -1;
+      const side = i === EL_L || i === HAND_L ? -1 : i === EL_R || i === HAND_R ? 1 : 0;
       if (leg >= 0) {
+        // high knees, short steps
         const s = Math.sin(ph + leg);
-        if (i === KNEE_L || i === KNEE_R) { lz += s * 0.28; ly += Math.max(0, s) * 0.12; }
-        else { lz += Math.sin(ph + leg - 0.7) * 0.38; ly += Math.max(0, -Math.cos(ph + leg)) * 0.22; }
-      } else if (arm >= 0) {
-        const s = Math.sin(ph + arm);
-        lz = (i === EL_L || i === EL_R ? 0.02 : 0.15) + s * (i === EL_L || i === EL_R ? 0.18 : 0.3);
-        ly = i === EL_L || i === EL_R ? 1.25 : 1.32 + s * 0.08;
+        if (i === KNEE_L || i === KNEE_R) { lz += 0.08 + s * 0.2; ly += Math.max(0, s) * 0.26; }
+        else { lz += Math.sin(ph + leg - 0.7) * 0.26; ly += Math.max(0, -Math.cos(ph + leg)) * 0.3; }
+      } else if (side) {
+        // both arms up, windmilling out of step with each other
+        const t = ph * 0.8 + (side > 0 ? 0 : 2.2);
+        const sx = side * 0.27;
+        const ux = side * 0.55, uy = 0.72 + 0.2 * Math.sin(t), uz = 0.4 * Math.cos(t);
+        const un = Math.hypot(ux, uy, uz);
+        const ex = sx + (ux / un) * LEN[0], ey = 1.49 + (uy / un) * LEN[0], ez = 0.05 + (uz / un) * LEN[0];
+        const vx = side * (0.25 + 0.35 * Math.sin(t * 1.7)), vy = 0.85, vz = 0.5 * Math.sin(t + 1.3);
+        const vn = Math.hypot(vx, vy, vz);
+        if (i === EL_L || i === EL_R) [lx, ly, lz] = [ex, ey, ez];
+        else [lx, ly, lz] = [ex + (vx / vn) * LEN[1], ey + (vy / vn) * LEN[1], ez + (vz / vn) * LEN[1]];
       }
+      // the body rocks from side to side with each step
+      if (i <= PELVIS) { lx += sw * (i === PELVIS ? 0.04 : 0.09); if (i === SH_L || i === SH_R) ly += sw * 0.05 * (i === SH_L ? 1 : -1); }
       ly += bob;
-      lz += Math.max(0, ly - 1) * 0.22; // lean into it
+      lz += Math.max(0, ly - 1) * lean; // lean into it
       const wx = ox + fz * lx + fx * lz;
       const wz = oz - fx * lx + fz * lz;
       p[i].lerpVectors(this.from[i], a.set(wx, ly, wz), k);
@@ -275,6 +308,18 @@ export class Ragdoll {
     this.torso.quaternion.setFromRotationMatrix(m4);
     this.head.position.copy(w[HEAD]);
     this.head.quaternion.copy(this.torso.quaternion);
+    if (this.roll) this.head.rotateZ(this.roll);
+    // dazed: stars round the head once the body has hit the road
+    const dazed = this.age > 0.5;
+    for (let k = 0; k < STARS; k++) {
+      const st = this.stars[k];
+      st.visible = dazed;
+      if (!dazed) continue;
+      const t = this.age * 5 + (k / STARS) * Math.PI * 2;
+      const h = this.p[HEAD];
+      toWorld(h.x + Math.cos(t) * 0.3, h.y + 0.32 + Math.sin(t * 2) * 0.03, h.z + Math.sin(t) * 0.3, st.position);
+      st.rotation.set(0, t * 1.5, 0);
+    }
     const fwd = a.copy(bz);
     tx.copy(bx);
     for (let k = 0; k < LIMBS.length; k++) {
