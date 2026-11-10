@@ -203,7 +203,7 @@ function milestones(s: Settlement): void {
   if (e) {
     track('cup_completed', { step_id: from, rank: e.rank, promoted: e.promoted, champion: e.champion, next_tier: e.nextTier, bonus: e.bonus });
     if (e.promoted) track('division_reached', { step_id: stepId(save.div, save.tier), rung: C.rung(save.div, save.tier) });
-    if (e.champion) track('title_won', { step_id: from, tier: s.tier, titles: save.titles });
+    if (e.champion) track('title_won', { step_id: from, tier: s.tier, titles: save.titles, endless: save.endless });
     if (e.nextTier) track('season_reached', { tier: save.tier, season: C.TIERS[save.tier].name.toLowerCase() });
     const was = C.rung(s.div, s.tier);
     const is = C.rung(save.div, save.tier);

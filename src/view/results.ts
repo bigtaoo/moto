@@ -91,7 +91,7 @@ function againLabel(l: League): string {
   if (!e) return t('nextRace');
   if (e.nextTier) return t('onSeason', { s: l.season });
   if (e.promoted) return t('onTo', { d: l.next });
-  if (e.champion) return t('defend');
+  if (e.champion) return t('onTo', { d: l.next });
   return t('retry', { d: l.next });
 }
 

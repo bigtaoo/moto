@@ -19,6 +19,8 @@ export interface Save {
   cup: Cup;
   /** Times the top division's cup was won. */
   titles: number;
+  /** Levels past the career: titles in the last season's top division (C.ENDLESS). */
+  endless: number;
   feud: Feud;
   /** Season (C.TIERS index). */
   tier: number;
@@ -54,7 +56,7 @@ function readFeud(f: Partial<Feud> | undefined): Feud {
 /** The save from its JSON (null or junk: a fresh one). */
 export function parseSave(raw: string | null): Save {
   const fresh: Save = {
-    cash: 0, up: { top: 0, steer: 0, hp: 0 }, grudges: [], races: 0, best: 0, div: 0, cup: newCup(), titles: 0, feud: newFeud(), tier: 0,
+    cash: 0, up: { top: 0, steer: 0, hp: 0 }, grudges: [], races: 0, best: 0, div: 0, cup: newCup(), titles: 0, endless: 0, feud: newFeud(), tier: 0,
     garage: { cur: 0, owned: [0] }, muted: false, sessions: 0, firstDay: 0, musicOff: false, sfxOff: false, hapticsOff: false, quality: 'auto', daily: readDaily(null, today()),
   };
   try {
@@ -82,6 +84,7 @@ export function parseSave(raw: string | null): Save {
       div: Math.max(0, Math.min(DIVISIONS.length - 1, Math.floor(Number(s.div) || 0))),
       cup,
       titles: count(s.titles),
+      endless: count(s.endless),
       feud: readFeud(s.feud),
       tier: Math.max(0, Math.min(TIERS.length - 1, Math.floor(num(s.tier)))),
       garage: { cur: owned.includes(cur) ? cur : 0, owned },

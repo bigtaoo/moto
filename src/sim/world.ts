@@ -73,7 +73,7 @@ export class World {
   constructor(opts: WorldOpts) {
     this.seed = opts.seed;
     this.divIndex = clamp(Math.floor(opts.div ?? 0), 0, C.DIVISIONS.length - 1);
-    this.div = C.stage(this.divIndex, Math.floor(opts.tier ?? 0));
+    this.div = C.stage(this.divIndex, Math.floor(opts.tier ?? 0), opts.endless ?? 0);
     this.length = opts.length ?? Math.round(C.RACE_LEN * this.div.len);
     this.vehicle = clamp(Math.floor(opts.vehicle ?? 0), 0, C.VEHICLES.length - 1);
     this.road = new Road(this.length, this.div, new Prng(opts.seed * 23 + 7));

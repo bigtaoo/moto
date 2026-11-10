@@ -79,7 +79,6 @@ export const TR: Table = {
   nextRace: 'Sonraki yarış',
   onSeason: '{s} sezonuna geç',
   onTo: 'Sıradaki: {d}',
-  defend: 'Unvanı koru',
   retry: '{d} kupasını tekrarla',
   revengeRow: '{name} intikamı × {n}',
   beatHome: '{name} geride kaldı',

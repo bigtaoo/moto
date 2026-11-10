@@ -83,7 +83,6 @@ export const EN = {
   nextRace: 'Next race',
   onSeason: 'On to the {s} season',
   onTo: 'On to {d}',
-  defend: 'Defend the title',
   retry: 'Retry the {d} cup',
   revengeRow: 'Revenge on {name} × {n}',
   beatHome: 'Beat {name} home',

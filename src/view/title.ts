@@ -31,7 +31,7 @@ function nemesis(save: Save): string {
 /** The returning player's goals, as HTML for the title card. */
 export function titleInfo(save: Save): string {
   if (save.races === 0) return '';
-  const mult = stage(save.div, save.tier).prize;
+  const mult = stage(save.div, save.tier, save.endless).prize;
   const win = save.daily.won ? '' : `<div class="dc"><span>${t('firstWin')}</span><b>+${money(Math.round(FIRST_WIN_PAY * mult))}</b></div>`;
   return nextRide(save) + nemesis(save) + dailyHtml(rows(save.daily), [], 0, win);
 }

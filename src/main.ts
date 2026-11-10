@@ -103,7 +103,7 @@ function newRace(): void {
   view?.dispose();
   const seed = ((save.races * 7919 + 17) % 99991) + 1;
   const nem = save.feud.nemesis;
-  const opts = { seed, upgrades: save.up, grudges: save.grudges, length: LEN, div: save.div, tier: save.tier, vehicle: save.garage.cur, nemesis: nem?.id };
+  const opts = { seed, upgrades: save.up, grudges: save.grudges, length: LEN, div: save.div, tier: save.tier, endless: save.endless, vehicle: save.garage.cur, nemesis: nem?.id };
   world = new World(opts);
   recorder = new Recorder(opts);
   view = new RaceView(stage, world, seed);
@@ -171,7 +171,7 @@ function finishRace(): void {
   const res: RaceResult = {
     place, total: w.racers, prize: s.prize, kos: w.kos, koBonus: s.koBonus, grudgeKos: w.grudgeKos, grudgeBonus: s.grudgeBonus,
     shoves: w.shoves, shoveBonus: s.shoveBonus, flair: { ...w.flair }, fines: s.fines, earned: s.earned, time: w.time, grudges: save.grudges.map((id) => w.riders[id].name),
-    league: { div: w.div.name, race: s.cupRace, races: CUP_RACES, table, end: s.end, next: C.stage(save.div, save.tier).name, season: C.TIERS[save.tier].name },
+    league: { div: w.div.name, race: s.cupRace, races: CUP_RACES, table, end: s.end, next: C.stage(save.div, save.tier, save.endless).name, season: C.TIERS[save.tier].name },
     feud: { out: s.feud, nemesis: save.feud.nemesis, name: riderName },
     daily,
     double: s.earned > 0 && platform.rewardedReady() ? s.earned : 0,
@@ -401,7 +401,7 @@ let showStats: ((dt: number) => void) | null = null;
 function showTitle(): void {
   const best = document.getElementById('best');
   if (best && save.races > 0) {
-    best.textContent = t('best', { div: C.stage(save.div, save.tier).name, n: save.cup.race + 1, m: CUP_RACES, cash: save.cash }) + (save.titles ? t('champs', { n: save.titles }) : '');
+    best.textContent = t('best', { div: C.stage(save.div, save.tier, save.endless).name, n: save.cup.race + 1, m: CUP_RACES, cash: save.cash }) + (save.titles ? t('champs', { n: save.titles }) : '');
   }
   const info = document.getElementById('titleinfo');
   if (info) info.innerHTML = titleInfo(save);

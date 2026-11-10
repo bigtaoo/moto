@@ -57,11 +57,11 @@ export interface CupEnd {
 }
 
 /** Close a finished cup: the player's rank, the bonus, and whether they go up (or won the top division). */
-export function endCup(cup: Cup, div: number, tier = 0): CupEnd {
+export function endCup(cup: Cup, div: number, tier = 0, plus = 0): CupEnd {
   const rank = standings(cup).find((s) => s.id === 0)!.rank;
   const top = rank <= C.PROMOTE;
   const last = div >= C.DIVISIONS.length - 1;
-  const bonus = Math.round((CUP_BONUS[rank - 1] ?? 0) * C.stage(div, tier).prize);
+  const bonus = Math.round((CUP_BONUS[rank - 1] ?? 0) * C.stage(div, tier, plus).prize);
   const champion = last && rank === 1;
   return { rank, promoted: top && !last, champion, nextTier: champion && tier < C.TIERS.length - 1, bonus };
 }
@@ -107,7 +107,7 @@ export interface Settlement {
  */
 export function settleRace(save: Save, s: RaceSummary): Settlement {
   const { div, tier } = save;
-  const st = C.stage(div, tier);
+  const st = C.stage(div, tier, save.endless);
   const prize = Math.round((C.PRIZE[s.place - 1] ?? 0) * st.prize);
   const koBonus = s.kos * C.KO_BONUS;
   const grudgeBonus = s.grudgeKos * C.GRUDGE_BONUS;
@@ -118,11 +118,13 @@ export function settleRace(save: Save, s: RaceSummary): Settlement {
   const feud = settleFeud(save.feud, s, st.prize);
   earned += feud.cash;
   const cupRace = save.cup.race;
-  const end = cupOver(save.cup) ? endCup(save.cup, div, tier) : null;
+  const end = cupOver(save.cup) ? endCup(save.cup, div, tier, save.endless) : null;
   if (end) {
     earned += end.bonus;
     if (end.promoted) save.div++;
     if (end.champion) save.titles++;
+    // the last season won: each title from here raises the stakes (C.ENDLESS)
+    if (end.champion && !end.nextTier) save.endless++;
     if (end.nextTier) {
       save.tier++;
       save.div = 0;

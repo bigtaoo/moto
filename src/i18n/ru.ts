@@ -79,7 +79,6 @@ export const RU: Table = {
   nextRace: 'Следующая гонка',
   onSeason: 'Вперёд, сезон {s}',
   onTo: 'Дальше: {d}',
-  defend: 'Защитить титул',
   retry: 'Ещё раз: кубок {d}',
   revengeRow: 'Месть: {name} × {n}',
   beatHome: 'Финишировал раньше: {name}',

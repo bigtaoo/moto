@@ -79,7 +79,6 @@ export const PT: Table = {
   nextRace: 'Próxima corrida',
   onSeason: 'Rumo à temporada {s}',
   onTo: 'Rumo a {d}',
-  defend: 'Defender o título',
   retry: 'Repetir a copa {d}',
   revengeRow: 'Vingança em {name} × {n}',
   beatHome: 'Chegou antes de {name}',

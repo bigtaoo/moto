@@ -240,6 +240,8 @@ export interface WorldOpts {
   div?: number;
   /** Season (C.TIERS index): harder again on top of the division. */
   tier?: number;
+  /** Levels past the career (the last season only, see C.ENDLESS). */
+  endless?: number;
   /** The player's ride (C.VEHICLES index). */
   vehicle?: number;
 }

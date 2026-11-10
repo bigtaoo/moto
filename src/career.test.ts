@@ -137,6 +137,26 @@ describe('career settlement, seasons and the garage', () => {
     expect(s!.end!.nextTier).toBe(false);
     expect(save.tier).toBe(C.TIERS.length - 1);
     expect(save.div).toBe(C.DIVISIONS.length - 1);
+    expect(save.endless).toBe(1);
+  });
+
+  it('raises the stakes with every title past the career', () => {
+    const save = parseSave(null);
+    save.tier = C.TIERS.length - 1;
+    save.div = C.DIVISIONS.length - 1;
+    const base = C.stage(save.div, save.tier);
+    for (let n = 1; n <= 3; n++) for (let i = 0; i < CUP_RACES; i++) settleRace(save, summary(1));
+    expect(save.endless).toBe(3);
+    const st = C.stage(save.div, save.tier, save.endless);
+    expect(st.name).toBe(`${base.name} +3`);
+    expect(st.top).toBeGreaterThan(base.top);
+    expect(st.prize).toBeGreaterThan(base.prize);
+    expect(st.hp).toBe(base.hp + 1);
+    // the +N is the last season's only
+    expect(C.stage(0, 0, 5)).toEqual(C.stage(0, 0));
+    // a lost cup holds the level
+    for (let i = 0; i < CUP_RACES; i++) settleRace(save, summary(8));
+    expect(save.endless).toBe(3);
   });
 
   it('caps upgrades per season and names the season that opens the next level', () => {

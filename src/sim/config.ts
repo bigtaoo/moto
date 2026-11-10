@@ -429,13 +429,23 @@ export interface Stage extends Division {
   len: number;
 }
 
-export function stage(div: number, tier: number): Stage {
+/**
+ * After the career: every title won in the last season's top division adds a level of "+N" on top of it.
+ * Per level the rivals are `top` m/s faster and `mind` keener (up to `mindMax`), one more hit point every
+ * `hpEvery` levels, the traffic `traffic` busier (up to `trafficMax` levels' worth) and the prizes `prize` richer.
+ */
+export const ENDLESS = { top: 0.45, mind: 0.02, mindMax: 0.16, hpEvery: 3, traffic: 0.03, trafficMax: 6, prize: 0.15 };
+
+export function stage(div: number, tier: number, plus = 0): Stage {
   const d = DIVISIONS[Math.max(0, Math.min(DIVISIONS.length - 1, div))];
   const ti = Math.max(0, Math.min(TIERS.length - 1, tier));
   const t = TIERS[ti];
+  const n = ti === TIERS.length - 1 ? Math.max(0, Math.floor(plus)) : 0;
+  const E = ENDLESS;
   return {
-    ...d, name: ti ? `${t.name} ${d.name}` : d.name, tier: ti, top: t.top[DIVISIONS.indexOf(d)], mind: d.mind + t.mind, hp: t.hp,
-    traffic: d.traffic * t.traffic, patrol: d.patrol + t.patrol, prize: d.prize * t.prize, len: t.len,
+    ...d, name: (ti ? `${t.name} ${d.name}` : d.name) + (n ? ` +${n}` : ''), tier: ti, top: t.top[DIVISIONS.indexOf(d)] + n * E.top,
+    mind: d.mind + t.mind + Math.min(E.mindMax, n * E.mind), hp: t.hp + Math.floor(n / E.hpEvery),
+    traffic: d.traffic * t.traffic * (1 + Math.min(n, E.trafficMax) * E.traffic), patrol: d.patrol + t.patrol, prize: d.prize * t.prize * (1 + n * E.prize), len: t.len,
   };
 }
 
