@@ -234,6 +234,7 @@ export const EN = {
   slipped: "SLIPPED ON OIL!",
   moo: "MOOO!",
   bowled: "BOWLED OVER! +${n}",
+  bowlTip: "Steer to bowl them over!",
   oilPoured: "OIL POURED!",
   tumbleweed: "TUMBLEWEED!",
   taunted: "TAUNT! +${n}",

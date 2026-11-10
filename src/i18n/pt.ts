@@ -229,6 +229,7 @@ export const PT: Table = {
   slipped: "ESCORREGOU NO ÓLEO!",
   moo: "MUUU!",
   bowled: "STRIKE! +${n}",
+  bowlTip: "Vire e derrube-os!",
   oilPoured: "ÓLEO DERRAMADO!",
   tumbleweed: "BOLA DE FENO!",
   taunted: "PROVOCAÇÃO! +${n}",

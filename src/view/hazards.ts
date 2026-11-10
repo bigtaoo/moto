@@ -65,6 +65,23 @@ function sprayGeo(): THREE.BufferGeometry {
   return cached('spray', () => new THREE.ConeGeometry(0.9, H.hydrant.reach, 10, 1, true).translate(0, -H.hydrant.reach / 2, 0).rotateZ(Math.PI / 2));
 }
 
+/** An oil slick, flat on y = 0 at radius ~1: a lumpy black puddle with a rainbow sheen and a glint. */
+function slickGeo(): THREE.BufferGeometry {
+  return cached('slick', () => {
+    const flat = [-Math.PI / 2, 0, 0] as [number, number, number];
+    const k = new Kit(0);
+    for (const [x, z, r] of [[0, 0, 0.82], [0.5, 0.32, 0.5], [-0.52, -0.3, 0.48], [0.25, -0.58, 0.38], [-0.4, 0.5, 0.34]]) {
+      k.add(new THREE.CircleGeometry(r, 16), 0x17151f, { at: [x, 0, z], rot: flat, ink: false });
+    }
+    // the sheen: three bands of colour, part way round
+    [[0.36, 0x9a5ce0], [0.45, 0x2fc4b2], [0.53, 0xf0c838]].forEach(([r, c], i) => {
+      k.add(new THREE.RingGeometry(r, r + 0.08, 18, 1, 0.3 + i * 0.25, Math.PI * 1.1), c, { at: [0.08, 0.006, 0.05], rot: flat, ink: false });
+    });
+    k.add(new THREE.CircleGeometry(0.14, 10), 0xf6f6ff, { at: [-0.32, 0.01, 0.28], rot: flat, scale: [1.6, 1, 1], ink: false });
+    return k.build();
+  });
+}
+
 interface View { root: THREE.Object3D; spin?: THREE.Object3D; spray?: THREE.Mesh }
 
 export class HazardView {
@@ -72,11 +89,9 @@ export class HazardView {
   private readonly views = new Map<number, View>();
   private readonly slicks = new Map<number, THREE.Mesh>();
   private readonly sprayMat = new THREE.MeshBasicMaterial({ color: 0xd8f0ff, transparent: true, opacity: 0.55, depthWrite: false, side: THREE.DoubleSide });
-  private readonly slickMat = new THREE.MeshBasicMaterial({ color: 0x14141c, transparent: true, opacity: 0.88, depthWrite: false });
-  private readonly sheenMat = new THREE.MeshBasicMaterial({ color: 0x6a5aa8, transparent: true, opacity: 0.45, depthWrite: false });
   private t = 0;
   /** This race's own materials (freed with the race). */
-  get materials(): THREE.Material[] { return [this.sprayMat, this.slickMat, this.sheenMat, ...this.own]; }
+  get materials(): THREE.Material[] { return [this.sprayMat, ...this.own]; }
   private readonly own: THREE.Material[] = [];
 
   constructor(w: World) {
@@ -117,9 +132,9 @@ export class HazardView {
     for (const h of ps) {
       const len = H[h.kind as 'leaves' | 'ice'].len;
       if (ice) for (let z = 0; z < len; z += 2) parts.push({ x: h.cx, z: h.z + z + 1, yaw: 0, c: z % 4 ? 0xcfeeff : 0xe4f6ff });
-      else for (let i = 0; i < len * 4; i++) parts.push({ x: h.cx + (r() - 0.5) * h.w, z: h.z + r() * len, yaw: r() * 6.3, c: [0xe2762a, 0xc8462a, 0xf0b23a, 0xa8562a][i % 4] });
+      else for (let i = 0; i < len * 7; i++) parts.push({ x: h.cx + (r() - 0.5) * h.w, z: h.z + r() * len, yaw: r() * 6.3, c: [0xe2762a, 0xc8462a, 0xf0b23a, 0xa8562a][i % 4] });
     }
-    const geo = ice ? new THREE.BoxGeometry(7, 0.03, 2.02) : new THREE.CircleGeometry(0.2, 5).rotateX(-Math.PI / 2).scale(1, 1, 0.65);
+    const geo = ice ? new THREE.BoxGeometry(7, 0.03, 2.02) : new THREE.CircleGeometry(0.24, 5).rotateX(-Math.PI / 2).scale(1, 1, 0.65);
     const mat = toonMaterial(ice ? { transparent: true, opacity: 0.8 } : {});
     this.own.push(mat);
     const m = new THREE.InstancedMesh(geo, mat, parts.length);
@@ -158,15 +173,11 @@ export class HazardView {
       seen.add(s.id);
       let m = this.slicks.get(s.id);
       if (!m) {
-        m = new THREE.Mesh(cached('slick', () => new THREE.CircleGeometry(1, 18).rotateX(-Math.PI / 2)), this.slickMat);
-        const sheen = new THREE.Mesh(cached('sheen', () => new THREE.RingGeometry(0.3, 0.42, 14).rotateX(-Math.PI / 2)), this.sheenMat);
-        sheen.position.set(0.15, 0.005, 0.1);
-        m.add(sheen);
-        m.scale.set(OIL.halfW, 1, OIL.halfZ);
+        m = new THREE.Mesh(slickGeo(), kitMaterial());
         this.slicks.set(s.id, m);
         this.group.add(m);
       }
-      place(m, s.x, 0.03, s.z);
+      place(m, s.x, 0.03, s.z, s.id * 2.4);
       // pours out over a few frames
       const grow = Math.min(1, (OIL.life - s.t + 1) / 8);
       m.scale.set(OIL.halfW * 1.15 * grow, 1, OIL.halfZ * 1.15 * grow);

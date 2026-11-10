@@ -229,6 +229,7 @@ export const TR: Table = {
   slipped: "YAĞDA KAYDIN!",
   moo: "MÖÖÖ!",
   bowled: "STRIKE! +${n}",
+  bowlTip: "Yönlen, devir onları!",
   oilPoured: "YAĞ DÖKÜLDÜ!",
   tumbleweed: "ÇALI TOPU!",
   taunted: "ALAY! +${n}",

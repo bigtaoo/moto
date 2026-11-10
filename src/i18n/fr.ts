@@ -229,6 +229,7 @@ export const FR: Table = {
   slipped: "GLISSADE SUR L'HUILE !",
   moo: "MEUUUH !",
   bowled: "STRIKE ! +${n}",
+  bowlTip: "Dirige-toi, fais un strike !",
   oilPoured: "HUILE VERSÉE !",
   tumbleweed: "VIREVOLTANT !",
   taunted: "PROVOC ! +${n}",

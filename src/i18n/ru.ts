@@ -229,6 +229,7 @@ export const RU: Table = {
   slipped: "МАСЛО!",
   moo: "МУУУ!",
   bowled: "СТРАЙК! +${n}",
+  bowlTip: "Рули — сбей их!",
   oilPoured: "МАСЛО РАЗЛИТО!",
   tumbleweed: "ПЕРЕКАТИ-ПОЛЕ!",
   taunted: "ПОДКОЛ! +${n}",

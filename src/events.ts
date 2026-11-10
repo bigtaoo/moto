@@ -10,6 +10,7 @@ import * as tele from './telemetry';
 import { REVENGE_PAY } from './career';
 import { t, ord } from './i18n';
 import { buzz } from './haptics';
+import { BOWL } from './sim/fun';
 
 /** The game-feel state the events set and the frame loop runs down. */
 export interface Feel {
@@ -24,6 +25,9 @@ export interface Feel {
 const WEAPON = { pan: ['stolePan', 'tookPan', 'fryingPan'], bat: ['stoleBat', 'tookBat', 'baseballBat'], oil: ['stoleOil', 'tookOil', 'oilCan'] } as const;
 const INTO = { car: 'intoTraffic', cones: 'intoCones', wall: 'intoWall', oil: 'intoOil', cow: 'intoCow' } as const;
 const FELL = { ko: 'knockedOff', car: 'wipeout', wall: 'slammed', cones: 'cones', oil: 'slipped', cow: 'moo' } as const;
+
+/** Falls this session the bowling tip was shown on (it stops at 2, or once the player has bowled someone). */
+let bowlTips = 0;
 
 export const newFeel = (): Feel => ({ hitstop: 0, slow: 0, lastGrudgeKos: 0 });
 
@@ -109,6 +113,11 @@ export function react(e: SimEvent, w: World, view: RaceView, hud: Hud, feel: Fee
         buzz([45, 40, 90]);
         view.shake(0.8);
         hud.flash(t(FELL[e.cause]), 'bad');
+        // the tumbling body can be steered into riders: say so while someone is there to hit
+        if (bowlTips < 2 && e.speed >= BOWL.minSpeed * 2 && w.riders.some((o) => o.id !== 0 && o.state === 'ride' && Math.abs(o.z - r.z - 6) < 8 && Math.abs(o.x - r.x) < 4)) {
+          bowlTips++;
+          hud.pop(t('bowlTip'));
+        }
       }
       if (near(e.rider)) sfx.crash();
       break;
@@ -167,6 +176,7 @@ export function react(e: SimEvent, w: World, view: RaceView, hud: Hud, feel: Fee
       buzz(35);
       sfx.thunk(true);
       hud.pop(t('bowled', { n: e.pay }), 'big');
+      bowlTips = 2;
       break;
     }
     case 'oil':

@@ -229,6 +229,7 @@ export const DE: Table = {
   slipped: "AUF ÖL AUSGERUTSCHT!",
   moo: "MUUUH!",
   bowled: "UMGEKEGELT! +${n}",
+  bowlTip: "Lenk rein und kegel sie um!",
   oilPoured: "ÖL VERSCHÜTTET!",
   tumbleweed: "STEPPENROLLER!",
   taunted: "VERHÖHNT! +${n}",
