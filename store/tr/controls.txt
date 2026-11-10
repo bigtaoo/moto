@@ -1,0 +1,3 @@
+Dokunmatik: yön vermek için sola ve sağa sürükle, tokat atmak için dokun.
+Klavye: yön için sol/sağ ok veya A/D, vurmak için Boşluk veya J, fren için aşağı ok veya S, duraklatmak için P.
+Fare: yön vermek için sürükle, vurmak için tıkla.

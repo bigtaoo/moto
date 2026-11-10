@@ -1,5 +1,6 @@
 // DOM overlay. Per-frame changes go through transform/opacity only; text is touched only when it changes.
 
+import { icon } from './icons';
 import type { World } from '../sim/world';
 import { ATTACK, WEAPON, GRUDGE_BONUS, UPGRADE_MAX, UPGRADE_CAP, VEHICLES, DIVISIONS, stage, type Vehicle } from '../sim/config';
 import type { RaceView } from './scene';
@@ -93,6 +94,9 @@ export class Hud {
   private readonly results: HTMLElement;
   private readonly pauseEl: HTMLElement;
   readonly pauseBtn: HTMLButtonElement;
+  /** The player's sound switch, on every screen. */
+  readonly muteBtn: HTMLButtonElement;
+  private soundOff = false;
   private barW = 200;
   private last = { place: '', hp: '', cash: -1, slapL: false, slapR: false, chaser: '', incL: false, incR: false, heat: '' };
   private bannerT = 0;
@@ -107,14 +111,14 @@ export class Hud {
           <div class="heat"></div>
           <div class="grow"></div>
           <div class="cash">$0</div>
-          <button class="pausebtn" aria-label="Pause">II</button>
+          <button class="pausebtn" aria-label="Pause">${icon('pause')}</button>
         </div>
         <div class="prog"><div class="fill"></div></div>
         <div class="labels"></div>
         <div class="slap l"></div>
         <div class="slap r"></div>
-        <div class="inc l">⚠</div>
-        <div class="inc r">⚠</div>
+        <div class="inc l">${icon('warn')}</div>
+        <div class="inc r">${icon('warn')}</div>
         <div class="banner"></div>
         <div class="chaser"></div>
         <div class="hint"></div>
@@ -145,19 +149,30 @@ export class Hud {
     this.results = $(host, '#results');
     this.pauseEl = $(host, '#paused');
     this.pauseBtn = $(this.root, '.pausebtn');
+    this.muteBtn = host.appendChild(document.createElement('button'));
+    this.muteBtn.className = 'mutebtn';
     this.localize();
     this.resize();
   }
 
   /** The fixed text, in the current language (again once the platform has said which). */
   localize(): void {
-    this.slapL.textContent = `◀ ${t('slap')}`;
-    this.slapR.textContent = `${t('slap')} ▶`;
+    this.slapL.innerHTML = `${icon('left')} ${t('slap')}`;
+    this.slapR.innerHTML = `${t('slap')} ${icon('right')}`;
     this.hint.textContent = t('hint');
-    this.remountBtn.innerHTML = `${t('backOnNow')}<small>${t('watchAd')}</small>`;
+    this.remountBtn.innerHTML = `<span>${icon('play')} ${t('backOnNow')}</span><small>${t('watchAd')}</small>`;
     this.pauseBtn.setAttribute('aria-label', t('pause'));
+    this.setSound(!this.soundOff);
     $(this.pauseEl, 'h2').textContent = t('paused');
     this.pauseResume.textContent = t('resume');
+  }
+
+  /** Show the sound switch as on or off. */
+  setSound(on: boolean): void {
+    this.soundOff = !on;
+    this.muteBtn.innerHTML = icon(on ? 'soundOn' : 'soundOff');
+    this.muteBtn.setAttribute('aria-label', t(on ? 'soundOn' : 'soundOff'));
+    this.muteBtn.setAttribute('aria-pressed', String(!on));
   }
 
   get pauseResume(): HTMLButtonElement {
@@ -206,7 +221,7 @@ export class Hud {
   setNemesis(n: Nemesis | null, name: string, bounty: number): void {
     this.nemEl.className = 'nemcard';
     if (!n) return;
-    this.nemEl.innerHTML = `<b>${t('nemTitle', { name })}</b><span>${t('nemRecord', { hurt: n.hurt, paid: n.paid, max: BREAK_AT })}</span><span>${t('nemBounty', { n: bounty })}</span>`;
+    this.nemEl.innerHTML = `<b>${icon('skull')} ${t('nemTitle', { name })}</b><span>${t('nemRecord', { hurt: n.hurt, paid: n.paid, max: BREAK_AT })}</span><span>${t('nemBounty', { n: bounty })}</span>`;
     void this.nemEl.offsetWidth;
     this.nemEl.className = 'nemcard show';
   }
@@ -311,7 +326,7 @@ export class Hud {
     if (heat !== this.last.heat) {
       this.last.heat = heat;
       this.heatEl.innerHTML = heat === '' ? '' : Array.from({ length: 3 }, (_, i) =>
-        `<i style="opacity:${i < lit ? 1 : i === lit ? 0.2 + 0.6 * (w.heat - lit) : 0.15}">★</i>`).join('');
+        `<i style="opacity:${i < lit ? 1 : i === lit ? 0.2 + 0.6 * (w.heat - lit) : 0.15}">${icon('star')}</i>`).join('');
       this.heatEl.classList.toggle('hot', lit >= 2);
     }
     // a rival hunting the leader from behind: who and how far back
@@ -319,12 +334,12 @@ export class Hud {
     if (p.state !== 'away') {
       for (const r of w.riders) {
         const back = p.z - r.z;
-        if (r.huntT > 0 && r.state === 'ride' && back > 4) { chase = `${r.name} ▲ ${Math.round(back)} m`; break; }
+        if (r.huntT > 0 && r.state === 'ride' && back > 4) { chase = `${r.name} ${icon('up')} ${Math.round(back)} m`; break; }
       }
     }
     if (chase !== this.last.chaser) {
       this.last.chaser = chase;
-      if (chase) this.chaser.textContent = chase;
+      if (chase) this.chaser.innerHTML = chase;
       this.chaser.classList.toggle('on', chase !== '');
     }
     if (this.bannerT > 0) {
@@ -346,7 +361,7 @@ export class Hud {
       const lock = upgradeLock(save, k);
       const cap = UPGRADE_CAP[save.tier][k];
       const pips = Array.from({ length: UPGRADE_MAX[k] }, (_, i) => `<i class="${i < lvl ? 'on' : i >= cap ? 'lock' : ''}"></i>`).join('');
-      const label = cost !== null ? '$' + cost : lock ? `🔒 ${lock}` : t('max');
+      const label = cost !== null ? '$' + cost : lock ? `${icon('lock')} ${lock}` : t('max');
       return `<div class="up"><div class="upname">${t(UP_NAMES[k])}<div class="pips">${pips}</div></div>
         <button data-k="${k}" ${cost === null || save.cash < cost ? 'disabled' : ''}>${label}</button></div>`;
     }).join('');
@@ -363,7 +378,7 @@ export class Hud {
         ${res.doubled ? row(t('adBonus'), `$${res.earned / 2}`, 'good') : ''}
         ${row(t('earned'), `$${res.earned}`, 'total')}
       </div>
-      ${res.double > 0 && !res.doubled ? `<button class="double">${t('double', { n: res.double })}<small>${t('watchAd')}</small></button>` : ''}
+      ${res.double > 0 && !res.doubled ? `<button class="double"><span>${icon('play')} ${t('double', { n: res.double })}</span><small>${t('watchAd')}</small></button>` : ''}
       ${this.feudCard(res)}
       ${this.leagueHtml(res.league)}
       ${res.grudges.length ? `<div class="grudges">${t('holding')} <b>${res.grudges.join(', ')}</b><br><small>${t('grudgeTip', { n: GRUDGE_BONUS })}</small></div>` : ''}
@@ -386,7 +401,7 @@ export class Hud {
   private garageHtml(save: Save): string {
     const cards = VEHICLES.map((v, i) => {
       const st = rideState(save, i);
-      const label = st === 'riding' ? t('riding') : st === 'owned' ? t('rideIt') : st === 'buy' ? `$${v.price}` : `🔒 ${stage(v.rung % DIVISIONS.length, Math.floor(v.rung / DIVISIONS.length)).name}`;
+      const label = st === 'riding' ? t('riding') : st === 'owned' ? t('rideIt') : st === 'buy' ? `$${v.price}` : `${icon('lock')} ${stage(v.rung % DIVISIONS.length, Math.floor(v.rung / DIVISIONS.length)).name}`;
       const off = st === 'riding' || st === 'locked' || (st === 'buy' && save.cash < v.price);
       return `<button class="ride ${st}" data-v="${i}" ${off ? 'disabled' : ''}><b>${v.name}</b><span>${statLine(v)}</span><small>${t(`blurb${i}` as Key)}</small><i>${label}</i></button>`;
     }).join('');
@@ -409,9 +424,9 @@ export class Hud {
   /** A new nemesis, or one just broken: the big news of the race. */
   private feudCard(res: RaceResult): string {
     const { out, nemesis, name } = res.feud;
-    if (out.broken) return `<div class="nemres win">${t('brokenCard', { name: name(out.vs!) })}</div>`;
-    if (out.fresh !== null) return `<div class="nemres">${t('newNem')} <b>${name(out.fresh)}</b><small>${t('newNemTip', { n: BREAK_AT })}</small></div>`;
-    if (nemesis) return `<div class="nemres small">${t('nem')} <b>${name(nemesis.id)}</b> · ${t('nemBeaten', { p: nemesis.paid, n: BREAK_AT })}<small>${t('nemTip')}</small></div>`;
+    if (out.broken) return `<div class="nemres win">${icon('skull')} ${t('brokenCard', { name: name(out.vs!) })}</div>`;
+    if (out.fresh !== null) return `<div class="nemres">${icon('skull')} ${t('newNem')} <b>${name(out.fresh)}</b><small>${t('newNemTip', { n: BREAK_AT })}</small></div>`;
+    if (nemesis) return `<div class="nemres small">${icon('skull')} ${t('nem')} <b>${name(nemesis.id)}</b> · ${t('nemBeaten', { p: nemesis.paid, n: BREAK_AT })}<small>${t('nemTip')}</small></div>`;
     return '';
   }
 

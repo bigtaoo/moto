@@ -22,6 +22,8 @@ export interface Save {
   tier: number;
   /** Vehicles owned (C.VEHICLES indexes) and the one ridden. */
   garage: { cur: number; owned: number[] };
+  /** The player's own sound switch (the host's is separate and not saved). */
+  muted: boolean;
 }
 
 const num = (v: unknown) => Number(v) || 0;
@@ -40,7 +42,7 @@ function readFeud(f: Partial<Feud> | undefined): Feud {
 export function parseSave(raw: string | null): Save {
   const fresh: Save = {
     cash: 0, up: { top: 0, steer: 0, hp: 0 }, grudges: [], races: 0, best: 0, div: 0, cup: newCup(), titles: 0, feud: newFeud(), tier: 0,
-    garage: { cur: 0, owned: [0] },
+    garage: { cur: 0, owned: [0] }, muted: false,
   };
   try {
     if (!raw) return fresh;
@@ -66,6 +68,7 @@ export function parseSave(raw: string | null): Save {
       feud: readFeud(s.feud),
       tier: Math.max(0, Math.min(TIERS.length - 1, Math.floor(num(s.tier)))),
       garage: { cur: owned.includes(cur) ? cur : 0, owned },
+      muted: s.muted === true,
     };
   } catch {
     return fresh;

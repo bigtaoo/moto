@@ -1,0 +1,3 @@
+Táctil: arrastra a izquierda y derecha para girar, toca para dar un bofetón.
+Teclado: flechas izquierda/derecha o A/D para girar, Espacio o J para golpear, flecha abajo o S para frenar, P para pausar.
+Ratón: arrastra para girar, haz clic para golpear.

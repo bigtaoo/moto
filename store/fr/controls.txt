@@ -1,0 +1,3 @@
+Tactile : glisse à gauche et à droite pour diriger, touche pour mettre une claque.
+Clavier : flèches gauche/droite ou A/D pour diriger, Espace ou J pour frapper, flèche bas ou S pour freiner, P pour la pause.
+Souris : fais glisser pour diriger, clique pour frapper.

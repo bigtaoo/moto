@@ -1,0 +1,3 @@
+Touch: drag left and right to steer, tap to slap.
+Keyboard: Left/Right arrows or A/D to steer, Space or J to slap, Down arrow or S to brake, P to pause.
+Mouse: drag to steer, click to slap.

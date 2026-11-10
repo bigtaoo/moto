@@ -8,15 +8,21 @@ import { Recorder } from './sim/replay';
 import { Stage, RaceView } from './view/scene';
 import { Controls } from './view/input';
 import { Hud, type RaceResult } from './view/hud';
-import { sfx, unlockAudio, suspendAudio, setMuted } from './view/audio';
+import { sfx, unlockAudio, hold, setMuted, music, raceTrack, preloadAudio } from './view/audio';
+import { installIconCss } from './view/icons';
+import { statsOverlay } from './view/stats';
+import * as funnel from './funnel';
 import { parseSave, storeSave, type Save } from './meta';
 import { CUP_RACES, riderName, settleRace, buyUpgrade, chooseRide, REVENGE_PAY, type UpKey } from './career';
 import * as platform from './platform';
 import { setLang, t, ord } from './i18n';
 
 const params = new URLSearchParams(location.search);
-// the browser's language until the platform says otherwise; ?lang=xx wins over both
-setLang(params.get('lang') ?? navigator.language);
+// English until the platform says otherwise (3.4.2: the language comes from the Bridge only); ?lang=xx wins
+setLang(params.get('lang') ?? 'en');
+installIconCss();
+// no long-press menu, text selection callout or drag ghost on a phone (Playgama 1.4.5)
+document.addEventListener('contextmenu', (e) => e.preventDefault());
 const BOT = params.has('bot');
 const LEN = Number(params.get('len')) || undefined;
 
@@ -39,10 +45,17 @@ let world!: World;
 let view!: RaceView;
 let recorder!: Recorder;
 let state: 'title' | 'race' | 'results' = 'title';
+
+/** Change screens: the HUD layout and the music follow. */
+function setState(s: typeof state): void {
+  state = s;
+  funnel.setScreen(s);
+  app.classList.toggle('racing', s === 'race');
+  music(s === 'race' ? raceTrack(save.div) : 'title');
+}
 let paused = false;
 /** The host (or an ad) has the game paused; separate from the player's own pause menu. */
 let hostPaused = false;
-let hostMuted = false;
 /** The rewarded "back on now" was used this race. */
 let remountUsed = false;
 /** Seconds the player has been down (the remount button waits for the tumble to end). */
@@ -105,7 +118,7 @@ function startRace(): void {
   intro(); // the first race's ran behind the title
   unlockAudio();
   titleEl.classList.add('hidden');
-  state = 'race';
+  setState('race');
   platform.lifecycle('level_started', { world: world.div.name, level: String(save.cup.race + 1) });
 }
 
@@ -251,6 +264,7 @@ function finishRace(): void {
     places: of((r) => r.place), koPlayer: of((r) => r.koPlayer), koByPlayer: of((r) => r.koByPlayer),
   });
   storeSave(save);
+  funnel.raceDone(place, save.races);
   const table = s.table.map((t) => ({ name: riderName(t.id), pts: t.pts, rank: t.rank, me: t.id === 0 }));
   const res: RaceResult = {
     place, total: w.racers, prize: s.prize, kos: w.kos, koBonus: s.koBonus, grudgeKos: w.grudgeKos, grudgeBonus: s.grudgeBonus,
@@ -260,7 +274,7 @@ function finishRace(): void {
     double: s.earned > 0 && platform.rewardedReady() ? s.earned : 0,
     doubled: false,
   };
-  state = 'results';
+  setState('results');
   platform.lifecycle(place <= C.PROMOTE ? 'level_completed' : 'level_failed', { world: w.div.name, level: String(s.cupRace) });
   const show = () => hud.showResults(res, save, buy, again, double, ride);
   const double = () => {
@@ -278,6 +292,7 @@ function finishRace(): void {
   const buy = (k: UpKey) => {
     if (!buyUpgrade(save, k)) return;
     storeSave(save);
+    funnel.event('upgrade_purchased', { upgrade_id: k, level: save.up[k] });
     sfx.coin();
     show();
   };
@@ -285,13 +300,14 @@ function finishRace(): void {
     const had = save.cash;
     if (!chooseRide(save, v)) return;
     storeSave(save);
+    funnel.event('ride_chosen', { ride: v, bought: save.cash < had });
     if (save.cash < had) sfx.coin();
     show();
   };
   const again = () => {
     platform.interstitial('race_end');
     newRace();
-    state = 'race';
+    setState('race');
     platform.lifecycle('level_started', { world: world.div.name, level: String(save.cup.race + 1) });
   };
   show();
@@ -304,6 +320,7 @@ function tick(): void {
   } else if (state === 'race') {
     inp.targetX = controls.targetX;
     inp.steer = controls.steer;
+    if (controls.steer !== 0 || controls.targetX !== null) funnel.tutorialStep('steer');
     inp.brake = controls.brake;
     if (controls.attack) { atkBuffer = 8; controls.attack = false; }
     inp.attack = atkBuffer > 0;
@@ -316,7 +333,8 @@ function tick(): void {
   world.step();
   let swung = false;
   for (const e of world.events) {
-    if (e.type === 'swing' && e.rider === 0) swung = true;
+    if (e.type === 'swing' && e.rider === 0) { swung = true; funnel.tutorialStep('slap'); }
+    if (e.type === 'hit' && e.from === 0) funnel.tutorialStep('hit');
     handle(e);
   }
   world.events.length = 0;
@@ -337,17 +355,23 @@ function setPaused(on: boolean): void {
   if (state !== 'race' || paused === on) return;
   paused = on;
   hud.setPaused(on);
-  suspendAudio(on || hostPaused);
+  hold('pause', on);
 }
 
 platform.host.onPause = (on) => {
   hostPaused = on;
-  suspendAudio(on || paused);
+  hold('host', on);
 };
-platform.host.onAudio = (on) => {
-  hostMuted = !on;
-  setMuted(hostMuted);
-};
+platform.host.onAudio = (on) => setMuted('host', !on);
+
+/** The player's own sound switch, kept in the save. */
+function toggleSound(): void {
+  save.muted = !save.muted;
+  setMuted('player', save.muted);
+  hud.setSound(!save.muted);
+  storeSave(save);
+  funnel.event('settings_changed', { setting: 'sound', value: !save.muted });
+}
 
 /** "Back on now": a rewarded ad puts a downed player straight back on the scooter, once a race. */
 function remount(): void {
@@ -363,11 +387,20 @@ function remount(): void {
 }
 
 controls.onPause = () => setPaused(!paused);
-controls.onAny = () => unlockAudio();
+controls.onAny = () => { unlockAudio(); funnel.input(); };
+// any first tap or key unlocks sound; buttons click
+for (const ev of ['pointerdown', 'keydown']) document.addEventListener(ev, () => { unlockAudio(); funnel.input(); }, true);
+document.addEventListener('click', (e) => { if ((e.target as Element).closest?.('button')) sfx.click(); });
+hud.muteBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
+hud.muteBtn.addEventListener('click', () => { if (save) toggleSound(); });
 hud.pauseBtn.addEventListener('click', () => setPaused(true));
 hud.pauseResume.addEventListener('click', () => setPaused(false));
 hud.remountBtn.addEventListener('pointerdown', (e) => { e.stopPropagation(); remount(); });
-document.addEventListener('visibilitychange', () => { if (document.hidden) setPaused(true); });
+// a hidden page is silent whatever screen it is on, and a race pauses
+document.addEventListener('visibilitychange', () => {
+  hold('hidden', document.hidden);
+  if (document.hidden) setPaused(true);
+});
 titleEl.querySelector('button')!.addEventListener('click', startRace);
 window.addEventListener('resize', () => { stage.resize(); hud.resize(); });
 
@@ -390,44 +423,35 @@ function frame(now: number): void {
   hud.showHint(state === 'race' && save.races < 2 && world.time < 6);
   downClock = world.player.state === 'down' ? downClock + dt : 0;
   hud.showRemount(state === 'race' && !BOT && !remountUsed && downClock > 0.6 && platform.rewardedReady());
-  if (statsEl) showStats(dt);
+  if (state === 'race' && !BOT) funnel.playing(dt);
+  showStats?.(dt);
 }
 
-// ?stats: frame rate and what the GPU is asked to draw, for checking the art budget on a phone.
-const statsEl = params.has('stats') ? document.body.appendChild(document.createElement('pre')) : null;
-if (statsEl) statsEl.style.cssText = 'position:fixed;left:4px;bottom:4px;margin:0;padding:4px 6px;font:11px/1.3 monospace;color:#fff;background:#000a;pointer-events:none;z-index:99';
-let statsT = 0;
-let statsN = 0;
-let statsWorst = 0;
-function showStats(dt: number): void {
-  statsT += dt;
-  statsN++;
-  statsWorst = Math.max(statsWorst, dt);
-  if (statsT < 0.5) return;
-  const r = stage.renderer.info;
-  statsEl!.textContent = `${Math.round(statsN / statsT)} fps  worst ${Math.round(statsWorst * 1000)} ms\n` +
-    `${r.render.calls} calls  ${(r.render.triangles / 1000).toFixed(1)}k tris\n` +
-    `${r.memory.geometries} geos  ${r.memory.textures} tex  ${r.programs?.length ?? 0} progs`;
-  statsT = statsN = statsWorst = 0;
-}
+const showStats = params.has('stats') ? statsOverlay(stage.renderer) : null;
 
 async function boot(): Promise<void> {
   await platform.initPlatform();
+  preloadAudio(); // after the Bridge is up (its required step 2), small and in the background
   if (!params.has('lang')) {
     setLang(platform.language());
     localize();
   }
   save = parseSave(await platform.loadData());
-  hostMuted = !platform.audioEnabled();
-  setMuted(hostMuted);
+  setMuted('host', !platform.audioEnabled());
+  setMuted('player', save.muted);
+  hud.setSound(!save.muted);
   newRace();
+  setState(state);
   const best = document.getElementById('best');
   if (best && save.races > 0) {
     best.textContent = t('best', { div: C.stage(save.div, save.tier).name, n: save.cup.race + 1, m: CUP_RACES, cash: save.cash }) + (save.titles ? t('champs', { n: save.titles }) : '');
   }
-  if (BOT) startRace();
   requestAnimationFrame(frame);
+  // a new player is straight into their first race, no menu tap; the countdown is the tutorial's start
+  if (BOT || save.races === 0) startRace();
+  if (!BOT && save.races === 0) funnel.startTutorial();
   platform.gameReady();
+  funnel.loaded();
 }
 void boot();
 

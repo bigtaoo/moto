@@ -1,7 +1,7 @@
 // The host platform, through the Playgama Bridge (index.html loads it first). Saves, ads, the host's
 // pause and audio switches, and the ready signal all go through here, so the game itself never touches
-// `window.bridge`. Without the Bridge (offline, blocked) everything falls back: saves to localStorage,
-// no ads. On the Bridge's mock platform (local runs) ads are faked in dev builds, or with `?fakeads`,
+// `window.bridge`. The Bridge loads from Playgama's CDN, as its docs recommend. Without it (blocked)
+// everything falls back: saves to localStorage, no ads. On the Bridge's mock platform (local runs) ads are faked in dev builds, or with `?fakeads`,
 // so the rewarded flows can be played through.
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -39,11 +39,18 @@ export async function initPlatform(): Promise<void> {
 
 export const platformId = (): string => (bridge ? String(bridge.platform.id) : 'none');
 export const audioEnabled = (): boolean => (bridge ? bridge.platform.isAudioEnabled !== false : true);
-export const language = (): string => String(bridge?.platform.language ?? navigator.language ?? 'en').slice(0, 2).toLowerCase();
+/** The player's language as the platform reports it; English when there is no Bridge (3.4.2). */
+export const language = (): string => String(bridge?.platform.language ?? 'en').slice(0, 2).toLowerCase();
 
 /** The game is loaded and playable. */
 export function gameReady(): void {
   try { bridge?.platform.sendMessage('game_ready'); } catch { /* not relayed here */ }
+}
+
+/** A game event for Playgama analytics (src/funnel.ts); dropped where there is no Bridge. */
+export function track(name: string, data?: Record<string, string | number | boolean>): void {
+  if (params.has('trace')) console.info('track', name, data ?? '');
+  try { bridge?.analytics?.send(name, data); } catch { /* not supported here */ }
 }
 
 /** Lifecycle message (`level_started`, `level_completed` ...), for the platforms that use them. */
@@ -56,7 +63,11 @@ export function lifecycle(msg: string, data?: Record<string, string>): void {
 const LOCAL_KEY = 'dummy-brawl-v1';
 const KEY = 'save';
 
-/** The saved game as JSON, or null. Bridge storage first; the old localStorage save only if it has none. */
+/** Our own localStorage is only for runs without the Bridge, or its local mock (an older save there);
+ *  on a real platform every byte goes through Bridge storage (Playgama 3.2.1). */
+const ownStorage = (): boolean => !bridge || bridge.platform.id === 'mock';
+
+/** The saved game as JSON, or null. */
 export async function loadData(): Promise<string | null> {
   if (bridge) {
     try {
@@ -66,6 +77,7 @@ export async function loadData(): Promise<string | null> {
       console.warn('Bridge storage read failed', e);
     }
   }
+  if (!ownStorage()) return null;
   try { return localStorage.getItem(LOCAL_KEY); } catch { return null; }
 }
 
@@ -119,14 +131,12 @@ export function showRewarded(placement: string): Promise<boolean> {
 function fakeAd(placement: string): Promise<boolean> {
   return new Promise((resolve) => {
     host.onPause(true);
-    host.onAudio(false);
     const el = document.createElement('div');
     el.style.cssText = 'position:fixed;inset:0;z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:#111d;color:#fff;font:900 22px system-ui;';
     el.innerHTML = `<div>AD · ${placement}</div><div style="font-size:14px;opacity:.7">test ad, not shown on the platform</div>`;
     document.body.appendChild(el);
     setTimeout(() => {
       el.remove();
-      host.onAudio(true);
       host.onPause(false);
       resolve(true);
     }, 1200);

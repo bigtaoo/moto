@@ -1,0 +1,13 @@
+Dummy Brawl - audio credits. Every file here is CC0 (public domain): no attribution required, credited anyway.
+
+Music (race1-3, title): Juhani Junkala, "5 Chiptunes (Action)" / Retro Game Music Pack
+  https://opengameart.org/content/5-chiptunes-action
+thunk1-3, thunk_big: rubberduck, "75 CC0 breaking/falling/hit sfx"
+  https://opengameart.org/content/75-cc0-breaking-falling-hit-sfx
+crash: qubodup, "Crash Collision"  https://opengameart.org/content/crash-collision
+whoosh1-2, dodge: artisticdude, "Swishes Sound Pack"  https://opengameart.org/content/swishes-sound-pack
+siren: aquinn, "Sirens and alarm noise"  https://opengameart.org/content/sirens-and-alarm-noise
+scrape, alarm, tell, pickup, count, go, click: Kenney, "Interface Sounds"  https://opengameart.org/content/interface-sounds
+coin, cash: Kenney, "Casino Audio"  https://opengameart.org/content/54-casino-sound-effects-cards-dice-chips
+
+Trimmed, normalised and re-encoded to mono mp3 for the game.

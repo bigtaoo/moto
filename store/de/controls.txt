@@ -1,0 +1,3 @@
+Touch: nach links und rechts ziehen zum Lenken, tippen für eine Ohrfeige.
+Tastatur: Pfeil links/rechts oder A/D zum Lenken, Leertaste oder J zum Schlagen, Pfeil runter oder S zum Bremsen, P für Pause.
+Maus: ziehen zum Lenken, klicken zum Schlagen.

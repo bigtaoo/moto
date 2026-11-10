@@ -1,0 +1,3 @@
+Toque: arraste para a esquerda e a direita para virar, toque para dar um tapa.
+Teclado: setas esquerda/direita ou A/D para virar, Espaço ou J para bater, seta para baixo ou S para frear, P para pausar.
+Mouse: arraste para virar, clique para bater.
