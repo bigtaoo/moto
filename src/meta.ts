@@ -2,9 +2,11 @@
 // platform (src/platform.ts) as one JSON string.
 
 import type { Upgrades } from './sim/world';
-import { DIVISIONS, TIERS, VEHICLES, UPGRADE_MAX } from './sim/config';
+import { DIVISIONS, TIERS, VEHICLES, UPGRADE_MAX, ROSTER } from './sim/config';
 import { newCup, newFeud, type Cup, type Feud } from './career';
 import { saveData } from './platform';
+import { readDaily, today, type Daily } from './daily';
+import type { QualityMode } from './view/quality';
 
 export interface Save {
   cash: number;
@@ -27,9 +29,15 @@ export interface Save {
   /** Sessions started (analytics: the session number) and the day (UTC days since 1970) of the first one. */
   sessions: number;
   firstDay: number;
+  /** The pause menu's switches: music and effects apart (under the sound switch), and the graphics setting. */
+  musicOff: boolean;
+  sfxOff: boolean;
+  quality: QualityMode;
+  /** Today's challenges and first win (src/daily.ts). */
+  daily: Daily;
 }
 
-const num = (v: unknown) => Number(v) || 0;
+const num = (v: unknown): number => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 
 function readFeud(f: Partial<Feud> | undefined): Feud {
   const out = newFeud();
@@ -45,7 +53,7 @@ function readFeud(f: Partial<Feud> | undefined): Feud {
 export function parseSave(raw: string | null): Save {
   const fresh: Save = {
     cash: 0, up: { top: 0, steer: 0, hp: 0 }, grudges: [], races: 0, best: 0, div: 0, cup: newCup(), titles: 0, feud: newFeud(), tier: 0,
-    garage: { cur: 0, owned: [0] }, muted: false, sessions: 0, firstDay: 0,
+    garage: { cur: 0, owned: [0] }, muted: false, sessions: 0, firstDay: 0, musicOff: false, sfxOff: false, quality: 'auto', daily: readDaily(null, today()),
   };
   try {
     if (!raw) return fresh;
@@ -59,21 +67,29 @@ export function parseSave(raw: string | null): Save {
     const owned = [0];
     if (Array.isArray(s.garage?.owned)) for (const v of s.garage.owned) if (Number.isInteger(v) && v > 0 && v < VEHICLES.length && !owned.includes(v)) owned.push(v);
     const cur = Number(s.garage?.cur);
+    /** A count or amount: a whole number, 0 or more (junk, NaN or a negative is 0). */
+    const count = (v: unknown) => Math.max(0, Math.floor(num(v)));
+    // a rival id the race can look up: anything else would throw at the finish, after the race had paid out
+    const grudges = Array.isArray(s.grudges) ? s.grudges.filter((n, i, a) => Number.isInteger(n) && n >= 1 && n <= ROSTER.length && a.indexOf(n) === i) : [];
     return {
-      cash: Number(s.cash) || 0,
+      cash: count(s.cash),
       up: { top: lvl(s.up?.top, UPGRADE_MAX.top), steer: lvl(s.up?.steer, UPGRADE_MAX.steer), hp: lvl(s.up?.hp, UPGRADE_MAX.hp) },
-      grudges: Array.isArray(s.grudges) ? s.grudges.filter((n) => typeof n === 'number') : [],
-      races: Number(s.races) || 0,
-      best: Number(s.best) || 0,
+      grudges,
+      races: count(s.races),
+      best: count(s.best),
       div: Math.max(0, Math.min(DIVISIONS.length - 1, Math.floor(Number(s.div) || 0))),
       cup,
-      titles: Number(s.titles) || 0,
+      titles: count(s.titles),
       feud: readFeud(s.feud),
       tier: Math.max(0, Math.min(TIERS.length - 1, Math.floor(num(s.tier)))),
       garage: { cur: owned.includes(cur) ? cur : 0, owned },
       muted: s.muted === true,
-      sessions: Math.max(0, Math.floor(num(s.sessions))),
-      firstDay: Math.max(0, Math.floor(num(s.firstDay))),
+      sessions: count(s.sessions),
+      firstDay: count(s.firstDay),
+      musicOff: s.musicOff === true,
+      sfxOff: s.sfxOff === true,
+      quality: s.quality === 'low' || s.quality === 'high' ? s.quality : 'auto',
+      daily: readDaily(s.daily, today()),
     };
   } catch {
     return fresh;

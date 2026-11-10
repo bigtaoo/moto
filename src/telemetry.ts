@@ -4,7 +4,8 @@
 // - `progression_started/completed/failed` per race (step_id a division of a season, step_index the race on
 //   the whole ladder), `failed{reason:'abandon'}` when the page goes in the middle of one, and the career's
 //   milestones (cup, division, season, title, nemesis, ride unlocked)
-// - `error_report{kind}` (js_error, unhandled_rejection, webgl_lost, stall, boot_fail, boot_slow), 3 a kind
+// - `error_report{kind}` (js_error, unhandled_rejection, webgl_lost, no_webgl, save_read, stall, boot_fail,
+//   boot_slow), 3 a kind
 // - the boot's stages on `game_loaded`, `boot_left{stage}` for a page left before it was up
 // - `idle{screen}` when nobody has touched anything for a while, `ad_offer` for the rewarded offers
 // - common fields on every event: device, orientation, language, build, career bucket, session number,
@@ -33,7 +34,7 @@ let canvas: HTMLCanvasElement | null = null;
 
 // ---- errors ------------------------------------------------------------------------------------
 
-type ErrKind = 'js_error' | 'unhandled_rejection' | 'webgl_lost' | 'stall' | 'boot_fail' | 'boot_slow';
+type ErrKind = 'js_error' | 'unhandled_rejection' | 'webgl_lost' | 'no_webgl' | 'save_read' | 'stall' | 'boot_fail' | 'boot_slow';
 const reported = new Map<ErrKind, number>();
 /** Counts since the last performance_sample (the guide wants them per window). */
 const win = { js: 0, rej: 0, gl: 0, lt: 0, ltMs: 0, ltMax: 0, assets: loadErrors.n };
@@ -78,6 +79,13 @@ export function bootDone(): void {
   clearTimeout(slow);
   funnel.loaded({ ...boot, ready_ms: Math.round(now()) });
 }
+/** The browser has no WebGL: the game can't run here. */
+export function noWebgl(): void {
+  report('no_webgl');
+  flushEarly();
+}
+/** The save couldn't be read (so this session won't write over it). */
+export const saveReadFailed = (): void => report('save_read');
 /** The boot threw; whatever got through to the Bridge goes out with it. */
 export function bootFailed(): void {
   report('boot_fail');
@@ -90,7 +98,7 @@ export function bootFailed(): void {
  * The save is read: counts this session in it (the caller stores it), sets the fields every event carries,
  * and lets out the events held since the page started.
  */
-export function begin(s: Save, c: HTMLCanvasElement): void {
+export function begin(s: Save, c: HTMLCanvasElement, gfx: () => number): void {
   save = s;
   canvas = c;
   s.sessions++;
@@ -108,6 +116,7 @@ export function begin(s: Save, c: HTMLCanvasElement): void {
     session_n: Math.min(20, s.sessions),
     days: Math.max(0, Math.min(30, today - s.firstDay)),
     focus: document.hasFocus(),
+    gfx: gfx(),
   }));
   c.addEventListener('webglcontextlost', () => { win.gl++; report('webgl_lost'); });
   flushEarly();
@@ -204,7 +213,21 @@ function milestones(s: Settlement): void {
   if (f.beaten) track('nemesis', { result: f.broken ? 'broken' : 'beaten', step_id: from, revenge: f.revenge, cash: f.cash });
 }
 
+/** The player restarted the race from the pause menu: it ends as a failure with that reason. */
+export function raceRestart(): void {
+  const r = race;
+  if (!r) return;
+  race = null;
+  sendSample(sampler.flush());
+  track('progression_failed', { ...raceFields(r), reason: 'restart', started: r.world.countdown <= 0 });
+}
+
 /** The player crashed (the sim's crash event): counted by cause on the race's progression event. */
+/** The renderer's quality tier moved (the governor, or the player's setting). */
+export function qualityChanged(tier: number, prev: number, mode: string): void {
+  track('quality_changed', { tier, prev, mode });
+}
+
 export function crashed(cause: CrashCause): void {
   if (race) race.by[cause]++;
 }

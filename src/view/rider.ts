@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import type { WeaponKind } from '../sim/config';
-import { Kit, kitMaterial, toonMaterial } from './toon';
+import { Kit, kitMaterial, shared, toonMaterial } from './toon';
 
 export const JOINT = 0x34343c;
 const TYRE = 0x232327;
@@ -164,12 +164,75 @@ export function makeWeapon(kind: WeaponKind): THREE.Group {
       k.add(new THREE.CylinderGeometry(0.06, 0.032, 0.82, 10).rotateX(Math.PI / 2), 0xd0a060, { at: [0, 0, 0.4] })
         .add(new THREE.CylinderGeometry(0.036, 0.036, 0.16, 8).rotateX(Math.PI / 2), 0x2a2a30, { at: [0, 0, 0.06], ink: false });
     }
-    weaponGeo.set(kind, (geo = k.build()));
+    weaponGeo.set(kind, (geo = shared(k.build())));
   }
   const g = new THREE.Group();
   g.add(new THREE.Mesh(geo, kitMaterial()));
   return g;
 }
+
+interface Parts { ride: THREE.BufferGeometry; legs: THREE.BufferGeometry; top: THREE.BufferGeometry; arm: THREE.BufferGeometry; torsoY: number }
+const partsBuilt = new Map<string, Parts>();
+
+/**
+ * A rider's merged meshes, built once per ride and colours and kept across races (see `shared` in
+ * toon.ts): the outlines make building them the dearest part of starting a race.
+ */
+function riderParts(vehicle: number, body: number, ride: number): Parts {
+  const key = `${vehicle}:${body}:${ride}`;
+  const done = partsBuilt.get(key);
+  if (done) return done;
+  const { kit: sc, seat } = buildRide(vehicle, ride);
+
+  // legs and pelvis: standing on the deck, or sitting with the thighs forward and the shins down
+  const legs = new Kit(INK_W);
+  let torsoY: number;
+  if (seat === null) {
+    for (const x of [-0.11, 0.11]) {
+      legs.add(rod(0.08, 0.44), body, { at: [x, 0.88, -0.08], rot: [Math.PI / 2, 0, 0] })
+        .add(rod(0.07, 0.42), body, { at: [x, 0.45, -0.04], rot: [Math.PI / 2, 0, 0] })
+        .add(ball(0.072), JOINT, { at: [x, 0.66, -0.03], ink: false })
+        .add(rbox(0.15, 0.1, 0.28, 0.04), JOINT, { at: [x, 0.28, 0] });
+    }
+    legs.add(rbox(0.4, 0.22, 0.27), ride, { at: [0, 1.1, -0.08] });
+    torsoY = 1.18;
+  } else {
+    const kn = seat + 0.03;
+    for (const x of [-0.12, 0.12]) {
+      legs.add(rod(0.08, 0.44), body, { at: [x, seat + 0.04, 0.12] })
+        .add(ball(0.072), JOINT, { at: [x, kn, 0.34], ink: false })
+        .add(rod(0.07, 0.42), body, { at: [x, kn - 0.2, 0.38], rot: [Math.PI / 2 - 0.12, 0, 0] })
+        .add(rbox(0.15, 0.1, 0.28, 0.04), JOINT, { at: [x, kn - 0.42, 0.46] });
+    }
+    legs.add(rbox(0.4, 0.22, 0.27), ride, { at: [0, seat + 0.08, -0.08] });
+    torsoY = seat + 0.16;
+  }
+
+  // torso, neck and head, in the torso pivot's frame
+  const top = new Kit(INK_W)
+    .add(rbox(0.46, 0.54, 0.29, 0.09), body, { at: [0, 0.27, 0] })
+    .add(rbox(0.48, 0.06, 0.31, 0.02), JOINT, { at: [0, 0.06, 0], ink: false })
+    .add(new THREE.CylinderGeometry(0.055, 0.065, 0.14, 8), JOINT, { at: [0, 0.59, 0], ink: false })
+    .add(ball(0.175, 12), body, { at: [0, 0.76, 0.01], scale: [0.95, 1.06, 1] })
+    .decal(0.085, TARGET, { at: [0, 0.34, 0.151] })
+    .decal(0.085, TARGET, { at: [0, 0.34, -0.151], rot: [0, Math.PI, 0] });
+  for (const s of [-1, 1]) top.decal(0.06, TARGET, { at: [s * 0.172, 0.77, 0.01], rot: [0, (s * Math.PI) / 2, 0] });
+
+  // one arm, in its shoulder pivot's frame: both sides use it
+  const arm = new Kit(INK_W)
+    .add(ball(0.075), JOINT, { ink: false })
+    .add(rod(0.06, 0.32), body, { at: [0, 0, 0.16] })
+    .add(ball(0.062), JOINT, { at: [0, 0, 0.32], ink: false })
+    .add(rod(0.055, 0.3), body, { at: [0, 0, 0.47] })
+    .add(ball(0.078), JOINT, { at: [0, 0, 0.64] });
+
+  const p = { ride: shared(sc.build()), legs: shared(legs.build()), top: shared(top.build()), arm: shared(arm.build()), torsoY };
+  partsBuilt.set(key, p);
+  return p;
+}
+
+let trail: THREE.BufferGeometry | null = null;
+const trailGeo = () => (trail ??= shared(new THREE.RingGeometry(0.35, 1.5, 14, 1, Math.PI - 0.35, Math.PI / 2 + 0.75).rotateX(-Math.PI / 2)));
 
 export class RiderView {
   readonly root = new THREE.Group();
@@ -209,58 +272,20 @@ export class RiderView {
   /** `vehicle`: C.VEHICLES index of the ride drawn. */
   constructor(readonly body: number, readonly ride: number, readonly vehicle = 0) {
     this.mat = toonMaterial({ vertexColors: true, emissive: 0xffffff, emissiveIntensity: 0 });
-    const mesh = (k: Kit) => new THREE.Mesh(k.build(), this.mat);
-
-    const { kit: sc, seat } = buildRide(vehicle, ride);
-
-    // legs and pelvis: standing on the deck, or sitting with the thighs forward and the shins down
-    const legs = new Kit(INK_W);
-    if (seat === null) {
-      for (const x of [-0.11, 0.11]) {
-        legs.add(rod(0.08, 0.44), body, { at: [x, 0.88, -0.08], rot: [Math.PI / 2, 0, 0] })
-          .add(rod(0.07, 0.42), body, { at: [x, 0.45, -0.04], rot: [Math.PI / 2, 0, 0] })
-          .add(ball(0.072), JOINT, { at: [x, 0.66, -0.03], ink: false })
-          .add(rbox(0.15, 0.1, 0.28, 0.04), JOINT, { at: [x, 0.28, 0] });
-      }
-      legs.add(rbox(0.4, 0.22, 0.27), ride, { at: [0, 1.1, -0.08] });
-      this.torsoY = 1.18;
-    } else {
-      const kn = seat + 0.03;
-      for (const x of [-0.12, 0.12]) {
-        legs.add(rod(0.08, 0.44), body, { at: [x, seat + 0.04, 0.12] })
-          .add(ball(0.072), JOINT, { at: [x, kn, 0.34], ink: false })
-          .add(rod(0.07, 0.42), body, { at: [x, kn - 0.2, 0.38], rot: [Math.PI / 2 - 0.12, 0, 0] })
-          .add(rbox(0.15, 0.1, 0.28, 0.04), JOINT, { at: [x, kn - 0.42, 0.46] });
-      }
-      legs.add(rbox(0.4, 0.22, 0.27), ride, { at: [0, seat + 0.08, -0.08] });
-      this.torsoY = seat + 0.16;
-    }
+    const p = riderParts(vehicle, body, ride);
+    this.torsoY = p.torsoY;
 
     // torso, neck and head, in the torso pivot's frame
     this.torso.position.set(0, this.torsoY, -0.06);
     this.torso.rotation.x = 0.18;
-    const top = new Kit(INK_W)
-      .add(rbox(0.46, 0.54, 0.29, 0.09), body, { at: [0, 0.27, 0] })
-      .add(rbox(0.48, 0.06, 0.31, 0.02), JOINT, { at: [0, 0.06, 0], ink: false })
-      .add(new THREE.CylinderGeometry(0.055, 0.065, 0.14, 8), JOINT, { at: [0, 0.59, 0], ink: false })
-      .add(ball(0.175, 12), body, { at: [0, 0.76, 0.01], scale: [0.95, 1.06, 1] })
-      .decal(0.085, TARGET, { at: [0, 0.34, 0.151] })
-      .decal(0.085, TARGET, { at: [0, 0.34, -0.151], rot: [0, Math.PI, 0] });
-    for (const s of [-1, 1]) top.decal(0.06, TARGET, { at: [s * 0.172, 0.77, 0.01], rot: [0, (s * Math.PI) / 2, 0] });
-    this.torso.add(mesh(top));
+    this.torso.add(new THREE.Mesh(p.top, this.mat));
 
     const mkArm = (simSide: 1 | -1) => {
       const pivot = new THREE.Group();
       pivot.position.set(-simSide * 0.27, 0.46, 0);
-      const arm = new Kit(INK_W)
-        .add(ball(0.075), JOINT, { ink: false })
-        .add(rod(0.06, 0.32), body, { at: [0, 0, 0.16] })
-        .add(ball(0.062), JOINT, { at: [0, 0, 0.32], ink: false })
-        .add(rod(0.055, 0.3), body, { at: [0, 0, 0.47] })
-        .add(ball(0.078), JOINT, { at: [0, 0, 0.64] });
       const hand = new THREE.Object3D();
       hand.position.z = 0.64;
-      pivot.add(mesh(arm), hand);
+      pivot.add(new THREE.Mesh(p.arm, this.mat), hand);
       this.torso.add(pivot);
       return [pivot, hand] as const;
     };
@@ -269,11 +294,12 @@ export class RiderView {
     this.arms = [l, r];
     this.hands = [lh, rh];
     // Swing swoosh: a flat arc round the right shoulder from in front out to the side, at hand height.
-    this.trailMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false });
-    this.trail = new THREE.Mesh(new THREE.RingGeometry(0.35, 1.5, 14, 1, Math.PI - 0.35, Math.PI / 2 + 0.75).rotateX(-Math.PI / 2), this.trailMat);
+    // Flat, so one pass is enough even though it is see-through and two-sided.
+    this.trailMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, forceSinglePass: true });
+    this.trail = new THREE.Mesh(trailGeo(), this.trailMat);
     this.trail.visible = false;
-    this.dummy.add(mesh(legs), this.torso, this.trail);
-    this.lean.add(mesh(sc), this.dummy);
+    this.dummy.add(new THREE.Mesh(p.legs, this.mat), this.torso, this.trail);
+    this.lean.add(new THREE.Mesh(p.ride, this.mat), this.dummy);
     this.root.add(this.lean);
     this.restArms();
   }

@@ -22,6 +22,8 @@ const decoding = new Map<Name, Promise<AudioBuffer | null>>();
 /** Why the game is silent right now ('host', 'pause', 'hidden', 'ad' ...); playing only when empty. */
 const holds = new Set<string>();
 const mutes = { host: false, player: false };
+/** The player's music and effects switches (the pause menu), apart from the mute button. */
+const channels = { music: true, sfx: true };
 let wanted: Track | null = null;
 let playing: { track: Track; src: AudioBufferSourceNode; gain: GainNode } | null = null;
 
@@ -70,10 +72,8 @@ export function unlockAudio(): void {
     master = ctx.createGain();
     master.connect(ctx.destination);
     sfxBus = ctx.createGain();
-    sfxBus.gain.value = SFX_VOL;
     sfxBus.connect(master);
     musicBus = ctx.createGain();
-    musicBus.gain.value = MUSIC_VOL;
     musicBus.connect(master);
     for (const n of SFX) void decode(n);
     apply();
@@ -89,6 +89,12 @@ export function setMuted(who: 'host' | 'player', on: boolean): void {
   apply();
 }
 
+/** The player's music or effects switch. */
+export function setChannel(which: 'music' | 'sfx', on: boolean): void {
+  channels[which] = on;
+  apply();
+}
+
 /** Hold (or release) all sound for a reason; the context runs only with no holds left. */
 export function hold(reason: string, on: boolean): void {
   if (on) holds.add(reason);
@@ -99,8 +105,11 @@ export function hold(reason: string, on: boolean): void {
 function apply(): void {
   if (!ctx || !master) return;
   master.gain.value = mutes.host || mutes.player ? 0 : 1;
+  if (sfxBus) sfxBus.gain.value = channels.sfx ? SFX_VOL : 0;
+  if (musicBus) musicBus.gain.value = channels.music ? MUSIC_VOL : 0;
   if (holds.size) { if (ctx.state === 'running') void ctx.suspend(); }
-  else if (ctx.state === 'suspended') void ctx.resume();
+  // 'suspended', or iOS Safari's 'interrupted' after a call or another app's sound: back on with the next tap
+  else if (ctx.state !== 'running' && ctx.state !== 'closed') void ctx.resume().catch(() => {});
 }
 
 /** Switch the music to a track (null: none). Starts once audio is unlocked and the track is loaded. */
@@ -114,6 +123,9 @@ export function music(track: Track | null): void {
       old.gain.gain.setTargetAtTime(0, ctx.currentTime, 0.15);
       old.src.stop(ctx.currentTime + 0.8);
     }
+    // a decoded track is ~13 MB of samples: only the one playing stays decoded (its mp3 stays, to decode again)
+    buffers.delete(old.track);
+    decoding.delete(old.track);
   }
   if (!track || !ctx) return;
   void decode(track).then((b) => {

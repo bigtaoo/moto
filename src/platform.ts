@@ -24,16 +24,40 @@ export const host = {
   onAudio: (_enabled: boolean) => {},
 };
 
+const INIT_MS = 8000;
+const READ_MS = 5000;
+
+/** `p`, or a rejection after `ms`. */
+function within<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const late = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(`${what} timed out`)), ms); });
+  return Promise.race([p, late]).finally(() => clearTimeout(timer));
+}
+
 /** Set up the Bridge if it loaded. Never rejects: on any failure the game runs on the fallbacks. */
 export async function initPlatform(): Promise<void> {
   const b = (window as any).bridge as Bridge | undefined;
   if (b) {
     try {
-      await b.initialize();
+      // a Bridge that never answers must not hold the game on a blank page: past this it runs on the fallbacks
+      await within(b.initialize(), INIT_MS, 'init');
       bridge = b;
       const E = b.EVENT_NAME;
       b.platform.on(E.PAUSE_STATE_CHANGED, (p: boolean) => host.onPause(!!p));
       b.platform.on(E.AUDIO_STATE_CHANGED, (on: boolean) => host.onAudio(!!on));
+      // an interstitial already open as the game starts: held paused and silent until it closes (the Bridge's
+      // pause and audio events cover the ones that open later)
+      if (b.advertisement?.interstitialState === 'opened') {
+        host.onPause(true);
+        host.onAudio(false);
+        const done = (s: string) => {
+          if (s !== 'closed' && s !== 'failed') return;
+          host.onPause(false);
+          host.onAudio(b.platform.isAudioEnabled !== false);
+          try { b.advertisement.off?.(E.INTERSTITIAL_STATE_CHANGED, done); } catch { /* old Bridge */ }
+        };
+        b.advertisement.on(E.INTERSTITIAL_STATE_CHANGED, done);
+      }
     } catch (e) {
       console.warn('Bridge failed to start, running without it', e);
       bridge = null;
@@ -84,26 +108,57 @@ const KEY = 'save';
  *  on a real platform every byte goes through Bridge storage (Playgama 3.2.1). */
 const ownStorage = (): boolean => !bridge || bridge.platform.id === 'mock';
 
-/** The saved game as JSON, or null. */
-export async function loadData(): Promise<string | null> {
+/**
+ * The saved game as JSON (null: there is none yet), or `ok: false` when it could not be read. A read that
+ * failed is not an empty save: writing a fresh career over it would wipe the player's progress, so the game
+ * then plays without writing (`savesOff`).
+ */
+export async function loadData(): Promise<{ ok: boolean; data: string | null }> {
   if (bridge) {
-    try {
-      const [v] = await bridge.storage.get([KEY]);
-      if (v !== null && v !== undefined && v !== '') return typeof v === 'string' ? v : JSON.stringify(v);
-    } catch (e) {
-      console.warn('Bridge storage read failed', e);
+    let failed = false;
+    for (let i = 0; i < 3; i++) {
+      try {
+        const [v] = await within<unknown[]>(bridge.storage.get([KEY]), READ_MS, 'storage read');
+        failed = false;
+        if (v !== null && v !== undefined && v !== '') return { ok: true, data: typeof v === 'string' ? v : JSON.stringify(v) };
+        break;
+      } catch (e) {
+        failed = true;
+        console.warn('Bridge storage read failed', e);
+        await new Promise((r) => setTimeout(r, 400 * (i + 1)));
+      }
     }
+    if (failed && !ownStorage()) return (writable = false), { ok: false, data: null };
   }
-  if (!ownStorage()) return null;
-  try { return localStorage.getItem(LOCAL_KEY); } catch { return null; }
+  if (!ownStorage()) return { ok: true, data: null };
+  try { return { ok: true, data: localStorage.getItem(LOCAL_KEY) }; } catch { return { ok: true, data: null }; }
 }
 
+/** False when the save could not be read this session: nothing is written over it. */
+let writable = true;
+export const savesOff = (): boolean => !writable;
+/** The newest snapshot waiting for the write in flight: writes go one at a time, so an older one never lands last. */
+let queued: string | null = null;
+let writing = false;
+
 export function saveData(json: string): void {
+  if (!writable) return;
   if (bridge) {
-    bridge.storage.set([KEY], [json]).catch((e: unknown) => console.warn('Bridge storage write failed', e));
+    queued = json;
+    if (!writing) void drain();
     return;
   }
   try { localStorage.setItem(LOCAL_KEY, json); } catch { /* private mode: progress lasts for this page */ }
+}
+
+async function drain(): Promise<void> {
+  writing = true;
+  while (queued !== null) {
+    const json = queued;
+    queued = null;
+    try { await bridge.storage.set([KEY], [json]); } catch (e) { console.warn('Bridge storage write failed', e); }
+  }
+  writing = false;
 }
 
 // ---- ads ---------------------------------------------------------------------------------------

@@ -3,71 +3,14 @@
 import { icon } from './icons';
 import { DESKTOP } from './input';
 import type { World } from '../sim/world';
-import { ATTACK, WEAPON, GRUDGE_BONUS, UPGRADE_MAX, UPGRADE_CAP, VEHICLES, DIVISIONS, stage, type Vehicle } from '../sim/config';
+import { ATTACK, WEAPON } from '../sim/config';
 import type { RaceView } from './scene';
-import type { Save } from '../meta';
-import { BREAK_AT, rideState, upgradeLock, upgradePrice, type CupEnd, type FeudOutcome, type Nemesis, type UpKey } from '../career';
-import { t, ord, type Key } from '../i18n';
-
-export interface League {
-  /** The division this race was in. */
-  div: string;
-  /** Races of the cup run, this one included, and how many it has. */
-  race: number;
-  races: number;
-  table: { name: string; pts: number; rank: number; me: boolean }[];
-  /** Set when this race closed the cup. */
-  end: CupEnd | null;
-  /** The division the next race is in, and the season (C.TIERS name). */
-  next: string;
-  season: string;
-}
-
-/** What a vehicle adds over the scooter, in the player's words. */
-function statLine(v: Vehicle): string {
-  const sg = (n: number) => (n > 0 ? '+' : n < 0 ? '−' : '±') + Math.abs(n);
-  if (!v.top && !v.steer && !v.hp && !v.accel) return t('baseline');
-  return [
-    v.top ? `${sg(Math.round(v.top * 3.6))} ${t('kmh')}` : '', v.accel ? `${sg(v.accel)} ${t('kick')}` : '',
-    v.steer ? `${sg(v.steer)} ${t('grip')}` : '', v.hp ? `${sg(v.hp)} ${t('tough')}` : '',
-  ].filter(Boolean).join(' · ');
-}
-
-function againLabel(l: League): string {
-  const e = l.end;
-  if (!e) return t('nextRace');
-  if (e.nextTier) return t('onSeason', { s: l.season });
-  if (e.promoted) return t('onTo', { d: l.next });
-  if (e.champion) return t('defend');
-  return t('retry', { d: l.next });
-}
+import { BREAK_AT, type Nemesis } from '../career';
+import { Results } from './results';
+import { Menu } from './menu';
+import { t, money } from '../i18n';
 
 const $ = <T extends HTMLElement = HTMLElement>(root: ParentNode, sel: string) => root.querySelector(sel) as T;
-
-export interface RaceResult {
-  place: number;
-  total: number;
-  prize: number;
-  kos: number;
-  koBonus: number;
-  grudgeKos: number;
-  grudgeBonus: number;
-  shoves: number;
-  shoveBonus: number;
-  fines: number;
-  earned: number;
-  time: number;
-  grudges: string[];
-  league: League;
-  /** The feuds after this race: what the nemesis paid, and who the nemesis is now. */
-  feud: { out: FeudOutcome; nemesis: Nemesis | null; name: (id: number) => string };
-  /** Cash a rewarded ad would add (doubling this race's earnings); 0: not on offer. */
-  double: number;
-  /** The ad was watched and the cash added. */
-  doubled: boolean;
-}
-
-const UP_NAMES: Record<UpKey, Key> = { top: 'upTop', steer: 'upSteer', hp: 'upHp' };
 
 /** The controls line: the keys where a mouse is the main pointer, else the touch controls. */
 const CONTROLS = DESKTOP ? 'hintKeys' : 'hint';
@@ -80,6 +23,8 @@ export class Hud {
   private readonly bar: HTMLElement;
   private readonly fill: HTMLElement;
   private readonly dots: HTMLElement[] = [];
+  /** Each dot's last offset along the bar, in whole pixels: the transform is written only when it moves. */
+  private dotPx: number[] = [];
   private readonly labels: HTMLElement[] = [];
   private readonly banner: HTMLElement;
   private readonly chaser: HTMLElement;
@@ -94,10 +39,15 @@ export class Hud {
   private readonly nemEl: HTMLElement;
   readonly remountBtn: HTMLButtonElement;
   private remountOn = false;
+  private remountAt = 0;
+  /** The remount button is up and has been long enough that a tap on it was meant for it, not a steer. */
+  get remountArmed(): boolean {
+    return this.remountOn && performance.now() - this.remountAt > 350;
+  }
   /** Per rider: seconds left of a swing wound up at the player. */
   private tellT: number[] = [];
-  private readonly results: HTMLElement;
-  private readonly pauseEl: HTMLElement;
+  readonly results: Results;
+  readonly menu: Menu;
   readonly pauseBtn: HTMLButtonElement;
   /** The player's sound switch, on every screen. */
   readonly muteBtn: HTMLButtonElement;
@@ -132,7 +82,7 @@ export class Hud {
         <button class="remount hidden"></button>
       </div>
       <div id="results" class="overlay hidden"><div class="card"></div></div>
-      <div id="paused" class="overlay hidden"><div class="card small"><h2></h2><button class="primary"></button></div></div>
+      <div id="paused" class="overlay hidden"><div class="card small"></div></div>
     `);
     this.root = $(host, '#hud');
     this.placeEl = $(this.root, '.place');
@@ -151,8 +101,8 @@ export class Hud {
     this.leagueEl = $(this.root, '.league');
     this.nemEl = $(this.root, '.nemcard');
     this.remountBtn = $(this.root, '.remount');
-    this.results = $(host, '#results');
-    this.pauseEl = $(host, '#paused');
+    this.results = new Results($(host, '#results'));
+    this.menu = new Menu($(host, '#paused'));
     this.pauseBtn = $(this.root, '.pausebtn');
     this.muteBtn = host.appendChild(document.createElement('button'));
     this.muteBtn.className = 'mutebtn';
@@ -168,8 +118,7 @@ export class Hud {
     this.remountBtn.innerHTML = `<span>${icon('play')} ${t('backOnNow')}</span><small>${t('watchAd')}</small>`;
     this.pauseBtn.setAttribute('aria-label', t('pause'));
     this.setSound(!this.soundOff);
-    $(this.pauseEl, 'h2').textContent = t('paused');
-    this.pauseResume.textContent = t('resume');
+    this.menu.localize();
   }
 
   /** Show the sound switch as on or off. */
@@ -180,12 +129,9 @@ export class Hud {
     this.muteBtn.setAttribute('aria-pressed', String(!on));
   }
 
-  get pauseResume(): HTMLButtonElement {
-    return $(this.pauseEl, 'button');
-  }
-
   resize(): void {
     this.barW = this.bar.clientWidth || 200;
+    this.dotPx.fill(-1);
   }
 
   /** Build the per-race bits: progress dots and rival name tags. */
@@ -209,6 +155,7 @@ export class Hud {
     }
     this.last = { place: '', hp: '', cash: -1, slapL: false, slapR: false, chaser: '', incL: false, incR: false, heat: '' };
     this.tellT = w.riders.map(() => 0);
+    this.dotPx = w.riders.map(() => -1);
     this.chaser.classList.remove('on');
     this.banner.className = 'banner';
     this.resize();
@@ -235,6 +182,7 @@ export class Hud {
   showRemount(on: boolean): void {
     if (on === this.remountOn) return;
     this.remountOn = on;
+    if (on) this.remountAt = performance.now();
     this.remountBtn.classList.toggle('hidden', !on);
   }
 
@@ -260,10 +208,6 @@ export class Hud {
     this.tellT[id] = secs + 0.05;
   }
 
-  setPaused(on: boolean): void {
-    this.pauseEl.classList.toggle('hidden', !on);
-  }
-
   update(w: World, view: RaceView, cash: number, dt: number): void {
     const p = w.player;
     const place = `<b>${w.standing}</b><span>/${w.racers}</span>`;
@@ -274,13 +218,15 @@ export class Hud {
       const cur = p.state === 'down' ? 0 : p.hp;
       this.hpEl.innerHTML = Array.from({ length: p.maxHp }, (_, i) => `<i class="${i < cur ? 'on' : ''}"></i>`).join('');
     }
-    if (cash !== this.last.cash) { this.cashEl.textContent = `$${cash}`; this.last.cash = cash; }
+    if (cash !== this.last.cash) { this.cashEl.textContent = money(cash); this.last.cash = cash; }
     // progress
     const len = w.length;
     this.fill.style.transform = `scaleX(${Math.min(1, p.z / len)})`;
     for (let i = 0; i < w.riders.length; i++) {
-      const f = Math.min(1, Math.max(0, w.riders[i].z / len));
-      this.dots[i].style.transform = `translate(${f * this.barW}px, -50%)`;
+      const px = Math.round(Math.min(1, Math.max(0, w.riders[i].z / len)) * this.barW);
+      if (px === this.dotPx[i]) continue;
+      this.dotPx[i] = px;
+      this.dots[i].style.transform = `translate(${px}px, -50%)`;
     }
     // rival tags
     for (let i = 1; i < w.riders.length; i++) {
@@ -356,100 +302,5 @@ export class Hud {
       this.bannerT -= dt;
       if (this.bannerT <= 0) this.banner.className = 'banner';
     }
-  }
-
-  hideResults(): void {
-    this.results.classList.add('hidden');
-  }
-
-  showResults(res: RaceResult, save: Save, onBuy: (k: UpKey) => void, onAgain: () => void, onDouble: () => void, onRide: (v: number) => void): void {
-    const card = $(this.results, '.card');
-    const row = (a: string, b: string, cls = '') => `<div class="row ${cls}"><span>${a}</span><b>${b}</b></div>`;
-    const ups = (Object.keys(UP_NAMES) as UpKey[]).map((k) => {
-      const lvl = save.up[k];
-      const cost = upgradePrice(save, k);
-      const lock = upgradeLock(save, k);
-      const cap = UPGRADE_CAP[save.tier][k];
-      const pips = Array.from({ length: UPGRADE_MAX[k] }, (_, i) => `<i class="${i < lvl ? 'on' : i >= cap ? 'lock' : ''}"></i>`).join('');
-      const label = cost !== null ? '$' + cost : lock ? `${icon('lock')} ${lock}` : t('max');
-      return `<div class="up"><div class="upname">${t(UP_NAMES[k])}<div class="pips">${pips}</div></div>
-        <button data-k="${k}" ${cost === null || save.cash < cost ? 'disabled' : ''}>${label}</button></div>`;
-    }).join('');
-    card.innerHTML = `
-      <h2 class="${res.place === 1 ? 'win' : ''}">${t('place', { o: ord(res.place) })}</h2>
-      <div class="sub">${res.time.toFixed(1)} s</div>
-      <div class="rows">
-        ${row(t('prize', { o: ord(res.place) }), `$${res.prize}`)}
-        ${row(t('kos', { n: res.kos }), `$${res.koBonus}`)}
-        ${res.shoves ? row(t('shoves', { n: res.shoves }), `$${res.shoveBonus}`, 'good') : ''}
-        ${res.grudgeKos ? row(t('grudgeKos', { n: res.grudgeKos }), `$${res.grudgeBonus}`, 'good') : ''}
-        ${res.fines ? row(t('fines'), `−$${res.fines}`, 'bad') : ''}
-        ${this.feudRows(res, row)}
-        ${res.doubled ? row(t('adBonus'), `$${res.earned / 2}`, 'good') : ''}
-        ${row(t('earned'), `$${res.earned}`, 'total')}
-      </div>
-      ${res.double > 0 && !res.doubled ? `<button class="double"><span>${icon('play')} ${t('double', { n: res.double })}</span><small>${t('watchAd')}</small></button>` : ''}
-      ${this.feudCard(res)}
-      ${this.leagueHtml(res.league)}
-      ${res.grudges.length ? `<div class="grudges">${t('holding')} <b>${res.grudges.join(', ')}</b><br><small>${t('grudgeTip', { n: GRUDGE_BONUS })}</small></div>` : ''}
-      <div class="cashline">${t('cash')} <b>$${save.cash}</b></div>
-      <div class="ups">${ups}${this.garageHtml(save)}</div>
-      <button class="primary again">${againLabel(res.league)}</button>`;
-    card.querySelectorAll<HTMLButtonElement>('.up button').forEach((b) => {
-      b.onclick = () => onBuy(b.dataset.k as UpKey);
-    });
-    card.querySelectorAll<HTMLButtonElement>('.ride').forEach((b) => {
-      b.onclick = () => onRide(Number(b.dataset.v));
-    });
-    $<HTMLButtonElement>(card, '.again').onclick = onAgain;
-    const dbl = card.querySelector<HTMLButtonElement>('.double');
-    if (dbl) dbl.onclick = () => { dbl.disabled = true; onDouble(); };
-    this.results.classList.remove('hidden');
-  }
-
-  /** The rides: the one being ridden, the others owned, the next to buy, and what is still locked. */
-  private garageHtml(save: Save): string {
-    const cards = VEHICLES.map((v, i) => {
-      const st = rideState(save, i);
-      const label = st === 'riding' ? t('riding') : st === 'owned' ? t('rideIt') : st === 'buy' ? `$${v.price}` : `${icon('lock')} ${stage(v.rung % DIVISIONS.length, Math.floor(v.rung / DIVISIONS.length)).name}`;
-      const off = st === 'riding' || st === 'locked' || (st === 'buy' && save.cash < v.price);
-      return `<button class="ride ${st}" data-v="${i}" ${off ? 'disabled' : ''}><b>${v.name}</b><span>${statLine(v)}</span><small>${t(`blurb${i}` as Key)}</small><i>${label}</i></button>`;
-    }).join('');
-    return `<div class="garage"><div class="cuphead">${t('garage')}</div><div class="rides">${cards}</div></div>`;
-  }
-
-  private feudRows(res: RaceResult, row: (a: string, b: string, cls?: string) => string): string {
-    const o = res.feud.out;
-    if (o.vs === null) return '';
-    const name = res.feud.name(o.vs);
-    let html = '';
-    if (o.revenge) html += row(t('revengeRow', { name, n: o.revenge }), '', 'good');
-    if (o.ahead) html += row(t('beatHome', { name }), '', 'good');
-    if (o.beaten && !o.broken) html += row(t('beaten', { name }), `${res.feud.nemesis?.paid ?? 0}/${BREAK_AT}`, 'good');
-    if (o.broken) html += row(t('broken', { name }), '', 'good');
-    if (o.cash) html += row(t('bounty'), `$${o.cash}`, 'good');
-    return html;
-  }
-
-  /** A new nemesis, or one just broken: the big news of the race. */
-  private feudCard(res: RaceResult): string {
-    const { out, nemesis, name } = res.feud;
-    if (out.broken) return `<div class="nemres win">${icon('skull')} ${t('brokenCard', { name: name(out.vs!) })}</div>`;
-    if (out.fresh !== null) return `<div class="nemres">${icon('skull')} ${t('newNem')} <b>${name(out.fresh)}</b><small>${t('newNemTip', { n: BREAK_AT })}</small></div>`;
-    if (nemesis) return `<div class="nemres small">${icon('skull')} ${t('nem')} <b>${name(nemesis.id)}</b> · ${t('nemBeaten', { p: nemesis.paid, n: BREAK_AT })}<small>${t('nemTip')}</small></div>`;
-    return '';
-  }
-
-  /** The cup table after this race (the top 3 and the player), and how the cup ended if it did. */
-  private leagueHtml(l: League): string {
-    const rows = l.table.filter((t) => t.rank <= 3 || t.me).map((t) =>
-      `<div class="st ${t.me ? 'me' : ''} ${t.rank <= 3 ? 'up' : ''}"><span>${t.rank}. ${t.name}</span><b>${t.pts}</b></div>`).join('');
-    const e = l.end;
-    const head = e
-      ? e.champion ? `<div class="cupend win">${t('champion', { n: e.bonus })}</div>`
-        : e.promoted ? `<div class="cupend win">${t('promoted', { o: ord(e.rank) })}${e.bonus ? ` +$${e.bonus}` : ''}</div>`
-        : `<div class="cupend">${t('cupRank', { o: ord(e.rank) })}${e.bonus ? ` +$${e.bonus}` : ''} · ${t('top3')}</div>`
-      : '';
-    return `<div class="cup"><div class="cuphead">${t('cupHead', { div: l.div })} · ${e ? t('final') : t('raceN', { n: l.race, m: l.races })}</div>${head}${rows}</div>`;
   }
 }

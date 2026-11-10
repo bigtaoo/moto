@@ -5,7 +5,7 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import type { World } from '../sim/world';
 import { place } from './track';
 import { makeWeapon } from './rider';
-import { Kit, kitMaterial, paintedMaterial } from './toon';
+import { Kit, cached, kitMaterial, paintedMaterial, shared } from './toon';
 
 const MAX_CARS = 48;
 const o = new THREE.Object3D();
@@ -98,8 +98,9 @@ export class Traffic {
   private readonly col = new THREE.Color();
 
   constructor() {
-    this.meshes = CAR_KITS.map((kit) => {
-      const mesh = new THREE.InstancedMesh(kit().build(), paintedMaterial(), MAX_CARS);
+    this.meshes = CAR_KITS.map((kit, i) => {
+      // built once and kept across races: merging the outlines is the slow part of starting a race
+      const mesh = new THREE.InstancedMesh(cached(`car${i}`, () => kit().build()), paintedMaterial(), MAX_CARS);
       mesh.count = 0;
       mesh.frustumCulled = false;
       mesh.setColorAt(0, this.col.set(0xffffff));
@@ -121,7 +122,8 @@ export class Traffic {
       this.meshes[t].setMatrixAt(i, o.matrix);
       this.meshes[t].setColorAt(i, this.col.set(c.color));
     }
-    for (const [t, m] of this.meshes.entries()) {
+    for (let t = 0; t < this.meshes.length; t++) {
+      const m = this.meshes[t];
       m.count = this.n[t];
       m.visible = m.count > 0;
       m.instanceMatrix.needsUpdate = true;
@@ -129,6 +131,23 @@ export class Traffic {
     }
   }
 }
+
+/** The buggy's body, cage and wheels as one merged mesh. */
+function patrolKit(): THREE.BufferGeometry {
+  const k = new Kit(CAR_INK)
+    .add(cbox(1.78, 0.72, 3.3, 0.16), 0xf2f2ee, { at: [0, 0.72, 0] })
+    .add(cbox(1.82, 0.18, 3.0, 0.05), 0xf07a20, { at: [0, 0.78, 0], ink: false })
+    .add(cbox(1.6, 0.06, 1.2, 0.02), DARK, { at: [0, 1.09, -0.5], ink: false })
+    .add(cbox(1.56, 0.08, 0.08, 0.02), DARK, { at: [0, 2.05, -0.45] })
+    .decal(0.2, 0xf4d23c, { at: [0, 0.82, -1.69], rot: [0, Math.PI, 0] });
+  for (const x of [-0.72, 0.72]) {
+    k.add(new THREE.CylinderGeometry(0.05, 0.05, 1.0, 6), DARK, { at: [x, 1.55, -0.45] })
+      .add(new THREE.CylinderGeometry(0.05, 0.05, 1.3, 6), DARK, { at: [x, 1.45, 0.25], rot: [0.75, 0, 0] });
+    for (const z of [-1.05, 1.05]) k.add(tyre(0.42, 0.36), DARK, { at: [x * 1.12, 0.42, z] }).add(hub(0.2, 0.38), HUB, { at: [x * 1.12, 0.42, z], ink: false });
+  }
+  return k.build();
+}
+let lamp: THREE.BufferGeometry | null = null;
 
 /** The test-site security buggy: white with an orange stripe, a roll cage and a flashing light bar. */
 export class PatrolView {
@@ -138,21 +157,10 @@ export class PatrolView {
   private t = 0;
 
   constructor() {
-    const k = new Kit(CAR_INK)
-      .add(cbox(1.78, 0.72, 3.3, 0.16), 0xf2f2ee, { at: [0, 0.72, 0] })
-      .add(cbox(1.82, 0.18, 3.0, 0.05), 0xf07a20, { at: [0, 0.78, 0], ink: false })
-      .add(cbox(1.6, 0.06, 1.2, 0.02), DARK, { at: [0, 1.09, -0.5], ink: false })
-      .add(cbox(1.56, 0.08, 0.08, 0.02), DARK, { at: [0, 2.05, -0.45] })
-      .decal(0.2, 0xf4d23c, { at: [0, 0.82, -1.69], rot: [0, Math.PI, 0] });
-    for (const x of [-0.72, 0.72]) {
-      k.add(new THREE.CylinderGeometry(0.05, 0.05, 1.0, 6), DARK, { at: [x, 1.55, -0.45] })
-        .add(new THREE.CylinderGeometry(0.05, 0.05, 1.3, 6), DARK, { at: [x, 1.45, 0.25], rot: [0.75, 0, 0] });
-      for (const z of [-1.05, 1.05]) k.add(tyre(0.42, 0.36), DARK, { at: [x * 1.12, 0.42, z] }).add(hub(0.2, 0.38), HUB, { at: [x * 1.12, 0.42, z], ink: false });
-    }
-    this.root.add(new THREE.Mesh(k.build(), kitMaterial()));
+    this.root.add(new THREE.Mesh(cached('patrol', patrolKit), kitMaterial()));
     this.red = new THREE.MeshBasicMaterial({ color: 0xff2020 });
     this.blue = new THREE.MeshBasicMaterial({ color: 0x2a6fff });
-    const lamp = cbox(0.6, 0.2, 0.3, 0.05);
+    lamp ??= shared(cbox(0.6, 0.2, 0.3, 0.05));
     const l1 = new THREE.Mesh(lamp, this.red);
     l1.position.set(0.4, 2.18, -0.45);
     const l2 = new THREE.Mesh(lamp, this.blue);
@@ -173,42 +181,70 @@ export class PatrolView {
   }
 }
 
+/** The gold ring under every pickup: one geometry and material for all of them, kept across races. */
+let ringGeo: THREE.BufferGeometry | null = null;
+let ringMat: THREE.Material | null = null;
+
+interface PickupView { root: THREE.Group; spin: THREE.Group; seen: number }
+
 export class Pickups {
   readonly group = new THREE.Group();
-  private readonly views = new Map<number, THREE.Group>();
+  /**
+   * A ring that is never shown, so the shader warm-up (RaceView.prewarm) meets the ring's program before
+   * the first pickup appears.
+   */
+  readonly proto: THREE.Mesh;
+  private readonly views = new Map<number, PickupView>();
   private t = 0;
+  /** Bumped every update; a view not stamped with it has no pickup any more. */
+  private stamp = 0;
+  private readonly sweep = (v: PickupView, id: number) => {
+    if (v.seen !== this.stamp) { v.root.removeFromParent(); this.views.delete(id); }
+  };
+
+  constructor() {
+    this.proto = this.ring();
+    this.proto.visible = false;
+    this.group.add(this.proto);
+  }
+
+  private ring(): THREE.Mesh {
+    ringGeo ??= shared(new THREE.TorusGeometry(0.9, 0.08, 6, 24));
+    ringMat ??= shared(new THREE.MeshBasicMaterial({ color: 0xf2c230 }));
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = 0.08;
+    return ring;
+  }
 
   update(w: World, dt: number): void {
     this.t += dt;
-    const seen = new Set<number>();
+    const stamp = ++this.stamp;
     for (const k of w.pickups) {
-      seen.add(k.id);
       let v = this.views.get(k.id);
       if (!v) {
-        v = new THREE.Group();
         const wpn = makeWeapon(k.kind);
         wpn.scale.setScalar(1.8);
         wpn.position.set(0, 0, -0.7);
         const spin = new THREE.Group();
         spin.add(wpn);
-        spin.name = 'spin';
-        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.08, 6, 24), new THREE.MeshBasicMaterial({ color: 0xf2c230 }));
-        ring.rotation.x = Math.PI / 2;
-        ring.position.y = 0.08;
-        v.add(spin, ring);
+        const root = new THREE.Group();
+        root.add(spin, this.ring());
+        v = { root, spin, seen: stamp };
         this.views.set(k.id, v);
-        this.group.add(v);
+        this.group.add(root);
       }
-      place(v, k.x, 0, k.z);
-      const spin = v.getObjectByName('spin')!;
-      spin.position.y = 1 + Math.sin(this.t * 3 + k.id) * 0.15;
-      spin.rotation.y = this.t * 2.5;
+      v.seen = stamp;
+      place(v.root, k.x, 0, k.z);
+      v.spin.position.y = 1 + Math.sin(this.t * 3 + k.id) * 0.15;
+      v.spin.rotation.y = this.t * 2.5;
     }
-    for (const [id, v] of this.views) {
-      if (!seen.has(id)) { v.removeFromParent(); this.views.delete(id); }
-    }
+    // deleting the entry being visited is safe in Map.forEach
+    this.views.forEach(this.sweep);
   }
 }
+
+let disc: THREE.BufferGeometry | null = null;
 
 /** Dark ellipses under riders, cars and the buggy, one instanced mesh. */
 export class Shadows {
@@ -216,9 +252,9 @@ export class Shadows {
   private n = 0;
 
   constructor(max = 80) {
-    const g = new THREE.CircleGeometry(1, 16).rotateX(-Math.PI / 2);
+    disc ??= shared(new THREE.CircleGeometry(1, 16).rotateX(-Math.PI / 2));
     const m = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.28, depthWrite: false });
-    this.mesh = new THREE.InstancedMesh(g, m, max);
+    this.mesh = new THREE.InstancedMesh(disc, m, max);
     this.mesh.frustumCulled = false;
     this.mesh.renderOrder = 1;
   }

@@ -67,6 +67,8 @@ function wedge(halfW: number, len: number, h: number): THREE.BufferGeometry {
   return g;
 }
 
+const spot = new THREE.Object3D();
+
 export class Track {
   readonly group = new THREE.Group();
   private readonly owned: { dispose(): void }[] = [];
@@ -99,7 +101,7 @@ export class Track {
   scatterCones(x: number, z: number, rnd: () => number): void {
     const m = this.cones;
     if (!m) return;
-    const o = new THREE.Object3D();
+    const o = spot;
     let any = false;
     this.conePos.forEach((c, i) => {
       if (c.down || Math.abs(c.z - z) > 4 || Math.abs(c.x - x) > 3) return;
@@ -113,9 +115,12 @@ export class Track {
     if (any) m.instanceMatrix.needsUpdate = true;
   }
 
-  dispose(): void {
-    for (const o of this.owned) o.dispose();
-    this.group.removeFromParent();
+  /**
+   * Adds what this track made and nothing else frees (its textures, materials, geometries) to `bin`; the
+   * race view frees it all once the next race is drawn (Stage.retire).
+   */
+  collect(bin: Set<{ dispose(): void }>): void {
+    for (const o of this.owned) bin.add(o);
   }
 
   private keep<T extends { dispose(): void }>(o: T): T {
@@ -356,7 +361,7 @@ export class Track {
     arrowGeo.translate(0, 1.1, 0);
     const pole = this.keep(new THREE.BoxGeometry(0.12, 1.8, 0.12));
     pole.translate(0, 0.9, 0);
-    const signMat = this.keep(new THREE.MeshBasicMaterial({ map: signTex, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide }));
+    const signMat = this.keep(new THREE.MeshBasicMaterial({ map: signTex, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide, forceSinglePass: true }));
     const arrowMat = this.keep(new THREE.MeshBasicMaterial({ map: arrowTex, side: THREE.DoubleSide }));
     const poleMat = this.keep(new THREE.MeshLambertMaterial({ color: 0x2a2a2e }));
     // a road roller parked in the closed lane

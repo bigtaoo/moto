@@ -28,11 +28,33 @@ export function toonMaterial(params: THREE.MeshToonMaterialParameters = {}): THR
   return new THREE.MeshToonMaterial({ gradientMap: toonRamp(), ...params });
 }
 
-let shared: THREE.MeshToonMaterial | null = null;
+// What lives across races. RaceView.dispose frees every geometry and material it finds in its scene
+// graph except these: the next race uses them again, and disposing them would only make it rebuild them.
+const keepers = new WeakSet<object>();
+/** Mark a geometry or material as kept across races. */
+export function shared<T extends object>(o: T): T {
+  keepers.add(o);
+  return o;
+}
+export const isShared = (o: object) => keepers.has(o);
+
+const built = new Map<string, THREE.BufferGeometry>();
+/**
+ * A kit-built geometry, built once per `key` and kept. Building a rider means hundreds of mergeVertices
+ * calls (the outlines); the key must hold everything the geometry depends on (vehicle, colours). Keys come
+ * from fixed palettes, so this stays small.
+ */
+export function cached(key: string, build: () => THREE.BufferGeometry): THREE.BufferGeometry {
+  let g = built.get(key);
+  if (!g) built.set(key, (g = shared(build())));
+  return g;
+}
+
+let kitMat: THREE.MeshToonMaterial | null = null;
 /** One material for every kit-built model that needs nothing per object. */
 export function kitMaterial(): THREE.MeshToonMaterial {
-  shared ??= toonMaterial({ vertexColors: true });
-  return shared;
+  kitMat ??= shared(toonMaterial({ vertexColors: true }));
+  return kitMat;
 }
 
 let painted: THREE.MeshToonMaterial | null = null;
@@ -42,7 +64,7 @@ let painted: THREE.MeshToonMaterial | null = null;
  */
 export function paintedMaterial(): THREE.MeshToonMaterial {
   if (painted) return painted;
-  painted = toonMaterial({ vertexColors: true });
+  painted = shared(toonMaterial({ vertexColors: true }));
   painted.onBeforeCompile = (s) => {
     s.vertexShader = s.vertexShader
       .replace('#include <color_pars_vertex>', '#include <color_pars_vertex>\nattribute float paint;')

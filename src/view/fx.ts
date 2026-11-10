@@ -3,7 +3,7 @@
 
 import * as THREE from 'three';
 import { toWorld } from './track';
-import { Kit, INK } from './toon';
+import { Kit, INK, cached, shared } from './toon';
 
 const MAX = 160;
 const POWS = 6;
@@ -31,49 +31,60 @@ function burst(fill: number): THREE.BufferGeometry {
 
 interface Pow { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; life: number; size: number; spin: number }
 
+/** One particle; a fixed pool of these is reused, so a hit allocates nothing. */
 interface Bit {
   x: number; y: number; z: number;
   vx: number; vy: number; vz: number;
-  life: number; max: number; size: number;
+  life: number; max: number; size: number; color: number;
 }
+
+let cube: THREE.BufferGeometry | null = null;
 
 export class Fx {
   readonly mesh: THREE.InstancedMesh;
+  /** Share of particles thrown (the quality tier's `fx`). */
+  scale = 1;
   private readonly bits: Bit[] = [];
+  /** The slot the next particle takes: the oldest, once the pool is full. */
+  private next = 0;
   private readonly o = new THREE.Object3D();
   private readonly col = new THREE.Color();
-  private readonly colors: number[] = [];
   readonly pows = new THREE.Group();
   private readonly powList: Pow[] = [];
   private readonly powGeo: [THREE.BufferGeometry, THREE.BufferGeometry];
   private nextPow = 0;
 
   constructor() {
-    this.powGeo = [burst(0xffd23a), burst(0xff5a2a)];
+    this.powGeo = [cached('pow', () => burst(0xffd23a)), cached('pow-ko', () => burst(0xff5a2a))];
     for (let i = 0; i < POWS; i++) {
-      const mat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthTest: false, side: THREE.DoubleSide });
+      // flat and facing the camera: one pass is enough although it is see-through and two-sided
+      const mat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthTest: false, side: THREE.DoubleSide, forceSinglePass: true });
       const mesh = new THREE.Mesh(this.powGeo[0], mat);
       mesh.renderOrder = 10;
       mesh.visible = false;
       this.pows.add(mesh);
       this.powList.push({ mesh, mat, life: POW_LIFE, size: 1, spin: 0 });
     }
-    this.mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial(), MAX);
+    for (let i = 0; i < MAX; i++) this.bits.push({ x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, life: 1, max: 0, size: 0, color: 0 });
+    cube ??= shared(new THREE.BoxGeometry(1, 1, 1));
+    this.mesh = new THREE.InstancedMesh(cube, new THREE.MeshBasicMaterial(), MAX);
     this.mesh.count = 0;
     this.mesh.frustumCulled = false;
     this.mesh.setColorAt(0, this.col.set(0xffffff));
   }
 
+  /** How many of `n` particles this quality tier throws. */
+  private many(n: number): number {
+    return Math.max(1, Math.round(n * this.scale));
+  }
+
   /** Spark burst at sim position, thrown towards `side` (+1 = screen right). */
   sparks(x: number, y: number, z: number, side: number, big: boolean, rnd: () => number): void {
-    const n = big ? 22 : 12;
+    const n = this.many(big ? 22 : 12);
     for (let i = 0; i < n; i++) {
       const sp = (big ? 7 : 5) * (0.5 + rnd());
-      this.add({
-        x, y, z,
-        vx: side * sp * (0.4 + rnd()), vy: 1 + rnd() * 5, vz: (rnd() - 0.3) * 6,
-        life: 0, max: 0.25 + rnd() * 0.3, size: 0.09 + rnd() * 0.08,
-      }, rnd() < 0.5 ? 0xffe066 : 0xffffff);
+      this.add(x, y, z, side * sp * (0.4 + rnd()), 1 + rnd() * 5, (rnd() - 0.3) * 6,
+        0.25 + rnd() * 0.3, 0.09 + rnd() * 0.08, rnd() < 0.5 ? 0xffe066 : 0xffffff);
     }
   }
 
@@ -90,44 +101,39 @@ export class Fx {
 
   /** Small puff where a thrown dummy slams into the road. */
   puff(x: number, z: number, impact: number, rnd: () => number): void {
-    const n = Math.min(10, Math.round(impact * 0.8));
+    const n = Math.min(10, Math.round(impact * 0.8 * this.scale));
     for (let i = 0; i < n; i++) {
       const a = rnd() * Math.PI * 2;
       const sp = 1.5 + rnd() * 2.5;
-      this.add({
-        x, y: 0.15, z,
-        vx: Math.cos(a) * sp, vy: 1 + rnd() * 2, vz: Math.sin(a) * sp,
-        life: 0, max: 0.35 + rnd() * 0.3, size: 0.2 + rnd() * 0.2,
-      }, rnd() < 0.5 ? 0xc9c4b8 : 0xa8a49a);
+      this.add(x, 0.15, z, Math.cos(a) * sp, 1 + rnd() * 2, Math.sin(a) * sp,
+        0.35 + rnd() * 0.3, 0.2 + rnd() * 0.2, rnd() < 0.5 ? 0xc9c4b8 : 0xa8a49a);
     }
   }
 
   /** A few low sparks where two scooter decks grind together; left behind as the riders move on. */
   scrape(x: number, z: number, rnd: () => number): void {
-    for (let i = 0; i < 5; i++) {
-      this.add({
-        x: x + (rnd() - 0.5) * 0.2, y: 0.25, z: z + rnd() * 0.6,
-        vx: (rnd() - 0.5) * 4, vy: 0.5 + rnd() * 2.5, vz: rnd() * 3,
-        life: 0, max: 0.15 + rnd() * 0.15, size: 0.05 + rnd() * 0.05,
-      }, rnd() < 0.6 ? 0xffd040 : 0xff8a30);
+    const n = this.many(5);
+    for (let i = 0; i < n; i++) {
+      this.add(x + (rnd() - 0.5) * 0.2, 0.25, z + rnd() * 0.6, (rnd() - 0.5) * 4, 0.5 + rnd() * 2.5, rnd() * 3,
+        0.15 + rnd() * 0.15, 0.05 + rnd() * 0.05, rnd() < 0.6 ? 0xffd040 : 0xff8a30);
     }
   }
 
   /** Grey puff where something hits the tarmac. */
   dust(x: number, z: number, speed: number, rnd: () => number): void {
-    for (let i = 0; i < 14; i++) {
-      this.add({
-        x: x + (rnd() - 0.5) * 1.2, y: 0.2, z: z + (rnd() - 0.5) * 1.5,
-        vx: (rnd() - 0.5) * 4, vy: 1 + rnd() * 2.5, vz: speed * 0.5 + (rnd() - 0.5) * 3,
-        life: 0, max: 0.5 + rnd() * 0.4, size: 0.25 + rnd() * 0.25,
-      }, rnd() < 0.5 ? 0xb9b4a8 : 0x9a968c);
+    const n = this.many(14);
+    for (let i = 0; i < n; i++) {
+      this.add(x + (rnd() - 0.5) * 1.2, 0.2, z + (rnd() - 0.5) * 1.5, (rnd() - 0.5) * 4, 1 + rnd() * 2.5, speed * 0.5 + (rnd() - 0.5) * 3,
+        0.5 + rnd() * 0.4, 0.25 + rnd() * 0.25, rnd() < 0.5 ? 0xb9b4a8 : 0x9a968c);
     }
   }
 
-  private add(b: Bit, color: number): void {
-    if (this.bits.length >= MAX) { this.bits.shift(); this.colors.shift(); }
-    this.bits.push(b);
-    this.colors.push(color);
+  private add(x: number, y: number, z: number, vx: number, vy: number, vz: number, max: number, size: number, color: number): void {
+    const b = this.bits[this.next];
+    this.next = (this.next + 1) % MAX;
+    b.x = x; b.y = y; b.z = z;
+    b.vx = vx; b.vy = vy; b.vz = vz;
+    b.life = 0; b.max = max; b.size = size; b.color = color;
   }
 
   update(dt: number, cam: THREE.Camera): void {
@@ -145,13 +151,10 @@ export class Fx {
     }
     const { o } = this;
     let n = 0;
-    for (let i = this.bits.length - 1; i >= 0; i--) {
-      const b = this.bits[i];
+    for (const b of this.bits) {
+      if (b.life >= b.max) continue;
       b.life += dt;
-      if (b.life >= b.max) { this.bits.splice(i, 1); this.colors.splice(i, 1); }
-    }
-    for (let i = 0; i < this.bits.length; i++) {
-      const b = this.bits[i];
+      if (b.life >= b.max) continue;
       b.vy -= 18 * dt;
       b.x += b.vx * dt;
       b.y = Math.max(0.05, b.y + b.vy * dt);
@@ -161,7 +164,7 @@ export class Fx {
       o.rotation.set(b.life * 9, b.life * 7, 0);
       o.updateMatrix();
       this.mesh.setMatrixAt(n, o.matrix);
-      this.mesh.setColorAt(n, this.col.set(this.colors[i]));
+      this.mesh.setColorAt(n, this.col.set(b.color));
       n++;
     }
     this.mesh.count = n;

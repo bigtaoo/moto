@@ -41,8 +41,23 @@ export const getLang = (): Lang => lang;
 /** The text for `key` in the current language, with `{name}` placeholders filled in. */
 export function t(key: Key, vars?: Record<string, string | number>): string {
   const s = LANGS[lang][key] ?? EN[key];
-  return vars ? s.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : s;
+  return vars ? s.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? show(vars[k]) : m)) : s;
 }
+
+const fmts = new Map<Lang, Intl.NumberFormat>();
+/** A whole number as the language groups its digits: 12,500 · 12 500 · 12.500. */
+export function num(n: number): string {
+  let f = fmts.get(lang);
+  if (!f) {
+    f = new Intl.NumberFormat(lang, { maximumFractionDigits: 0 });
+    fmts.set(lang, f);
+  }
+  return f.format(n);
+}
+const show = (v: string | number): string => (typeof v === 'number' ? num(v) : v);
+
+/** Cash: "$12,500" (the dollar sign is the game's, in every language). */
+export const money = (n: number): string => (n < 0 ? '−$' : '$') + num(Math.abs(n));
 
 /** A race place as an ordinal ("1st", "1-е", "1."). */
 export const ord = (n: number): string => ORD[lang](n);

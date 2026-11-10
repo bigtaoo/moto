@@ -1,22 +1,26 @@
 // Wires the 30 Hz sim to the 3D view, the HUD, input, sound and the save.
 
 import './style.css';
-import { World, type SimEvent } from './sim/world';
+import { World } from './sim/world';
+import { react, newFeel } from './events';
 import * as C from './sim/config';
 import { botInput } from './sim/ai';
 import { Recorder } from './sim/replay';
 import { Stage, RaceView } from './view/scene';
 import { Controls, DESKTOP, keysReach } from './view/input';
-import { Hud, type RaceResult } from './view/hud';
-import { sfx, unlockAudio, hold, setMuted, music, raceTrack, preloadAudio } from './view/audio';
+import { Hud } from './view/hud';
+import type { RaceResult } from './view/results';
+import { titleInfo } from './view/title';
+import { sfx, unlockAudio, hold, setMuted, setChannel, music, raceTrack, preloadAudio } from './view/audio';
 import { installIconCss } from './view/icons';
 import { statsOverlay } from './view/stats';
 import * as funnel from './funnel';
 import * as tele from './telemetry';
 import { parseSave, storeSave, type Save } from './meta';
 import { CUP_RACES, riderName, settleRace, buyUpgrade, chooseRide, REVENGE_PAY, type UpKey } from './career';
+import { dailyFor, scoreDaily, today } from './daily';
 import * as platform from './platform';
-import { setLang, t, ord } from './i18n';
+import { setLang, t } from './i18n';
 
 const params = new URLSearchParams(location.search);
 // English until the platform says otherwise (3.4.2: the language comes from the Bridge only); ?lang=xx wins
@@ -30,7 +34,8 @@ const LEN = Number(params.get('len')) || undefined;
 const canvas = document.getElementById('c') as HTMLCanvasElement;
 const app = document.getElementById('app')!;
 const titleEl = document.getElementById('title')!;
-const stage = new Stage(canvas);
+/** Made in the boot, once the Bridge is up: a browser without WebGL gets a message instead of a dead page. */
+let stage!: Stage;
 const hud = new Hud(app);
 let save!: Save;
 
@@ -57,6 +62,10 @@ function setState(s: typeof state): void {
 let paused = false;
 /** The host (or an ad) has the game paused; separate from the player's own pause menu. */
 let hostPaused = false;
+/** A rewarded ad was asked for and hasn't answered: the race waits for it. */
+let adPending = false;
+/** The WebGL context is gone: nothing runs until it is back. */
+let glLost = false;
 /** The rewarded "back on now" was used this race. */
 let remountUsed = false;
 /** Seconds the player has been down (the remount button waits for the tumble to end). */
@@ -64,12 +73,14 @@ let downClock = 0;
 /** Seconds this race's countdown has stood waiting for the keys to reach the game. */
 let keysWait = 0;
 let acc = 0;
-let hitstop = 0;
-let slow = 0;
+/** Hitstop, slow motion and the grudge call-outs, which the events set (src/events.ts). */
+let feel = newFeel();
 let atkBuffer = 0;
 let lastCount = -1;
-let lastGrudgeKos = 0;
-const rnd = Math.random;
+/** Times the player came off this race (for the daily "without falling off"). */
+let falls = 0;
+/** The world whose race was settled: a race pays out once, whatever happens after. */
+let settled: World | null = null;
 
 const controls = new Controls(canvas, () => (world ? world.player.x : 0), () => {
   if (!world) return [-C.EDGE, C.EDGE];
@@ -96,17 +107,16 @@ function newRace(): void {
   recorder = new Recorder(opts);
   view = new RaceView(stage, world, seed);
   hud.setup(world);
-  hud.hideResults();
+  hud.results.hide();
   intro();
   hud.showRemount(false);
   remountUsed = false;
   controls.reset();
   acc = 0;
-  hitstop = 0;
-  slow = 0;
+  feel = newFeel();
   atkBuffer = 0;
   lastCount = -1;
-  lastGrudgeKos = 0;
+  falls = 0;
 }
 
 /** The division pill and the nemesis card, over the countdown. */
@@ -117,8 +127,9 @@ function intro(): void {
 }
 
 function startRace(): void {
-  if (!world) return; // still booting
+  if (!world || state !== 'title') return; // still booting, or already gone
   intro(); // the first race's ran behind the title
+  stage.raceStart();
   unlockAudio();
   titleEl.classList.add('hidden');
   setState('race');
@@ -126,164 +137,49 @@ function startRace(): void {
   if (!BOT) tele.raceStart(world);
 }
 
-const near = (id: number) => id === 0 || Math.abs(world.riders[id].z - world.player.z) < 28;
-
-function handle(e: SimEvent): void {
-  const w = world;
-  switch (e.type) {
-    case 'go':
-      hud.flash(t('go'), 'go');
-      sfx.beep(true);
-      break;
-    case 'swing':
-      view.riders[e.rider].swing(e.side, e.windup * C.DT);
-      if (e.rider !== 0 && e.aim === 0) {
-        hud.tell(e.rider, e.windup * C.DT);
-        sfx.tell();
-        setTimeout(() => sfx.whoosh(), Math.max(0, (e.windup - C.ATTACK.windup) * C.DT * 1000));
-      } else if (near(e.rider)) sfx.whoosh();
-      break;
-    case 'whiff':
-      if (e.dodged) {
-        hud.flash(t('dodged'), 'go');
-        sfx.dodge();
-      }
-      break;
-    case 'steal':
-      if (e.from === 0) {
-        hud.flash(t(!e.took ? 'knockedLoose' : e.kind === 'pan' ? 'stolePan' : 'stoleBat'), 'go');
-        sfx.pickup();
-      } else if (e.to === 0) hud.flash(t(!e.took ? 'weaponLoose' : e.kind === 'pan' ? 'tookPan' : 'tookBat', { name: w.riders[e.from].name }), 'bad');
-      break;
-    case 'shove':
-      if (e.from === 0) {
-        slow = 0.6;
-        view.shake(0.35);
-        if (e.to === w.nemesis) hud.flash(t('revenge', { n: Math.round(REVENGE_PAY * w.div.prize) + C.SHOVE_BONUS }), 'ko');
-        else if (w.grudgeKos > lastGrudgeKos) {
-          lastGrudgeKos = w.grudgeKos;
-          hud.flash(t('grudgeSettled', { n: C.GRUDGE_BONUS + C.SHOVE_BONUS }), 'ko');
-        } else hud.flash(t(e.into === 'car' ? 'intoTraffic' : e.into === 'cones' ? 'intoCones' : 'intoWall', { n: C.SHOVE_BONUS }), 'ko');
-      }
-      break;
-    case 'hit': {
-      const v = w.riders[e.to];
-      view.riders[e.to].hit(e.side, e.ko);
-      view.fx.sparks(v.x - e.side * 0.3, 1.5, v.z, e.side, e.ko, rnd);
-      view.fx.pow(v.x - e.side * 0.35, 1.55, v.z, e.ko);
-      const mine = e.from === 0 || e.to === 0;
-      if (mine) {
-        hitstop = e.ko ? 0.1 : 0.055;
-        view.shake(e.to === 0 ? 0.45 : 0.22);
-      }
-      if (near(e.to)) sfx.thunk(e.ko);
-      if (e.from === 0 && e.counter && !e.ko) hud.flash(t('counter'), 'ko');
-      if (e.from === 0 && e.ko) {
-        if (e.to === w.nemesis) hud.flash(t('revenge', { n: Math.round(REVENGE_PAY * w.div.prize) + C.KO_BONUS }), 'ko');
-        else if (w.grudgeKos > lastGrudgeKos) {
-          lastGrudgeKos = w.grudgeKos;
-          hud.flash(t('grudgeSettled', { n: C.GRUDGE_BONUS + C.KO_BONUS }), 'ko');
-        } else hud.flash(t('ko', { n: C.KO_BONUS }), 'ko');
-      }
-      break;
-    }
-    case 'crash': {
-      const r = w.riders[e.rider];
-      view.riders[e.rider].setDown(true, e.vx < 0 ? -1 : 1);
-      view.ragdolls[e.rider].throw(r.x, r.z, e.speed, e.vx, rnd, e.cause === 'car' ? 1.45 : e.cause === 'wall' || e.cause === 'cones' ? 1.2 : 1);
-      if (e.cause === 'cones') view.scatterCones(r.x, r.z);
-      view.fx.dust(r.x, r.z, e.speed, rnd);
-      if (e.rider === 0) {
-        tele.crashed(e.cause);
-        slow = 0.55;
-        view.shake(0.8);
-        hud.flash(t(e.cause === 'car' ? 'wipeout' : e.cause === 'wall' ? 'slammed' : e.cause === 'cones' ? 'cones' : 'knockedOff'), 'bad');
-      }
-      if (near(e.rider)) sfx.crash();
-      break;
-    }
-    case 'recover':
-      view.riders[e.rider].setDown(false);
-      view.ragdolls[e.rider].hide();
-      break;
-    case 'pickup':
-      if (e.rider === 0) {
-        hud.flash(t(e.kind === 'pan' ? 'fryingPan' : 'baseballBat'), 'go');
-        sfx.pickup();
-      }
-      break;
-    case 'patrolWarn':
-      hud.flash(t('security'), 'warn');
-      sfx.siren();
-      break;
-    case 'patrolLetGo':
-      hud.flash(t('fined', { n: e.fine }), 'warn');
-      break;
-    case 'hunt':
-      hud.flash(t('hunting', { name: w.riders[e.rider].name }), 'warn');
-      sfx.alarm();
-      break;
-    case 'ambush':
-      hud.flash(t(e.riders.length > 1 ? 'thugs' : 'thug'), 'warn');
-      sfx.alarm();
-      break;
-    case 'grudge':
-      hud.flash(t('holdsGrudge', { name: w.riders[e.rider].name }), 'warn');
-      break;
-    case 'finish':
-      if (e.rider === 0) {
-        hud.flash(t('finished', { o: ord(e.place) }), e.place === 1 ? 'go' : '');
-        sfx.coin();
-      }
-      break;
-    case 'over':
-      finishRace();
-      break;
-    case 'rub':
-      view.fx.scrape(e.x, e.z, rnd);
-      if (e.player || Math.abs(e.z - w.player.z) < 20) sfx.scrape(e.player);
-      break;
-    case 'drop':
-      break;
-    case 'jump':
-      if (near(e.rider)) sfx.whoosh();
-      if (e.rider === 0) hud.flash(t('air'), 'go');
-      break;
-    case 'land':
-      if (near(e.rider)) sfx.thunk(e.stomp >= 0);
-      if (e.rider === 0) view.shake(e.stomp >= 0 ? 0.5 : 0.2);
-      if (e.stomp >= 0 && e.rider === 0) {
-        hitstop = 0.1;
-        hud.flash(e.stomp === w.nemesis ? t('revenge', { n: Math.round(REVENGE_PAY * w.div.prize) + C.KO_BONUS }) : t('stomped', { name: w.riders[e.stomp].name, n: C.KO_BONUS }), 'ko');
-      } else if (e.stomp === 0) hud.flash(t('landedOn', { name: w.riders[e.rider].name }), 'bad');
-      break;
-  }
+/** From the results (or a restart): the next race, straight into its countdown. */
+function nextRace(placement: string): void {
+  platform.interstitial(placement);
+  newRace();
+  stage.raceStart();
+  setState('race');
+  platform.lifecycle('level_started', { world: world.div.name, level: String(save.cup.race + 1) });
+  tele.raceStart(world);
 }
 
 function finishRace(): void {
   const w = world;
+  if (settled === w) return;
+  settled = w;
   const place = w.player.place;
   const of = (f: (r: (typeof w.riders)[number]) => number) => w.riders.map((r) => (r.thug ? 0 : f(r)));
   const s = settleRace(save, {
     place, kos: w.kos, grudgeKos: w.grudgeKos, shoves: w.shoves, fines: w.fines, grudges: [...w.grudges],
     places: of((r) => r.place), koPlayer: of((r) => r.koPlayer), koByPlayer: of((r) => r.koByPlayer),
   });
+  // the day's challenges and first win, paid at the division the race was run in
+  save.daily = dailyFor(save.daily, today());
+  const daily = scoreDaily(save.daily, { place, kos: w.kos, shoves: w.shoves, falls, grudge: w.grudgeKos + w.revenge }, w.div.prize);
+  save.cash += daily.cash + daily.firstWin;
   storeSave(save);
   funnel.raceDone(place);
   tele.raceEnd(s);
-  const table = s.table.map((t) => ({ name: riderName(t.id), pts: t.pts, rank: t.rank, me: t.id === 0 }));
+  for (const kind of daily.done) funnel.event('daily_done', { kind, done: daily.rows.filter((r) => r.done).length });
+  if (daily.firstWin) funnel.event('first_win', { cash: daily.firstWin });
+  const table = s.table.map((r) => ({ name: riderName(r.id), pts: r.pts, rank: r.rank, me: r.id === 0 }));
   const res: RaceResult = {
     place, total: w.racers, prize: s.prize, kos: w.kos, koBonus: s.koBonus, grudgeKos: w.grudgeKos, grudgeBonus: s.grudgeBonus,
     shoves: w.shoves, shoveBonus: s.shoveBonus, fines: s.fines, earned: s.earned, time: w.time, grudges: save.grudges.map((id) => w.riders[id].name),
     league: { div: w.div.name, race: s.cupRace, races: CUP_RACES, table, end: s.end, next: C.stage(save.div, save.tier).name, season: C.TIERS[save.tier].name },
     feud: { out: s.feud, nemesis: save.feud.nemesis, name: riderName },
+    daily,
     double: s.earned > 0 && platform.rewardedReady() ? s.earned : 0,
     doubled: false,
   };
   if (res.double) tele.adOffer('double_cash');
   setState('results');
   platform.lifecycle(place <= C.PROMOTE ? 'level_completed' : 'level_failed', { world: w.div.name, level: String(s.cupRace) });
-  const show = () => hud.showResults(res, save, buy, again, double, ride);
+  const show = () => hud.results.show(res, save, { buy, ride, double, again: () => nextRace('race_end') });
   const double = () => {
     void platform.showRewarded('double_cash').then((ok) => {
       if (ok && !res.doubled) {
@@ -310,16 +206,8 @@ function finishRace(): void {
     if (!chooseRide(save, v)) return;
     storeSave(save);
     funnel.event('ride_chosen', { ride: v, bought: save.cash < had, price: had - save.cash, cash: save.cash });
-    if (save.cash < had) tele.bought();
-    if (save.cash < had) sfx.coin();
+    if (save.cash < had) { tele.bought(); sfx.coin(); }
     show();
-  };
-  const again = () => {
-    platform.interstitial('race_end');
-    newRace();
-    setState('race');
-    platform.lifecycle('level_started', { world: world.div.name, level: String(save.cup.race + 1) });
-    tele.raceStart(world);
   };
   show();
 }
@@ -343,12 +231,17 @@ function tick(): void {
   recorder.capture(world);
   world.step();
   let swung = false;
-  for (const e of world.events) {
+  let over = false;
+  // taken off the world before any is handled: one that throws must not leave the rest, the race's end
+  // above all, to be handled again on every tick after
+  for (const e of world.events.splice(0)) {
     if (e.type === 'swing' && e.rider === 0) { swung = true; funnel.tutorialStep('slap'); }
     if (e.type === 'hit' && e.from === 0) funnel.tutorialStep('hit');
-    handle(e);
+    if (e.type === 'crash' && e.rider === 0) falls++;
+    if (e.type === 'over') over = true;
+    else try { react(e, world, view, hud, feel); } catch (err) { setTimeout(() => { throw err; }); } // reported as any other error, the race goes on
   }
-  world.events.length = 0;
+  if (over) finishRace();
   if (swung) atkBuffer = 0;
   else if (atkBuffer > 0) atkBuffer--;
   // countdown beeps
@@ -362,11 +255,12 @@ function tick(): void {
   }
 }
 
+/** The player's own pause and its menu. */
 function setPaused(on: boolean): void {
   if (state !== 'race' || paused === on) return;
   paused = on;
   if (on && !document.hidden) tele.paused();
-  hud.setPaused(on);
+  hud.menu.show(on, { music: !save.musicOff, sfx: !save.sfxOff, quality: save.quality });
   hold('pause', on);
 }
 
@@ -376,45 +270,88 @@ platform.host.onPause = (on) => {
 };
 platform.host.onAudio = (on) => setMuted('host', !on);
 
+/** A pause-menu setting changed: into the save and the analytics. */
+function setting(name: string, value: string | boolean): void {
+  storeSave(save);
+  funnel.event('settings_changed', { setting: name, value });
+}
+
 /** The player's own sound switch, kept in the save. */
 function toggleSound(): void {
   save.muted = !save.muted;
   setMuted('player', save.muted);
   hud.setSound(!save.muted);
-  storeSave(save);
-  funnel.event('settings_changed', { setting: 'sound', value: !save.muted });
+  setting('sound', !save.muted);
 }
+
+hud.menu.on = {
+  resume: () => setPaused(false),
+  restart: () => {
+    if (state !== 'race') return;
+    tele.raceRestart();
+    platform.lifecycle('level_failed', { world: world.div.name, level: String(save.cup.race + 1) });
+    setPaused(false);
+    nextRace('restart');
+  },
+  music: (on) => { save.musicOff = !on; setChannel('music', on); setting('music', on); },
+  sfx: (on) => { save.sfxOff = !on; setChannel('sfx', on); setting('sfx', on); },
+  quality: (q) => { save.quality = q; stage.setQualityMode(q); setting('quality', q); },
+};
 
 /** "Back on now": a rewarded ad puts a downed player straight back on the scooter, once a race. */
 function remount(): void {
-  if (remountUsed || state !== 'race' || world.player.state !== 'down') return;
+  if (remountUsed || adPending || !hud.remountArmed || state !== 'race' || world.player.state !== 'down') return;
   remountUsed = true;
+  adPending = true;
   hud.showRemount(false);
   void platform.showRewarded('remount').then((ok) => {
-    if (ok && state === 'race' && world.player.state === 'down') {
+    adPending = false;
+    const down = state === 'race' && world.player.state === 'down';
+    if (ok && down) {
       world.input.remount = true;
       hud.flash(t('backOn'), 'go');
-    } else if (!ok) remountUsed = false; // no ad, no charge
+    } else if (!ok || !down) remountUsed = false; // no ad, or nothing left for it to do: no charge
   });
+}
+
+/** A screen in place of the game: no WebGL, or it went and didn't come back. */
+function blocker(key: 'noGl' | 'glLost'): HTMLElement {
+  const el = document.createElement('div');
+  el.className = 'overlay blocker';
+  el.innerHTML = `<div class="card small"><p>${t(key)}</p><button class="primary">${t('reload')}</button></div>`;
+  el.querySelector('button')!.addEventListener('click', () => location.reload());
+  app.appendChild(el);
+  return el;
 }
 
 controls.onPause = () => setPaused(!paused);
 controls.onAny = () => { unlockAudio(); funnel.input(); };
-// any first tap or key unlocks sound; buttons click
-for (const ev of ['pointerdown', 'keydown']) document.addEventListener(ev, () => { unlockAudio(); funnel.input(); }, true);
+// any first tap or key unlocks sound (iOS wants it in the gesture's own handler, which may be the release)
+for (const ev of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) document.addEventListener(ev, () => { unlockAudio(); funnel.input(); }, true);
 document.addEventListener('click', (e) => { if ((e.target as Element).closest?.('button')) sfx.click(); });
+// Enter or Space: start from the title, go on from the results (a focused button takes its own key)
+document.addEventListener('keydown', (e) => {
+  if (e.repeat || (e.key !== 'Enter' && e.key !== ' ')) return;
+  const b = (e.target as Element).closest?.('button');
+  if (b) { if (e.key === ' ') b.click(); return; }
+  if (state === 'title' && !titleEl.classList.contains('hidden')) startRace();
+  else if (state === 'results') hud.results.continue();
+  else return;
+  e.preventDefault();
+});
 hud.muteBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
 hud.muteBtn.addEventListener('click', () => { if (save) toggleSound(); });
 hud.pauseBtn.addEventListener('click', () => setPaused(true));
-hud.pauseResume.addEventListener('click', () => setPaused(false));
-hud.remountBtn.addEventListener('pointerdown', (e) => { e.stopPropagation(); remount(); });
+// a click, not a press: a finger steering across the screen when the button comes up doesn't buy an ad
+hud.remountBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
+hud.remountBtn.addEventListener('click', remount);
 // a hidden page is silent whatever screen it is on, and a race pauses
 document.addEventListener('visibilitychange', () => {
   hold('hidden', document.hidden);
   if (document.hidden) setPaused(true);
 });
 titleEl.querySelector('button')!.addEventListener('click', startRace);
-window.addEventListener('resize', () => { stage.resize(); hud.resize(); });
+window.addEventListener('resize', () => { stage?.resize(); hud.resize(); });
 
 let lastT = performance.now();
 function frame(now: number): void {
@@ -433,11 +370,13 @@ function frame(now: number): void {
     funnel.event('keys_wait', { seconds: Math.round(keysWait) });
     keysWait = 0;
   }
-  tele.frame(ms, state === 'race' && !BOT, !paused && !hostPaused && !waiting);
-  if (paused || hostPaused) return;
+  const stopped = paused || hostPaused || adPending || glLost;
+  tele.frame(ms, state === 'race' && !BOT, !stopped && !waiting);
+  stage.frame(ms, state === 'race' && !stopped && !waiting && !document.hidden);
+  if (stopped) return;
   let simDt = dt;
-  if (hitstop > 0) { hitstop -= dt; simDt = 0; }
-  else if (slow > 0) { slow -= dt; simDt *= 0.35; }
+  if (feel.hitstop > 0) { feel.hitstop -= dt; simDt = 0; }
+  else if (feel.slow > 0) { feel.slow -= dt; simDt *= 0.35; }
   if (state !== 'title' && !waiting) {
     acc += simDt;
     let n = 0;
@@ -454,33 +393,70 @@ function frame(now: number): void {
   showStats?.(dt);
 }
 
-const showStats = params.has('stats') ? statsOverlay(stage.renderer) : null;
+let showStats: ((dt: number) => void) | null = null;
 
-async function boot(): Promise<void> {
-  await platform.initPlatform();
-  tele.bootMark('bridge');
-  preloadAudio(); // after the Bridge is up (its required step 2), small and in the background
-  if (!params.has('lang')) {
-    setLang(platform.language());
-    localize();
-  }
-  save = parseSave(await platform.loadData());
-  tele.bootMark('save');
-  tele.begin(save, canvas);
-  storeSave(save);
-  setMuted('host', !platform.audioEnabled());
-  setMuted('player', save.muted);
-  hud.setSound(!save.muted);
-  newRace();
-  setState(state);
+/** The title card for a returning player: where they stand, and what to go for. */
+function showTitle(): void {
   const best = document.getElementById('best');
   if (best && save.races > 0) {
     best.textContent = t('best', { div: C.stage(save.div, save.tier).name, n: save.cup.race + 1, m: CUP_RACES, cash: save.cash }) + (save.titles ? t('champs', { n: save.titles }) : '');
   }
+  const info = document.getElementById('titleinfo');
+  if (info) info.innerHTML = titleInfo(save);
+}
+
+async function boot(): Promise<void> {
+  await platform.initPlatform();
+  tele.bootMark('bridge');
+  if (!params.has('lang')) {
+    setLang(platform.language());
+    localize();
+  }
+  try {
+    stage = new Stage(canvas);
+  } catch (e) {
+    console.error(e);
+    titleEl.classList.add('hidden');
+    blocker('noGl');
+    tele.noWebgl();
+    return;
+  }
+  canvas.addEventListener('webglcontextlost', () => {
+    glLost = true;
+    setPaused(true);
+    const el = blocker('glLost');
+    canvas.addEventListener('webglcontextrestored', () => { glLost = false; el.remove(); }, { once: true });
+  });
+  if (params.has('stats')) showStats = statsOverlay(stage.renderer);
+  preloadAudio(); // after the Bridge is up (its required step 2), small and in the background
+  const read = await platform.loadData();
+  save = parseSave(read.data);
+  tele.bootMark('save');
+  tele.begin(save, canvas, () => stage.tier);
+  stage.setQualityMode(save.quality);
+  stage.onQuality = (tier, prev) => tele.qualityChanged(tier, prev, stage.qualityMode);
+  // a save that couldn't be read is left alone: this session plays on a fresh one and writes nothing
+  if (read.ok) storeSave(save);
+  else {
+    tele.saveReadFailed();
+    hud.flash(t('savesOff'), 'warn');
+  }
+  setMuted('host', !platform.audioEnabled());
+  setMuted('player', save.muted);
+  setChannel('music', !save.musicOff);
+  setChannel('sfx', !save.sfxOff);
+  hud.setSound(!save.muted);
+  newRace();
+  // every shader built before the first frame, so the race doesn't hitch on its first hits
+  await view.prewarm();
+  setState(state);
+  showTitle();
   requestAnimationFrame(frame);
   // a new player is straight into their first race, no menu tap; the countdown is the tutorial's start
   if (BOT || save.races === 0) startRace();
   if (!BOT && save.races === 0) funnel.startTutorial();
+  // ready once the shaders are built and a frame of it is on the screen (3.4: game_ready at the first playable frame)
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
   platform.gameReady();
   tele.bootDone();
 }

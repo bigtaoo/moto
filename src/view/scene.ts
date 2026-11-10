@@ -9,8 +9,12 @@ import { RiderView } from './rider';
 import { Ragdoll } from './ragdoll';
 import { Traffic, PatrolView, Pickups, Shadows } from './props';
 import { Fx } from './fx';
+import { isShared } from './toon';
+import { Governor, TIERS, TOP, forcedTier, isSoftware, probeDevice, startTier, type QualityMode } from './quality';
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+/** The longest boot waits on shader warm-up; anything still compiling finishes in the background. */
+const PREWARM_MAX = 4000;
 
 /**
  * What a rival is drawn riding (looks only: the sim gives rivals their pace from the stage). Scooters in
@@ -33,14 +37,36 @@ export class Stage {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
   readonly camera = new THREE.PerspectiveCamera(60, 1, 0.3, 600);
+  /** The GPU's name ('' when the browser won't say), for telemetry. */
+  readonly gpu: string;
   portrait = false;
+  /** Set once RaceView.prewarm has compiled the programs. */
+  warmed = false;
+  /** Called when the quality tier changes, with the tier before (e.g. for telemetry). */
+  onQuality?: (tier: number, prev: number) => void;
   private readonly hemi: THREE.HemisphereLight;
   private readonly sun: THREE.DirectionalLight;
+  /** Where this device starts (see quality.ts), and the tier `?quality=` pins, if any. */
+  private readonly start: number;
+  private readonly forced: number | null;
+  private readonly gov: Governor;
+  private mode: QualityMode = 'auto';
+  private applied: number;
+  private readonly retired: { dispose(): void }[] = [];
 
+  /** Throws when the browser has no WebGL. */
   constructor(canvas: HTMLCanvasElement) {
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+    const dev = probeDevice();
+    this.gpu = dev.gpu;
+    // MSAA multiplies the pixels a phone fills and crawls on a CPU renderer; desktops keep it
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: !dev.touch && !isSoftware(dev.gpu), powerPreference: 'high-performance' });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.start = startTier(dev);
+    this.forced = forcedTier(location.search);
+    // two tiers are the same here when both caps are above the screen's own ratio (and fx match)
+    const cap = (t: number) => Math.min(TIERS[t].dpr, window.devicePixelRatio || 1);
+    this.gov = new Governor(this.forced ?? this.start, (a, b) => cap(a) === cap(b) && TIERS[a].fx === TIERS[b].fx);
+    this.applied = this.gov.tier;
     this.scene.background = new THREE.Color();
     this.scene.fog = new THREE.Fog(0xffffff, 110, 330);
     this.hemi = new THREE.HemisphereLight();
@@ -49,6 +75,20 @@ export class Stage {
     this.scene.add(this.hemi, this.sun);
     this.setEnv(ENVS.meadow);
     this.resize();
+  }
+
+  /** The quality tier, 0 (cheapest) to 5. */
+  get tier(): number {
+    return this.gov.tier;
+  }
+
+  get qualityMode(): QualityMode {
+    return this.mode;
+  }
+
+  /** Share of spark and dust particles thrown at this tier. */
+  get fxScale(): number {
+    return TIERS[this.gov.tier].fx;
   }
 
   setEnv(e: Env): void {
@@ -67,10 +107,63 @@ export class Stage {
   resize(): void {
     const w = window.innerWidth;
     const h = window.innerHeight;
+    // the screen's own ratio can change too (the window moved to another monitor, the page was zoomed)
+    const r = this.ratio();
+    if (this.renderer.getPixelRatio() !== r) this.renderer.setPixelRatio(r);
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
     this.portrait = w / h < 1;
     this.camera.updateProjectionMatrix();
+  }
+
+  /** One frame of `ms`; `active` false when not racing (a menu, paused). Moves the tier in auto mode. */
+  frame(ms: number, active: boolean): void {
+    if (this.mode !== 'auto' || this.forced !== null) return;
+    if (this.gov.frame(ms, active)) this.applyTier();
+  }
+
+  /** A race begins: the governor may step up once again. */
+  raceStart(): void {
+    this.gov.raceStart();
+  }
+
+  /** The player's setting: 'auto' lets the governor choose, 'low' and 'high' pin a tier. `?quality=` beats both. */
+  setQualityMode(mode: QualityMode): void {
+    if (mode === this.mode) return;
+    this.mode = mode;
+    if (this.forced !== null) return;
+    this.gov.reset(mode === 'low' ? Math.min(1, this.start) : mode === 'high' ? TOP : this.start);
+    this.applyTier();
+  }
+
+  /** Draws the frame, then frees what a finished race left (see retire). */
+  render(): void {
+    this.renderer.render(this.scene, this.camera);
+    if (this.retired.length) {
+      for (const o of this.retired) o.dispose();
+      this.retired.length = 0;
+    }
+  }
+
+  /**
+   * Frees a finished race's GPU objects after the next frame rather than now: disposing the last material
+   * using a shader program deletes the program, and the next race would compile it all over again. Once the
+   * new race has been drawn its own materials hold those programs, and freeing the old ones costs nothing.
+   */
+  retire(items: Iterable<{ dispose(): void }>): void {
+    for (const o of items) this.retired.push(o);
+  }
+
+  private ratio(): number {
+    return Math.min(TIERS[this.gov.tier].dpr, window.devicePixelRatio || 1);
+  }
+
+  private applyTier(): void {
+    const t = this.gov.tier;
+    const r = this.ratio();
+    if (this.renderer.getPixelRatio() !== r) this.renderer.setPixelRatio(r);
+    if (t !== this.applied) this.onQuality?.(t, this.applied);
+    this.applied = t;
   }
 }
 
@@ -111,15 +204,57 @@ export class RaceView {
     for (const rv of this.riders) this.group.add(rv.root);
     for (const rd of this.ragdolls) this.group.add(rd.group);
     stage.scene.add(this.group);
+    // After the first race's warm-up every program exists, so this is only cache lookups; it catches the odd
+    // one a new stage brings (road works, signs) at the start rather than mid-race.
+    if (stage.warmed) stage.renderer.compile(stage.scene, stage.camera);
   }
 
+  /**
+   * Compiles every shader program the race can use and uploads its textures, before boot reports the game
+   * ready, so the first crash, pow or pickup doesn't stall on a compile (seconds on weak ANGLE machines).
+   * three's compile walks hidden objects too, so the pooled and hidden ones (pows, sparks, ragdolls, trails,
+   * the buggy, a pickup ring) are covered without showing them; nothing is moved and the sim isn't touched.
+   * compileAsync lets the driver compile in parallel (KHR_parallel_shader_compile) while the page stays live.
+   * Bounded by PREWARM_MAX: past that, boot goes on and the rest compiles in the background.
+   */
+  async prewarm(): Promise<void> {
+    const r = this.stage.renderer;
+    const { scene, camera } = this.stage;
+    const seen = new Set<THREE.Texture>();
+    scene.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      for (const mt of Array.isArray(m.material) ? m.material : [m.material]) {
+        for (const v of Object.values(mt)) if ((v as THREE.Texture | null)?.isTexture) seen.add(v as THREE.Texture);
+      }
+    });
+    for (const t of seen) r.initTexture(t);
+    try {
+      if (!r.compileAsync) r.compile(scene, camera);
+      else await Promise.race([r.compileAsync(scene, camera), new Promise((ok) => setTimeout(ok, PREWARM_MAX))]);
+    } catch {
+      // not fatal: whatever didn't compile here compiles when first drawn
+    }
+    this.stage.warmed = true;
+  }
+
+  /**
+   * Hands this race's own GPU objects to the stage to free (after the next frame, see Stage.retire): its
+   * geometries and materials except the shared ones kept across races, every instanced mesh's instance
+   * buffers, and the track's textures.
+   */
   dispose(): void {
-    this.track.dispose();
+    const bin = new Set<{ dispose(): void }>();
+    this.track.collect(bin);
     this.group.traverse((o) => {
       const m = o as THREE.Mesh;
-      if (m.isMesh) m.geometry.dispose();
+      if (!m.isMesh) return;
+      if (!isShared(m.geometry)) bin.add(m.geometry);
+      for (const mt of Array.isArray(m.material) ? m.material : [m.material]) if (!isShared(mt)) bin.add(mt);
+      if ((o as THREE.InstancedMesh).isInstancedMesh) bin.add(o as THREE.InstancedMesh);
     });
     this.group.removeFromParent();
+    this.stage.retire(bin);
   }
 
   scatterCones(x: number, z: number): void {
@@ -211,9 +346,10 @@ export class RaceView {
     this.traffic.update(w, alpha);
     this.patrol.update(w, alpha, dt);
     this.pickups.update(w, dt);
+    this.fx.scale = this.stage.fxScale;
     this.fx.update(dt, this.stage.camera);
     this.updateCamera(dt, alpha);
-    this.stage.renderer.render(this.stage.scene, this.stage.camera);
+    this.stage.render();
   }
 
   /**

@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { ROAD_HALF } from '../sim/config';
 import { toWorld } from './track';
-import { Kit } from './toon';
+import { Kit, cached } from './toon';
 import { JOINT, TARGET, INK_W, rbox, ball, rod } from './rider';
 
 const HEAD = 0, SH_L = 1, SH_R = 2, PELVIS = 3, EL_L = 4, HAND_L = 5, EL_R = 6, HAND_R = 7, KNEE_L = 8, FOOT_L = 9, KNEE_R = 10, FOOT_R = 11;
@@ -45,10 +45,39 @@ const by = new THREE.Vector3();
 const bz = new THREE.Vector3();
 const tx = new THREE.Vector3();
 const m4 = new THREE.Matrix4();
+const spinV = new THREE.Vector3();
+const vel = new THREE.Vector3();
 const w = REST.map(() => new THREE.Vector3());
 
 /** Parts along +y from 0 to the limb's length. */
 const along = (g: THREE.BufferGeometry, len: number) => g.rotateX(-Math.PI / 2).translate(0, len / 2, 0);
+
+/** The body from the hips to the neck, in the pelvis frame: y towards the shoulders, x to the dummy's left, z forward. */
+function torsoKit(body: number, ride: number): Kit {
+  return new Kit(INK_W)
+    .add(rbox(0.4, 0.22, 0.27), ride, { at: [0, 0, 0] })
+    .add(rbox(0.46, 0.54, 0.29, 0.09), body, { at: [0, 0.33, 0] })
+    .add(rbox(0.48, 0.06, 0.31, 0.02), JOINT, { at: [0, 0.12, 0], ink: false })
+    .add(new THREE.CylinderGeometry(0.055, 0.065, 0.14, 8), JOINT, { at: [0, 0.64, 0], ink: false })
+    .decal(0.085, TARGET, { at: [0, 0.4, 0.151] })
+    .decal(0.085, TARGET, { at: [0, 0.4, -0.151], rot: [0, Math.PI, 0] });
+}
+
+function headKit(body: number): Kit {
+  const head = new Kit(INK_W).add(ball(0.175, 12), body, { scale: [0.95, 1.06, 1] });
+  for (const s of [-1, 1]) head.decal(0.06, TARGET, { at: [s * 0.172, 0.01, 0], rot: [0, (s * Math.PI) / 2, 0] });
+  return head;
+}
+
+/** Upper arm, forearm, thigh, shin (LIMBS' part numbers). */
+const LIMB_KITS: ((body: number) => Kit)[] = [
+  (body) => new Kit(INK_W).add(ball(0.075), JOINT, { ink: false }).add(along(rod(0.06, LEN[0]), LEN[0]), body),
+  (body) => new Kit(INK_W).add(ball(0.062), JOINT, { ink: false }).add(along(rod(0.055, LEN[1]), LEN[1]), body)
+    .add(ball(0.078), JOINT, { at: [0, LEN[1], 0] }),
+  (body) => new Kit(INK_W).add(along(rod(0.08, LEN[2]), LEN[2]), body),
+  (body) => new Kit(INK_W).add(ball(0.072), JOINT, { ink: false }).add(along(rod(0.07, LEN[3]), LEN[3]), body)
+    .add(rbox(0.15, 0.1, 0.28, 0.04), JOINT, { at: [0, LEN[3], 0.06] }),
+];
 
 export class Ragdoll {
   readonly group = new THREE.Group();
@@ -77,26 +106,10 @@ export class Ragdoll {
 
   /** `mat` is the rider's own vertex-coloured toon material, so a hit flash shows here too. */
   constructor(body: number, ride: number, mat: THREE.Material) {
-    // In the pelvis frame: y towards the shoulders, x towards the dummy's left, z forward.
-    const torso = new Kit(INK_W)
-      .add(rbox(0.4, 0.22, 0.27), ride, { at: [0, 0, 0] })
-      .add(rbox(0.46, 0.54, 0.29, 0.09), body, { at: [0, 0.33, 0] })
-      .add(rbox(0.48, 0.06, 0.31, 0.02), JOINT, { at: [0, 0.12, 0], ink: false })
-      .add(new THREE.CylinderGeometry(0.055, 0.065, 0.14, 8), JOINT, { at: [0, 0.64, 0], ink: false })
-      .decal(0.085, TARGET, { at: [0, 0.4, 0.151] })
-      .decal(0.085, TARGET, { at: [0, 0.4, -0.151], rot: [0, Math.PI, 0] });
-    this.torso = new THREE.Mesh(torso.build(), mat);
-    const head = new Kit(INK_W).add(ball(0.175, 12), body, { scale: [0.95, 1.06, 1] });
-    for (const s of [-1, 1]) head.decal(0.06, TARGET, { at: [s * 0.172, 0.01, 0], rot: [0, (s * Math.PI) / 2, 0] });
-    this.head = new THREE.Mesh(head.build(), mat);
-    const parts = [
-      new Kit(INK_W).add(ball(0.075), JOINT, { ink: false }).add(along(rod(0.06, LEN[0]), LEN[0]), body),
-      new Kit(INK_W).add(ball(0.062), JOINT, { ink: false }).add(along(rod(0.055, LEN[1]), LEN[1]), body)
-        .add(ball(0.078), JOINT, { at: [0, LEN[1], 0] }),
-      new Kit(INK_W).add(along(rod(0.08, LEN[2]), LEN[2]), body),
-      new Kit(INK_W).add(ball(0.072), JOINT, { ink: false }).add(along(rod(0.07, LEN[3]), LEN[3]), body)
-        .add(rbox(0.15, 0.1, 0.28, 0.04), JOINT, { at: [0, LEN[3], 0.06] }),
-    ].map((k) => k.build());
+    // Built once per colours and kept across races (see `cached` in toon.ts).
+    this.torso = new THREE.Mesh(cached(`rag-torso:${body}:${ride}`, () => torsoKit(body, ride).build()), mat);
+    this.head = new THREE.Mesh(cached(`rag-head:${body}`, () => headKit(body).build()), mat);
+    const parts = LIMB_KITS.map((kit, i) => cached(`rag-limb${i}:${body}`, () => kit(body).build()));
     this.limbs = LIMBS.map(([, , part]) => new THREE.Mesh(parts[part], mat));
     this.group.add(this.torso, this.head, ...this.limbs);
     this.group.visible = false;
@@ -111,8 +124,8 @@ export class Ragdoll {
     const lift = (4.5 + Math.min(4, speed * 0.14)) * power + rnd() * 1.5;
     const side = vx === 0 ? (rnd() < 0.5 ? 1 : -1) : Math.sign(vx);
     // Spin about the body's middle: head over heels, and a roll the way it was knocked.
-    const spin = new THREE.Vector3((3 + rnd() * 3) * power, (rnd() - 0.5) * 4, -side * (1.5 + rnd() * 2) * power);
-    const v = new THREE.Vector3();
+    const spin = spinV.set((3 + rnd() * 3) * power, (rnd() - 0.5) * 4, -side * (1.5 + rnd() * 2) * power);
+    const v = vel;
     for (let i = 0; i < REST.length; i++) {
       const [rx, ry, rz] = REST[i];
       this.p[i].set(x + rx, ry, z + rz);
