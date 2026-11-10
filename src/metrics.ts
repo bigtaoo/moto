@@ -92,18 +92,20 @@ export class PerfSampler {
 
 /**
  * One race's frames as fields on its progression_completed / progression_failed: how many, their mean
- * rate, the longest, and how many took 100 ms or more up to 1 s or more, so a race's stutters sit next to
+ * rate, the longest and when it came, and how many took 100 ms or more up to 1 s or more, so a race's stutters sit next to
  * how it ended. Gaps and the frame after the game was away are left out as in PerfSampler.
  */
 export class RunStutter {
   private count = 0;
   private active = 0;
   private max = 0;
+  /** Active ms into the race when the longest frame ended. */
+  private maxAt = 0;
   private over = OVER.map(() => 0);
   private skip = false;
 
   reset(): void {
-    this.count = this.active = this.max = 0;
+    this.count = this.active = this.max = this.maxAt = 0;
     this.over = OVER.map(() => 0);
     this.skip = false;
   }
@@ -113,7 +115,7 @@ export class RunStutter {
     if (!(ms > 0) || ms >= GAP_MS) return;
     this.count++;
     this.active += ms;
-    this.max = Math.max(this.max, ms);
+    if (ms > this.max) { this.max = ms; this.maxAt = this.active; }
     OVER.forEach((o, i) => ms >= o && this.over[i]++);
   }
 
@@ -127,6 +129,8 @@ export class RunStutter {
       run_frame_count: this.count,
       run_fps_avg: this.active > 0 ? round1((this.count * 1000) / this.active) : 0,
       run_frame_max_ms: round1(this.max),
+      // seconds of play before the longest frame: always the first few points at first-use compiles
+      run_frame_max_at_s: Math.round(this.maxAt / 1000),
     };
     OVER.forEach((o, i) => o >= 100 && (props[`run_frames_over_${o}ms`] = this.over[i]));
     return props;
@@ -138,7 +142,7 @@ export function careerBucket(races: number): string {
   return races <= 0 ? '0' : races < 5 ? '1-4' : races < 20 ? '5-19' : races < 50 ? '20-49' : races < 100 ? '50-99' : '100+';
 }
 
-/** A division of a season as one bounded step: `amateur_rookie_cup`, `legend_neon_coast` (15 of them). */
+/** A division of a season as one bounded step: `amateur_rookie_meadow`, `legend_neon_coast` (15 of them). */
 export function stepId(div: number, tier: number): string {
   const d = C.DIVISIONS[Math.max(0, Math.min(C.DIVISIONS.length - 1, div))];
   const t = C.TIERS[Math.max(0, Math.min(C.TIERS.length - 1, tier))];

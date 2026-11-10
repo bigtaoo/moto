@@ -1,6 +1,7 @@
 // DOM overlay. Per-frame changes go through transform/opacity only; text is touched only when it changes.
 
 import { icon } from './icons';
+import { DESKTOP } from './input';
 import type { World } from '../sim/world';
 import { ATTACK, WEAPON, GRUDGE_BONUS, UPGRADE_MAX, UPGRADE_CAP, VEHICLES, DIVISIONS, stage, type Vehicle } from '../sim/config';
 import type { RaceView } from './scene';
@@ -67,6 +68,9 @@ export interface RaceResult {
 }
 
 const UP_NAMES: Record<UpKey, Key> = { top: 'upTop', steer: 'upSteer', hp: 'upHp' };
+
+/** The controls line: the keys where a mouse is the main pointer, else the touch controls. */
+const CONTROLS = DESKTOP ? 'hintKeys' : 'hint';
 
 export class Hud {
   readonly root: HTMLElement;
@@ -160,7 +164,7 @@ export class Hud {
   localize(): void {
     this.slapL.innerHTML = `${icon('left')} ${t('slap')}`;
     this.slapR.innerHTML = `${t('slap')} ${icon('right')}`;
-    this.hint.textContent = t(this.hintMode === 'click' ? 'clickForKeys' : 'hint');
+    this.hint.textContent = t(this.hintMode === 'click' ? 'clickForKeys' : CONTROLS);
     this.remountBtn.innerHTML = `<span>${icon('play')} ${t('backOnNow')}</span><small>${t('watchAd')}</small>`;
     this.pauseBtn.setAttribute('aria-label', t('pause'));
     this.setSound(!this.soundOff);
@@ -238,7 +242,7 @@ export class Hud {
   showHint(mode: 'off' | 'controls' | 'click'): void {
     if (mode === this.hintMode) return;
     this.hintMode = mode;
-    if (mode !== 'off') this.hint.textContent = t(mode === 'click' ? 'clickForKeys' : 'hint');
+    if (mode !== 'off') this.hint.textContent = t(mode === 'click' ? 'clickForKeys' : CONTROLS);
     this.hint.classList.toggle('on', mode !== 'off');
     this.hint.classList.toggle('ask', mode === 'click');
   }

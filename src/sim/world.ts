@@ -438,7 +438,7 @@ export class World {
   /** Current standing of the player, 1-based. */
   get standing(): number {
     const p = this.player;
-    if (p.finished) return p.place;
+    if (p.finished || this.over) return p.place; // at the time cap the ones still riding are placed, not finished
     let ahead = this.finished;
     for (const r of this.riders) if (!r.isPlayer && !r.thug && !r.finished && r.z > p.z) ahead++;
     return ahead + 1;
@@ -555,8 +555,8 @@ export class World {
     const [lo, hi] = R.bounds(r.px, r.z);
     r.lo = lo;
     r.hi = hi;
-    // riding into the cones of a construction zone at speed throws them off
-    const cones = !air && r.speed > C.WORKS.crashSpeed && r.x > hi + 0.05 && hi < C.EDGE - 1e-6 && R.worksHi(r.z) <= hi + 1e-6;
+    // riding into the cones of a construction zone at speed throws them off (not just after getting back on)
+    const cones = !air && r.invT === 0 && r.speed > C.WORKS.crashSpeed && r.x > hi + 0.05 && hi < C.EDGE - 1e-6 && R.worksHi(r.z) <= hi + 1e-6;
     let slam = false;
     if (r.x > hi || r.x < lo) {
       // knocked into the barrier hard enough, it throws them off; otherwise they scrape along it

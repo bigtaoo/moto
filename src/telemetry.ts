@@ -13,7 +13,7 @@
 // stacks or names: every value is a number, a flag or one of a fixed few words.
 
 import * as C from './sim/config';
-import type { World } from './sim/world';
+import type { World, CrashCause } from './sim/world';
 import type { Save } from './meta';
 import { CUP_RACES, upgradePrice, type Settlement, type UpKey } from './career';
 import { track, setCommonFields, flushEarly, deviceType } from './platform';
@@ -76,7 +76,7 @@ const slow = setTimeout(() => report('boot_slow'), 20_000);
 export function bootDone(): void {
   bootStage = 'ready';
   clearTimeout(slow);
-  funnel.loaded(boot);
+  funnel.loaded({ ...boot, ready_ms: Math.round(now()) });
 }
 /** The boot threw; whatever got through to the Bridge goes out with it. */
 export function bootFailed(): void {
@@ -119,6 +119,10 @@ interface Race {
   world: World;
   step: Props;
   falls: number;
+  /** Presses by kind in the race: whether the player found the keys, drags a mouse, or plays by touch. */
+  presses: { key: number; mouse: number; touch: number };
+  /** The player's crashes by what put them down (the sim's crash causes). */
+  by: Record<CrashCause, number>;
   downMs: number;
   wasDown: boolean;
   pauses: number;
@@ -139,13 +143,21 @@ function stepOf(div: number, tier: number, cupRace: number, ride: number): Props
 export function raceStart(w: World): void {
   if (!save) return;
   const step = stepOf(save.div, save.tier, save.cup.race + 1, save.garage.cur);
-  race = { world: w, step, falls: 0, downMs: 0, wasDown: false, pauses: 0, hides: 0, remountOffered: false };
+  race = { world: w, step, falls: 0, presses: { key: 0, mouse: 0, touch: 0 }, by: { ko: 0, car: 0, wall: 0, cones: 0 }, downMs: 0, wasDown: false, pauses: 0, hides: 0, remountOffered: false };
   stutter.reset();
   const between: Props = resultsAt ? { results_sec: Math.round((now() - resultsAt) / 1000), buys } : {};
   resultsAt = 0;
   buys = 0;
   track('progression_started', { ...step, career_race: save.races + 1, cash: save.cash, up_total: upTotal(save), nemesis: w.nemesis > 0, ...between });
 }
+
+/** The way the race was played: the kind of most presses, or none. */
+function inputKind(p: Race['presses']): string {
+  const [k, n] = Object.entries(p).sort((a, b) => b[1] - a[1])[0];
+  return n > 0 ? k : 'none';
+}
+addEventListener('keydown', (e) => { if (race && !e.repeat) race.presses.key++; }, { capture: true, passive: true });
+addEventListener('pointerdown', (e) => { if (race) race.presses[e.pointerType === 'mouse' ? 'mouse' : 'touch']++; }, { capture: true, passive: true });
 
 const upTotal = (s: Save) => s.up.top + s.up.steer + s.up.hp;
 
@@ -154,8 +166,8 @@ function raceFields(r: Race): Props {
   const w = r.world;
   return {
     ...r.step, place: w.standing, racers: w.racers, kos: w.kos, grudge_kos: w.grudgeKos, shoves: w.shoves, fines: w.fines,
-    falls: r.falls, down_s: Math.round(r.downMs / 1000), time_s: Math.round(w.time), pauses: r.pauses, hides: r.hides,
-    revenge: w.revenge, ...stutter.fields(),
+    falls: r.falls, falls_ko: r.by.ko, falls_car: r.by.car, falls_wall: r.by.wall, falls_cones: r.by.cones, down_s: Math.round(r.downMs / 1000), time_s: Math.round(w.time), pauses: r.pauses, hides: r.hides,
+    revenge: w.revenge, input: inputKind(r.presses), capped: w.time >= C.TIME_CAP_S, ...stutter.fields(),
   };
 }
 
@@ -192,6 +204,11 @@ function milestones(s: Settlement): void {
   if (f.beaten) track('nemesis', { result: f.broken ? 'broken' : 'beaten', step_id: from, revenge: f.revenge, cash: f.cash });
 }
 
+/** The player crashed (the sim's crash event): counted by cause on the race's progression event. */
+export function crashed(cause: CrashCause): void {
+  if (race) race.by[cause]++;
+}
+
 /** Something bought on the results screen (counted onto the next progression_started). */
 export function bought(): void {
   buys++;
@@ -221,7 +238,7 @@ let lastInput = now();
 let idleScreen = '';
 let idleSent = 0;
 let idleWas = false;
-const IDLE_S: Record<string, number> = { race: 15, results: 45, title: 30 };
+const IDLE_S: Record<string, number> = { race: 30, results: 45, title: 30 }; // the scooter rides itself: 15 s of straight road with no input is still playing
 for (const ev of ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart']) addEventListener(ev, () => { lastInput = now(); }, { capture: true, passive: true });
 
 /**

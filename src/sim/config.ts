@@ -4,7 +4,7 @@
  * Bump on any change to the race rules that alters what a seed plus inputs produce, and record the new
  * golden hash in world.test.ts. Replays and (later) online rooms only mix the same version.
  */
-export const SIM_VERSION = 14;
+export const SIM_VERSION = 15;
 
 export const TICK_HZ = 30;
 export const DT = 1 / TICK_HZ;
@@ -376,7 +376,7 @@ export interface Division {
   cuts: number;
 }
 export const DIVISIONS: readonly Division[] = [
-  { name: 'Rookie Cup', env: 'meadow', mind: 0, traffic: 1, patrol: 0, prize: 1, ramps: 1, works: 1, cuts: 0 },
+  { name: 'Rookie Meadow', env: 'meadow', mind: 0, traffic: 1, patrol: 0, prize: 1, ramps: 1, works: 1, cuts: 0 },
   { name: 'Dust Bowl', env: 'desert', mind: 0.05, traffic: 1.1, patrol: 0, prize: 1.5, ramps: 1, works: 1, cuts: 1 },
   { name: 'Maple Run', env: 'autumn', mind: 0.1, traffic: 1.2, patrol: 1, prize: 2.1, ramps: 2, works: 1, cuts: 1 },
   { name: 'Frost Pass', env: 'snow', mind: 0.15, traffic: 1.3, patrol: 1, prize: 2.8, ramps: 2, works: 1, cuts: 1 },

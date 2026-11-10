@@ -54,6 +54,7 @@ describe('RunStutter', () => {
     const f = r.fields();
     expect(f.run_frame_count).toBe(3);
     expect(f.run_frame_max_ms).toBe(1200);
+    expect(f.run_frame_max_at_s).toBe(2); // 16 + 300 + 1200 ms in (the 2000 after time away is left out)
     expect(f.run_frames_over_250ms).toBe(2);
     expect(f.run_frames_over_1000ms).toBe(1);
     expect(f).not.toHaveProperty('run_frames_over_50ms');
@@ -68,7 +69,7 @@ describe('dimensions', () => {
   });
 
   it('names 15 bounded steps and orders every race on the ladder', () => {
-    expect(stepId(0, 0)).toBe('amateur_rookie_cup');
+    expect(stepId(0, 0)).toBe('amateur_rookie_meadow');
     expect(stepId(4, 2)).toBe('legend_neon_coast');
     expect(stepId(99, -3)).toBe('amateur_neon_coast');
     const ids = new Set<string>();

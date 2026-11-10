@@ -194,6 +194,7 @@ function handle(e: SimEvent): void {
       if (e.cause === 'cones') view.scatterCones(r.x, r.z);
       view.fx.dust(r.x, r.z, e.speed, rnd);
       if (e.rider === 0) {
+        tele.crashed(e.cause);
         slow = 0.55;
         view.shake(0.8);
         hud.flash(t(e.cause === 'car' ? 'wipeout' : e.cause === 'wall' ? 'slammed' : e.cause === 'cones' ? 'cones' : 'knockedOff'), 'bad');
@@ -445,7 +446,8 @@ function frame(now: number): void {
   view.update(simDt, Math.min(1, acc / C.DT));
   hud.update(world, view, save.cash, dt);
   downClock = world.player.state === 'down' ? downClock + dt : 0;
-  const offer = state === 'race' && !BOT && !remountUsed && downClock > 0.6 && platform.rewardedReady();
+  // not in a new player's first race: their first look at the game is the game, not an ad button
+  const offer = state === 'race' && !BOT && save.races > 0 && !remountUsed && downClock > 0.6 && platform.rewardedReady();
   hud.showRemount(offer);
   if (offer) tele.remountOffer();
   if (state === 'race' && !BOT) funnel.playing(dt);

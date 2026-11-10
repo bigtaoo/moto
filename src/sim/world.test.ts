@@ -9,7 +9,7 @@ import { World, type WorldOpts } from './world';
 // The golden hashes pin what a seed plus inputs produce. If one changes, either the change was meant
 // to alter the race (bump SIM_VERSION in config.ts and paste the new hashes here) or the sim lost
 // its determinism (find out why before touching anything).
-const GOLDEN = { version: 14, mid: '6bde2803', end: '23cc71ec', endTick: 4896 };
+const GOLDEN = { version: 15, mid: '6bde2803', end: '23cc71ec', endTick: 4896 };
 
 const OPTS: WorldOpts = { seed: 1, upgrades: { top: 2, steer: 2, hp: 2 }, div: 2, nemesis: 3, tier: 1, vehicle: 2 };
 const MID = 60 * TICK_HZ;
@@ -128,6 +128,32 @@ describe('nemesis and remount', () => {
     expect(p.state).toBe('ride');
     expect(p.invT).toBeGreaterThan(0);
     expect(w.input.remount).toBe(false);
+  });
+
+  it('lets a player just back on the scooter steer off the cones before they count', () => {
+    let seed = 1;
+    while (new World({ seed }).road.works.length === 0) seed++;
+    /** The player riding right up against the cones mid-zone, steering into them; the cone falls in 20 ticks. */
+    const cones = (grace: number): number => {
+      const w = new World({ seed });
+      w.countdown = 0;
+      const p = w.player;
+      const z = (w.road.works[0].z0 + w.road.works[0].z1) / 2;
+      p.z = p.pz = z;
+      p.x = p.px = w.road.worksHi(z);
+      p.speed = p.top;
+      p.invT = grace;
+      w.input.targetX = C.EDGE;
+      let n = 0;
+      for (let i = 0; i < 20; i++) {
+        w.step();
+        n += w.events.filter((e) => e.type === 'crash' && e.rider === 0 && e.cause === 'cones').length;
+        w.events.length = 0;
+      }
+      return n;
+    };
+    expect(cones(C.INVULN_TICKS)).toBe(0);
+    expect(cones(0)).toBe(1);
   });
 });
 

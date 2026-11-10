@@ -6,6 +6,7 @@ export const PT: Table = {
   best: '{div} · corrida {n}/{m} · ${cash}',
   champs: ' · campeão ×{n}',
   hint: 'Arraste para virar · Toque para bater',
+  hintKeys: '← → virar · Espaço bater',
   clickForKeys: 'Clique no jogo para usar o teclado',
   slap: 'TAPA',
   backOnNow: 'Voltar já',

@@ -53,7 +53,7 @@ export function startTutorial(): void {
   tutorial = true;
   track('tutorial_step', { step: 'start' });
 }
-export function tutorialStep(step: 'steer' | 'slap' | 'hit' | 'finish'): void {
+export function tutorialStep(step: 'steer' | 'slap' | 'hit'): void {
   if (!tutorial || steps.has(step)) return;
   steps.add(step);
   track('tutorial_step', { step, sec: sec() });

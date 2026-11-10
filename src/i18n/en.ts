@@ -8,6 +8,7 @@ export const EN = {
   best: '{div} · race {n}/{m} · cash ${cash}',
   champs: ' · {n}× champion',
   hint: 'Drag to steer · Tap to slap',
+  hintKeys: '← → steer · Space slap',
   clickForKeys: 'Click the game to use the keys',
   slap: 'SLAP',
   backOnNow: 'Back on now',

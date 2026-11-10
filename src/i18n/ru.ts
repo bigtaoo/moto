@@ -6,6 +6,7 @@ export const RU: Table = {
   best: '{div} · гонка {n}/{m} · ${cash}',
   champs: ' · чемпион ×{n}',
   hint: 'Веди пальцем — руль · Тап — удар',
+  hintKeys: '← → руль · Пробел — удар',
   clickForKeys: 'Щёлкните по игре, чтобы играть с клавиатуры',
   slap: 'УДАР',
   backOnNow: 'Сразу в седло',
