@@ -9,8 +9,8 @@ const MAX_LINES = 500;
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const DIRS = ['src', 'scripts'];
 const EXTS = ['.ts', '.mts', '.mjs', '.js', '.py', '.css', '.html'];
-/** Over the limit as of 2026-11-10, waiting to be split. */
-const BASELINE = { 'src/sim/world.ts': 1422 };
+/** Over the limit and waiting to be split (none left: world.ts was split on 2026-11-10). */
+const BASELINE = {};
 
 function* walk(dir) {
   for (const name of readdirSync(dir)) {

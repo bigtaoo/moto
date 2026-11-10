@@ -5,6 +5,7 @@ import { botInput } from './ai';
 import { hashState } from './hash';
 import { Recorder, playReplay, type Replay } from './replay';
 import { World, type WorldOpts } from './world';
+import { knockOff } from './combat';
 
 // The golden hashes pin what a seed plus inputs produce. If one changes, either the change was meant
 // to alter the race (bump SIM_VERSION in config.ts and paste the new hashes here) or the sim lost
@@ -119,7 +120,7 @@ describe('nemesis and remount', () => {
     const p = w.player;
     p.hp = 1;
     // knock the player off by hand: the same path a hit takes
-    (w as unknown as { knockOff(v: unknown, by: unknown): void }).knockOff(p, w.riders[1]);
+    knockOff(w, p, w.riders[1]);
     expect(p.state).toBe('down');
     w.step();
     expect(p.state).toBe('down');
