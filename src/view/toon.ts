@@ -171,3 +171,33 @@ function hullOf(g: THREE.BufferGeometry, ink: number, color: number): THREE.Buff
   }
   return paintAttrs(h, color, 0);
 }
+
+/**
+ * Parts merged into ONE geometry for a skinned mesh, part k riding bone k at full weight: a body whose
+ * parts move apart (a rider's torso and arms, a ragdoll's limbs) in one draw call instead of one each.
+ */
+export function rigidParts(parts: THREE.BufferGeometry[]): THREE.BufferGeometry {
+  const merged = mergeGeometries(parts.map((p, k) => {
+    const g = p.clone();
+    const n = g.attributes.position.count;
+    const idx = new Uint8Array(n * 4);
+    const wt = new Uint8Array(n * 4);
+    for (let i = 0; i < n; i++) { idx[i * 4] = k; wt[i * 4] = 255; }
+    g.setAttribute('skinIndex', new THREE.BufferAttribute(idx, 4));
+    g.setAttribute('skinWeight', new THREE.BufferAttribute(wt, 4, true));
+    return g;
+  }))!;
+  return merged;
+}
+
+/**
+ * A mesh of `rigidParts` whose bones are plain scene objects: part k is drawn as if it were a child of
+ * `bones[k]` (identity bind and inverse matrices). three computes a skinned mesh's bounding sphere once
+ * and lets it go stale, so the caller passes one (in the mesh's frame) and keeps it where the body is.
+ */
+export function rigidMesh(geo: THREE.BufferGeometry, mat: THREE.Material, bones: THREE.Object3D[], sphere: THREE.Sphere): THREE.SkinnedMesh {
+  const m = new THREE.SkinnedMesh(geo, mat);
+  m.bind(new THREE.Skeleton(bones as THREE.Bone[], bones.map(() => new THREE.Matrix4())), new THREE.Matrix4());
+  m.boundingSphere = sphere;
+  return m;
+}

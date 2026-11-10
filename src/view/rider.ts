@@ -1,12 +1,13 @@
 // A crash-test dummy on its ride (a kick scooter, or one of the garage's: C.VEHICLES), built in code
-// from rounded parts (see toon.ts for the look). Each moving piece is one merged mesh: ride, legs +
-// pelvis, torso + head, and each arm. That is 5 draw calls per rider, outlines included.
+// from rounded parts (see toon.ts for the look). Each moving piece (ride, legs + pelvis, torso + head, each
+// arm) is a group posed as before, and all five are the bones of ONE skinned mesh: 1 draw call per rider,
+// outlines included (it was 5, and riders were the biggest share of the phone budget).
 // Local axes: +z forward, +y up. Sim +x (screen right) is local -x, because the world mirrors x (track.ts).
 
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import type { WeaponKind } from '../sim/config';
-import { Kit, cached, kitMaterial, shared, toonMaterial } from './toon';
+import { Kit, cached, kitMaterial, rigidMesh, rigidParts, shared, toonMaterial } from './toon';
 import { Wobble } from './hats';
 
 export const JOINT = 0x34343c;
@@ -185,7 +186,9 @@ export function makeWeapon(kind: WeaponKind): THREE.Group {
   return g;
 }
 
-interface Parts { ride: THREE.BufferGeometry; legs: THREE.BufferGeometry; top: THREE.BufferGeometry; arm: THREE.BufferGeometry; torsoY: number }
+/** The rider as one skinned geometry, bones: ride, legs, torso, left arm, right arm. `reach`: bounding radius about BODY_C. */
+interface Parts { skin: THREE.BufferGeometry; reach: number; torsoY: number }
+const BODY_C = new THREE.Vector3(0, 0.9, 0);
 const partsBuilt = new Map<string, Parts>();
 
 /**
@@ -240,7 +243,10 @@ function riderParts(vehicle: number, body: number, ride: number, mark: number): 
     .add(rod(0.055, 0.3), body, { at: [0, 0, 0.47] })
     .add(ball(0.078), JOINT, { at: [0, 0, 0.64] });
 
-  const p = { ride: shared(sc.build()), legs: shared(legs.build()), top: shared(top.build()), arm: shared(arm.build()), torsoY };
+  const rideG = sc.build();
+  const armG = arm.build();
+  const rs = rideG.boundingSphere!;
+  const p = { skin: shared(rigidParts([rideG, legs.build(), top.build(), armG, armG])), reach: Math.max(2.2, rs.center.distanceTo(BODY_C) + rs.radius), torsoY };
   partsBuilt.set(key, p);
   return p;
 }
@@ -294,14 +300,13 @@ export class RiderView {
     // torso, neck and head, in the torso pivot's frame
     this.torso.position.set(0, this.torsoY, -0.06);
     this.torso.rotation.x = 0.18;
-    this.torso.add(new THREE.Mesh(p.top, this.mat));
 
     const mkArm = (simSide: 1 | -1) => {
       const pivot = new THREE.Group();
       pivot.position.set(-simSide * 0.27, 0.46, 0);
       const hand = new THREE.Object3D();
       hand.position.z = 0.64;
-      pivot.add(new THREE.Mesh(p.arm, this.mat), hand);
+      pivot.add(hand);
       this.torso.add(pivot);
       return [pivot, hand] as const;
     };
@@ -314,9 +319,10 @@ export class RiderView {
     this.trailMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, forceSinglePass: true });
     this.trail = new THREE.Mesh(trailGeo(), this.trailMat);
     this.trail.visible = false;
-    this.dummy.add(new THREE.Mesh(p.legs, this.mat), this.torso, this.trail);
-    this.lean.add(new THREE.Mesh(p.ride, this.mat), this.dummy);
-    this.root.add(this.lean);
+    this.dummy.add(this.torso, this.trail);
+    this.lean.add(this.dummy);
+    const skin = rigidMesh(p.skin, this.mat, [this.lean, this.dummy, this.torso, l, r], new THREE.Sphere(BODY_C.clone(), p.reach));
+    this.root.add(this.lean, skin);
     this.restArms();
   }
 
@@ -376,7 +382,8 @@ export class RiderView {
   setDown(down: boolean, side: 1 | -1 = 1): void {
     this.down = down;
     this.downSide = side;
-    this.dummy.visible = !down;
+    this.dummy.visible = !down; // the hat, weapon and swoosh; the body's own parts fold away in update
+    if (down) this.dummy.scale.setScalar(0);
     if (!down) this.tip = this.yaw = 0;
   }
 
@@ -457,7 +464,8 @@ export class RiderView {
     this.kick += this.kickV * dt;
     this.squash = Math.max(0, this.squash - dt * 7);
     const sq = this.squash * this.squash;
-    this.dummy.scale.set(1 + 0.16 * sq, 1 - 0.2 * sq, 1 + 0.16 * sq);
+    if (this.down) this.dummy.scale.setScalar(0); // off the ride: the ragdoll is drawn instead
+    else this.dummy.scale.set(1 + 0.16 * sq, 1 - 0.2 * sq, 1 + 0.16 * sq);
     this.torso.rotation.x = 0.18 - 0.4 * sq + 0.12 * lunge;
     this.lean.rotation.z = this.bank + this.tip + this.kick - sw * 0.12 * lunge;
     if (this.flash > 0) {

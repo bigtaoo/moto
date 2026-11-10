@@ -8,7 +8,7 @@
 import * as THREE from 'three';
 import { ROAD_HALF } from '../sim/config';
 import { toWorld } from './track';
-import { Kit, cached } from './toon';
+import { Kit, cached, rigidParts, rigidMesh } from './toon';
 import { JOINT, TARGET, INK_W, rbox, ball, rod, headKit } from './rider';
 
 const HEAD = 0, SH_L = 1, SH_R = 2, PELVIS = 3, EL_L = 4, HAND_L = 5, EL_R = 6, HAND_R = 7, KNEE_L = 8, FOOT_L = 9, KNEE_R = 10, FOOT_R = 11;
@@ -87,15 +87,28 @@ const LIMB_KITS: ((body: number) => Kit)[] = [
     .add(rbox(0.15, 0.1, 0.28, 0.04), JOINT, { at: [0, LEN[3], 0.06] }),
 ];
 
+/** Bones, one per rigid part: the torso, the head, the limbs (LIMBS' order), the stars. */
+const TORSO = 0, HEADB = 1, LIMB0 = 2, STAR0 = LIMB0 + LIMBS.length, BONES = STAR0 + STARS;
+
+/** The whole body as one skinned geometry (see rigidParts), bone order as above. */
+function bodyGeo(body: number, ride: number, mark: number): THREE.BufferGeometry {
+  const limb = LIMB_KITS.map((kit) => kit(body).build());
+  const star = starGeo();
+  return rigidParts([torsoKit(body, ride, mark).build(), headKit(body, mark).build(),
+    ...LIMBS.map(([, , part]) => limb[part]), ...Array.from({ length: STARS }, () => star)]);
+}
+
 export class Ragdoll {
   readonly group = new THREE.Group();
   private readonly p = REST.map(() => new THREE.Vector3());
   private readonly q = REST.map(() => new THREE.Vector3());
   private readonly len = STICKS.map(([i, j]) => dist(i, j));
-  private readonly torso: THREE.Mesh;
-  private readonly head: THREE.Mesh;
-  private readonly limbs: THREE.Mesh[];
-  private readonly stars: THREE.Mesh[];
+  private readonly mesh: THREE.SkinnedMesh;
+  private readonly bones = Array.from({ length: BONES }, () => new THREE.Bone());
+  private readonly torso = this.bones[TORSO];
+  private readonly head = this.bones[HEADB];
+  private readonly limbs = this.bones.slice(LIMB0, STAR0);
+  private readonly stars = this.bones.slice(STAR0);
   /** Head roll (radians) on top of the torso's turn: the wobble while running. */
   private roll = 0;
   private acc = 0;
@@ -117,14 +130,10 @@ export class Ragdoll {
 
   /** `mat` is the rider's own vertex-coloured toon material, so a hit flash shows here too. */
   constructor(body: number, ride: number, mat: THREE.Material, mark = TARGET) {
-    // Built once per colours and kept across races (see `cached` in toon.ts).
-    this.torso = new THREE.Mesh(cached(`rag-torso:${body}:${ride}:${mark}`, () => torsoKit(body, ride, mark).build()), mat);
-    this.head = new THREE.Mesh(cached(`rag-head:${body}:${mark}`, () => headKit(body, mark).build()), mat);
-    const parts = LIMB_KITS.map((kit, i) => cached(`rag-limb${i}:${body}`, () => kit(body).build()));
-    this.limbs = LIMBS.map(([, , part]) => new THREE.Mesh(parts[part], mat));
-    const star = cached('rag-star', starGeo);
-    this.stars = Array.from({ length: STARS }, () => new THREE.Mesh(star, mat));
-    this.group.add(this.torso, this.head, ...this.limbs, ...this.stars);
+    // One draw call for the whole body instead of 13 (two thrown dummies were a quarter of the phone
+    // budget); built once per colours and kept across races (see `cached` in toon.ts).
+    this.mesh = rigidMesh(cached(`rag:${body}:${ride}:${mark}`, () => bodyGeo(body, ride, mark)), mat, this.bones, new THREE.Sphere(new THREE.Vector3(), 2.4));
+    this.group.add(this.mesh, ...this.bones);
     this.group.visible = false;
   }
 
@@ -197,6 +206,7 @@ export class Ragdoll {
   /** A hat on the head, and a head `scale` times the size (the big-heads week). */
   dress(hat: THREE.Object3D | null, scale = 1): void {
     this.head.scale.setScalar(scale);
+    this.mesh.boundingSphere!.radius = 2.4 + scale - 1;
     if (!hat) return;
     hat.position.y = 0.17;
     this.head.add(hat);
@@ -358,13 +368,14 @@ export class Ragdoll {
     this.torso.position.copy(w[PELVIS]);
     this.torso.quaternion.setFromRotationMatrix(m4);
     this.head.position.copy(w[HEAD]);
+    this.mesh.boundingSphere!.center.copy(w[PELVIS]);
     this.head.quaternion.copy(this.torso.quaternion);
     if (this.roll) this.head.rotateZ(this.roll);
     // dazed: stars round the head once the body has hit the road
     const dazed = this.age > 0.5;
     for (let k = 0; k < STARS; k++) {
       const st = this.stars[k];
-      st.visible = dazed;
+      st.scale.setScalar(dazed ? 1 : 0);
       if (!dazed) continue;
       const t = this.age * 5 + (k / STARS) * Math.PI * 2;
       const h = this.p[HEAD];

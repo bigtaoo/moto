@@ -281,6 +281,7 @@ export class LaunchView {
       if (!isShared(m.geometry)) bin.add(m.geometry);
       for (const mt of Array.isArray(m.material) ? m.material : [m.material]) if (!isShared(mt)) bin.add(mt);
       if ((o as THREE.InstancedMesh).isInstancedMesh) bin.add(o as THREE.InstancedMesh);
+      if ((o as THREE.SkinnedMesh).isSkinnedMesh) bin.add((o as THREE.SkinnedMesh).skeleton); // its bone texture
     });
     this.group.removeFromParent();
     this.stage.retire(bin);
