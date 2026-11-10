@@ -6,6 +6,7 @@ export const TR: Table = {
   best: '{div} · yarış {n}/{m} · ${cash}',
   champs: ' · {n}× şampiyon',
   hint: 'Sürükle: dön · Dokun: vur',
+  clickForKeys: 'Klavyeyi kullanmak için oyuna tıklayın',
   slap: 'VUR',
   backOnNow: 'Hemen geri dön',
   watchAd: 'reklam izle',

@@ -6,6 +6,7 @@ export const FR: Table = {
   best: '{div} · course {n}/{m} · ${cash}',
   champs: ' · {n}× champion',
   hint: 'Glisse pour tourner · Touche pour frapper',
+  clickForKeys: 'Cliquez sur le jeu pour utiliser le clavier',
   slap: 'BAFFE',
   backOnNow: 'Repartir tout de suite',
   watchAd: 'regarder une pub',

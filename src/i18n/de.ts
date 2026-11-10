@@ -6,6 +6,7 @@ export const DE: Table = {
   best: '{div} · Rennen {n}/{m} · ${cash}',
   champs: ' · {n}× Meister',
   hint: 'Ziehen zum Lenken · Tippen zum Schlagen',
+  clickForKeys: 'Klick ins Spiel, um die Tasten zu nutzen',
   slap: 'SCHLAG',
   backOnNow: 'Sofort weiter',
   watchAd: 'Werbung ansehen',

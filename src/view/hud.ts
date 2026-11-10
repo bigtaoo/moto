@@ -80,6 +80,7 @@ export class Hud {
   private readonly banner: HTMLElement;
   private readonly chaser: HTMLElement;
   private readonly hint: HTMLElement;
+  private hintMode: 'off' | 'controls' | 'click' = 'off';
   private readonly slapL: HTMLElement;
   private readonly slapR: HTMLElement;
   private readonly incL: HTMLElement;
@@ -159,7 +160,7 @@ export class Hud {
   localize(): void {
     this.slapL.innerHTML = `${icon('left')} ${t('slap')}`;
     this.slapR.innerHTML = `${t('slap')} ${icon('right')}`;
-    this.hint.textContent = t('hint');
+    this.hint.textContent = t(this.hintMode === 'click' ? 'clickForKeys' : 'hint');
     this.remountBtn.innerHTML = `<span>${icon('play')} ${t('backOnNow')}</span><small>${t('watchAd')}</small>`;
     this.pauseBtn.setAttribute('aria-label', t('pause'));
     this.setSound(!this.soundOff);
@@ -233,8 +234,13 @@ export class Hud {
     this.remountBtn.classList.toggle('hidden', !on);
   }
 
-  showHint(on: boolean): void {
-    this.hint.classList.toggle('on', on);
+  /** The line low on the screen: the touch controls, a pulsing ask for a click while the keys can't reach the game, or nothing. */
+  showHint(mode: 'off' | 'controls' | 'click'): void {
+    if (mode === this.hintMode) return;
+    this.hintMode = mode;
+    if (mode !== 'off') this.hint.textContent = t(mode === 'click' ? 'clickForKeys' : 'hint');
+    this.hint.classList.toggle('on', mode !== 'off');
+    this.hint.classList.toggle('ask', mode === 'click');
   }
 
   flash(text: string, kind = ''): void {

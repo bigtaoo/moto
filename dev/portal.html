@@ -1,0 +1,25 @@
+<!doctype html>
+<!-- A stand-in portal page for testing the game in a cross-origin iframe (keyboard focus, scrolling).
+     Run the "portal" launch config (this page on :5181) next to "moto" (the game on :5180) and open
+     http://localhost:5181/dev/portal.html; its query string goes on to the game. Not part of the build. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portal test</title>
+<style>
+  body { margin: 0; font-family: sans-serif; background: #ddd; }
+  header { height: 160px; padding: 10px; }
+  iframe { display: block; width: min(960px, 100vw); aspect-ratio: 16 / 9; margin: 0 auto; border: 0; background: #000; }
+  footer { height: 2000px; padding: 10px; }
+</style>
+</head>
+<body>
+<header><input id="search" placeholder="portal search" autofocus> the portal keeps the keys until a click in the game</header>
+<iframe id="game" allow="autoplay; fullscreen"></iframe>
+<footer>portal content: the arrows and Space scroll this page while it has the keys</footer>
+<script>
+  document.getElementById('game').src = 'http://localhost:5180/' + location.search;
+</script>
+</body>
+</html>

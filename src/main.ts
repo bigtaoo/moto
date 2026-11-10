@@ -6,7 +6,7 @@ import * as C from './sim/config';
 import { botInput } from './sim/ai';
 import { Recorder } from './sim/replay';
 import { Stage, RaceView } from './view/scene';
-import { Controls } from './view/input';
+import { Controls, DESKTOP, keysReach } from './view/input';
 import { Hud, type RaceResult } from './view/hud';
 import { sfx, unlockAudio, hold, setMuted, music, raceTrack, preloadAudio } from './view/audio';
 import { installIconCss } from './view/icons';
@@ -60,6 +60,8 @@ let hostPaused = false;
 let remountUsed = false;
 /** Seconds the player has been down (the remount button waits for the tumble to end). */
 let downClock = 0;
+/** Seconds this race's countdown has stood waiting for the keys to reach the game. */
+let keysWait = 0;
 let acc = 0;
 let hitstop = 0;
 let slow = 0;
@@ -409,18 +411,28 @@ function frame(now: number): void {
   requestAnimationFrame(frame);
   const dt = Math.min(0.1, (now - lastT) / 1000);
   lastT = now;
+  // a keyboard player in a portal's iframe has no keys until a click in it (they scroll the portal page, and
+  // the Bridge holds the game paused while it lacks the focus): the HUD asks for that click, paused or not,
+  // and a countdown waits for it so the race doesn't start without them
+  const askKeys = state === 'race' && !BOT && !paused && DESKTOP && !keysReach();
+  hud.showHint(askKeys ? 'click' : state === 'race' && save.races < 2 && world.time < 6 ? 'controls' : 'off');
+  const waiting = askKeys && world.countdown > 0;
+  if (waiting) keysWait += dt;
+  else if (keysWait > 0) {
+    funnel.event('keys_wait', { seconds: Math.round(keysWait) });
+    keysWait = 0;
+  }
   if (paused || hostPaused) return;
   let simDt = dt;
   if (hitstop > 0) { hitstop -= dt; simDt = 0; }
   else if (slow > 0) { slow -= dt; simDt *= 0.35; }
-  if (state !== 'title') {
+  if (state !== 'title' && !waiting) {
     acc += simDt;
     let n = 0;
     while (acc >= C.DT && n++ < 8) { acc -= C.DT; tick(); }
   }
   view.update(simDt, Math.min(1, acc / C.DT));
   hud.update(world, view, save.cash, dt);
-  hud.showHint(state === 'race' && save.races < 2 && world.time < 6);
   downClock = world.player.state === 'down' ? downClock + dt : 0;
   hud.showRemount(state === 'race' && !BOT && !remountUsed && downClock > 0.6 && platform.rewardedReady());
   if (state === 'race' && !BOT) funnel.playing(dt);
@@ -456,6 +468,6 @@ async function boot(): Promise<void> {
 void boot();
 
 // For poking at the game from the console while testing.
-Object.assign(window, { __game: { get world() { return world; }, get view() { return view; }, get state() { return state; }, hud, get save() { return save; }, botInput, platform,
+Object.assign(window, { __game: { get world() { return world; }, get view() { return view; }, get state() { return state; }, get paused() { return { player: paused, host: hostPaused }; }, hud, get save() { return save; }, botInput, platform,
   /** Bug report: this race so far as a replay (seed, options, every input), JSON to paste. */
   replay: () => JSON.stringify(recorder.finish(world)) } });

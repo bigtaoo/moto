@@ -1,10 +1,23 @@
 // One-finger controls: drag to steer (relative to where the finger went down), tap to slap.
 // A second finger tapping while the first drags also slaps. Keys: arrows/A-D steer, Space/J slap, S/Down brake, P pause.
+// In a portal's iframe the keys go to the portal page until the game's window has the focus: the game asks
+// for it at start and again on every press of a finger or mouse in it, and the HUD asks for a click while
+// a keyboard player's keys don't reach it (keysReach).
 
 import { ROAD_HALF } from '../sim/config';
 
 const TAP_MS = 230;
 const TAP_PX = 14;
+/** Keys the page around the game would scroll on: in a portal's iframe they must only drive the game. */
+const NO_SCROLL = new Set([' ', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright']);
+
+/** A mouse (and so most likely a keyboard) is the main pointer: a desktop, not a phone or tablet. */
+export const DESKTOP = typeof matchMedia === 'function' && matchMedia('(pointer: fine)').matches;
+
+/** Whether key presses reach the game now (a portal's iframe keeps them until a click in it). */
+export function keysReach(): boolean {
+  return document.hasFocus();
+}
 
 interface Touch {
   id: number;
@@ -32,6 +45,9 @@ export class Controls {
    *   against the barrier (to slip into a trail's opening when it comes) doesn't leave the next drag offset
    */
   constructor(el: HTMLElement, private readonly playerX: () => number, private readonly reach: () => [number, number]) {
+    // ask for the keys from the start (a portal's iframe may still keep them until a click), and on every press
+    window.focus();
+    window.addEventListener('pointerdown', () => window.focus(), true);
     el.addEventListener('pointerdown', this.down);
     window.addEventListener('pointermove', this.move);
     window.addEventListener('pointerup', this.up);
@@ -86,11 +102,12 @@ export class Controls {
 
   private readonly key = (e: KeyboardEvent): void => {
     const k = e.key.toLowerCase();
+    // arrows and Space must not scroll a portal page around the game's iframe
+    if (NO_SCROLL.has(k)) e.preventDefault();
     if (e.type === 'keydown') {
       this.onAny?.();
       if (k === 'p') { this.onPause?.(); return; }
       if ((k === ' ' || k === 'j') && !e.repeat) this.attack = true;
-      if (k === ' ') e.preventDefault();
       this.keys.add(k);
     } else {
       this.keys.delete(k);

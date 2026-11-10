@@ -6,6 +6,7 @@ export const ES: Table = {
   best: '{div} · carrera {n}/{m} · ${cash}',
   champs: ' · campeón ×{n}',
   hint: 'Arrastra para girar · Toca para golpear',
+  clickForKeys: 'Haz clic en el juego para usar el teclado',
   slap: 'GOLPE',
   backOnNow: 'Volver ya',
   watchAd: 'ver un anuncio',
