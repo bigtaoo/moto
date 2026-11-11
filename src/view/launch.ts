@@ -8,7 +8,7 @@ import type { Road } from '../sim/road';
 import type { Paint, Hat } from '../shop';
 import { Track, place, toWorld, roadPhase, setRoadPhase } from './track';
 import type { Env } from './env';
-import type { Stage } from './scene';
+import type { Stage } from './stage';
 import { RiderView, rbox, TARGET } from './rider';
 import { Ragdoll } from './ragdoll';
 import { makeHat } from './hats';

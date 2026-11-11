@@ -74,7 +74,6 @@ export function flushEarly(): void {
   for (const [n, d] of q) track(n, d);
 }
 
-export const platformId = (): string => (bridge ? String(bridge.platform.id) : 'none');
 /** Bridge's device type (`mobile`, `tablet`, `desktop`), or null where it does not say. */
 export const deviceType = (): string | null => (bridge?.device?.type ? String(bridge.device.type) : null);
 export const audioEnabled = (): boolean => (bridge ? bridge.platform.isAudioEnabled !== false : true);

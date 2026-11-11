@@ -7,7 +7,7 @@ import * as C from './sim/config';
 import { LAUNCH, Launch, launchCash } from './sim/launch';
 import { LaunchView } from './view/launch';
 import { ENVS } from './view/env';
-import type { Stage } from './view/scene';
+import type { Stage } from './view/stage';
 import { PAINTS, HATS } from './shop';
 import { type Save, storeSave } from './meta';
 import { sfx, music, raceTrack } from './view/audio';

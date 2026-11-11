@@ -46,8 +46,6 @@ export function wearState(save: Save, k: Wardrobe, i: number): PaintState {
   if (save[k].owned.includes(i)) return 'owned';
   return save.tier >= wearTier(k, i) ? 'buy' : 'locked';
 }
-export const paintState = (save: Save, i: number) => wearState(save, 'paint', i);
-
 /** Buy (if need be, and affordable) and wear paint or hat `i`. */
 export function wear(save: Save, k: Wardrobe, i: number): boolean {
   if (!Number.isInteger(i) || i < 0 || i >= (k === 'paint' ? PAINTS.length : HATS.length)) return false;

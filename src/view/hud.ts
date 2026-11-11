@@ -15,6 +15,11 @@ const $ = <T extends HTMLElement = HTMLElement>(root: ParentNode, sel: string) =
 /** The controls line: the keys where a mouse is the main pointer, else the touch controls. */
 const CONTROLS = DESKTOP ? 'hintKeys' : 'hint';
 
+/** Set a class only when it would change: a no-op `toggle` still dirties the element's style. */
+const cls = (el: HTMLElement, name: string, on: boolean) => {
+  if (el.classList.contains(name) !== on) el.classList.toggle(name, on);
+};
+
 /** A rival tag's height plus a hair of air: the step a tag is lifted to clear one already placed. */
 const TAG_H = 20;
 
@@ -277,7 +282,7 @@ export class Hud {
       const txt = String(kmh);
       if (txt !== this.speedEl.textContent) this.speedEl.textContent = txt;
       const fast = p.state === 'ride' && p.speed > p.top + 0.5;
-      if (this.speedEl.classList.contains('fast') !== fast) this.speedEl.classList.toggle('fast', fast);
+      cls(this.speedEl, 'fast', fast);
     }
     // progress
     const len = w.length;
@@ -304,15 +309,15 @@ export class Hud {
       l.classList.toggle('on', show);
       if (!show) continue;
       const nem = r.id === w.nemesis;
-      if (l.classList.contains('nem') !== nem) l.classList.toggle('nem', nem);
+      cls(l, 'nem', nem);
       const grudge = !nem && w.grudges.has(r.id);
-      if (l.classList.contains('grudge') !== grudge) l.classList.toggle('grudge', grudge);
+      cls(l, 'grudge', grudge);
       const hunt = r.huntT > 0;
-      if (l.classList.contains('hunt') !== hunt) l.classList.toggle('hunt', hunt);
+      cls(l, 'hunt', hunt);
       const tell = this.tellT[i] > 0;
-      if (l.classList.contains('tell') !== tell) l.classList.toggle('tell', tell);
+      cls(l, 'tell', tell);
       const open = r.openT > 0 && !tell;
-      if (l.classList.contains('open') !== open) l.classList.toggle('open', open);
+      cls(l, 'open', open);
       // an icon class adds its 1em badge in front of the name, which the measured width predates
       const half = (this.tagW[i] + (nem || grudge || hunt || tell || open ? 15 : 0)) / 2 + 3;
       let x = this.pt.x, y = this.pt.y;

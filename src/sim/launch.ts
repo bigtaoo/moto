@@ -46,7 +46,6 @@ export const LAUNCH = {
 } as const;
 
 export type PropKind = 'crate' | 'barrel' | 'car';
-export const PROP_KINDS: readonly PropKind[] = ['crate', 'barrel', 'car'];
 /** r, h: the size hit; pts; keep: the share of forward speed kept going through; kick: the pop up (m/s). */
 export const PROPS: Record<PropKind, { r: number; h: number; pts: number; keep: number; kick: number; odds: number }> = {
   crate: { r: 0.8, h: 1.3, pts: 15, keep: 0.9, kick: 3, odds: 0.5 },
