@@ -4,7 +4,7 @@
  * Bump on any change to the race rules that alters what a seed plus inputs produce, and record the new
  * golden hash in world.test.ts. Replays and (later) online rooms only mix the same version.
  */
-export const SIM_VERSION = 21;
+export const SIM_VERSION = 22;
 
 export const TICK_HZ = 30;
 export const DT = 1 / TICK_HZ;
@@ -15,8 +15,8 @@ export const LANE_X = [-5.25, -1.75, 1.75, 5.25] as const;
 export const ONCOMING_LANE = 0;
 export const EDGE = ROAD_HALF - 0.55;
 
-/** About 2.5 minutes at top speed with a few crashes. */
-export const RACE_LEN = 3800;
+/** Two and a half minutes of racing, measured: see docs 3.3.21. */
+export const RACE_LEN = 3400;
 export const TIME_CAP_S = 240;
 /** Weapon pickups, as fractions of the race. */
 export const PICKUP_AT = [0.08, 0.22, 0.36, 0.5, 0.64, 0.78, 0.9];

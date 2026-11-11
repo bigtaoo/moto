@@ -46,7 +46,7 @@ html, body {
 #hud { position: absolute; inset: 0; pointer-events: none; }
 .top {
   position: absolute; left: 0; right: 0; top: 0;
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: center; gap: 8px;
   padding: max(10px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 0 max(12px, env(safe-area-inset-left));
 }
 .grow { flex: 1; }
@@ -159,7 +159,11 @@ html, body {
 @keyframes inc { to { filter: brightness(1.6); } }
 .inc .ic path, .heat .ic path { stroke: var(--ink); stroke-width: 1.6px; paint-order: stroke fill; stroke-linejoin: round; }
 
-.heat { display: flex; gap: 1px; font-size: 18px; color: #4dabf7; -webkit-text-stroke: 1.5px var(--ink); paint-order: stroke fill; }
+/* the wanted stars: under the progress bar on the left, not in the top row, which a phone is too narrow for */
+.heat {
+  position: absolute; left: max(12px, env(safe-area-inset-left)); top: calc(max(10px, env(safe-area-inset-top)) + 66px);
+  display: flex; gap: 1px; font-size: 18px; color: #4dabf7; -webkit-text-stroke: 1.5px var(--ink); paint-order: stroke fill;
+}
 .heat.hot { color: var(--red); animation: inc 0.4s ease-in-out infinite alternate; }
 .heat i { font-style: normal; }
 .prog .dot.hidden { display: none; }
@@ -435,6 +439,7 @@ button.primary:active { transform: translateY(4px); box-shadow: 0 1px 0 var(--in
   .place b { font-size: 26px; }
   .speedo b { font-size: 28px; }
   .prog { top: calc(max(8px, env(safe-area-inset-top)) + 44px); left: 25%; right: 25%; }
+  .heat { top: calc(max(8px, env(safe-area-inset-top)) + 56px); }
   .card { max-width: 640px; display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px; align-items: start; padding: 12px 16px; }
   .card > h2, .card > .sub { grid-column: 1; }
   .card .rows { grid-column: 1; margin: 6px 0; }

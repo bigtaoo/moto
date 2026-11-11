@@ -15,6 +15,9 @@ const $ = <T extends HTMLElement = HTMLElement>(root: ParentNode, sel: string) =
 /** The controls line: the keys where a mouse is the main pointer, else the touch controls. */
 const CONTROLS = DESKTOP ? 'hintKeys' : 'hint';
 
+/** A rival tag's height plus a hair of air: the step a tag is lifted to clear one already placed. */
+const TAG_H = 20;
+
 export class Hud {
   readonly root: HTMLElement;
   private readonly placeEl: HTMLElement;
@@ -29,6 +32,10 @@ export class Hud {
   /** Each rival tag's last screen spot, in tenths of a pixel: the transform is written only when it moves. */
   private tagX: number[] = [];
   private tagY: number[] = [];
+  /** Each tag's width, measured once when the race's tags are built. */
+  private tagW: number[] = [];
+  /** Scratch for the tags already placed this frame: x, y, half-width per tag. */
+  private readonly placed: number[] = [];
   private readonly banner: HTMLElement;
   private readonly chaser: HTMLElement;
   private readonly hint: HTMLElement;
@@ -73,12 +80,12 @@ export class Hud {
         <div class="top">
           <div class="place"><b>8</b><span>/8</span></div>
           <div class="hp"></div>
-          <div class="heat"></div>
           <div class="grow"></div>
           <div class="cash">$0</div>
           <button class="pausebtn" aria-label="Pause">${icon('pause')}</button>
         </div>
         <div class="prog"><div class="fill"></div></div>
+        <div class="heat"></div>
         <div class="labels"></div>
         <div class="slap l"></div>
         <div class="slap r"></div>
@@ -178,6 +185,7 @@ export class Hud {
     this.dotPx = w.riders.map(() => -1);
     this.tagX = w.riders.map(() => NaN);
     this.tagY = w.riders.map(() => NaN);
+    this.tagW = this.labels.map((l) => l.offsetWidth); // one layout per race, read before anything moves
     this.chaser.classList.remove('on');
     this.banner.className = 'banner';
     this.resize();
@@ -283,7 +291,11 @@ export class Hud {
       this.dotPx[i] = px;
       this.dots[i].style.transform = `translate(${px}px, -50%)`;
     }
-    // rival tags
+    // rival tags. Two riders side by side used to print their names over each other, one name
+    // unreadable under the other; a tag that would land on one already placed is lifted a row instead.
+    // The order is the rider list, not the distance, so a pair trading places never makes them flicker.
+    const placed = this.placed;
+    placed.length = 0;
     for (let i = 1; i < w.riders.length; i++) {
       const r = w.riders[i];
       const l = this.labels[i];
@@ -301,7 +313,21 @@ export class Hud {
       if (l.classList.contains('tell') !== tell) l.classList.toggle('tell', tell);
       const open = r.openT > 0 && !tell;
       if (l.classList.contains('open') !== open) l.classList.toggle('open', open);
-      const tx = Math.round(this.pt.x * 10), ty = Math.round(this.pt.y * 10);
+      // an icon class adds its 1em badge in front of the name, which the measured width predates
+      const half = (this.tagW[i] + (nem || grudge || hunt || tell || open ? 15 : 0)) / 2 + 3;
+      let x = this.pt.x, y = this.pt.y;
+      for (let pass = 0; pass < 3; pass++) {
+        let hit = false;
+        for (let k = 0; k < placed.length; k += 3) {
+          if (Math.abs(x - placed[k]) < half + placed[k + 2] && Math.abs(y - placed[k + 1]) < TAG_H) {
+            hit = true;
+            y = placed[k + 1] - TAG_H;
+          }
+        }
+        if (!hit) break;
+      }
+      placed.push(x, y, half);
+      const tx = Math.round(x * 10), ty = Math.round(y * 10);
       if (tx === this.tagX[i] && ty === this.tagY[i]) continue;
       this.tagX[i] = tx;
       this.tagY[i] = ty;

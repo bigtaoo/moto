@@ -8,6 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "bot": "tsx scripts/bot.ts",
+    "first20": "tsx scripts/first20.ts",
     "test": "vitest run",
     "check:filelength": "node scripts/checkFileLength.mjs",
     "check:bundle": "node scripts/checkBundle.mjs dist",
