@@ -272,8 +272,18 @@ button.primary {
   border: 4px solid var(--ink); border-radius: 14px; box-shadow: 0 5px 0 var(--ink);
 }
 button.primary:active { transform: translateY(4px); box-shadow: 0 1px 0 var(--ink); }
+/* the Race button before the boot has a race ready: dimmed and dead, so a tap that cannot work
+   does not look like a broken button */
+button.primary:disabled { opacity: 0.45; cursor: default; }
+button.primary:disabled:active { transform: none; box-shadow: 0 5px 0 var(--ink); }
 /* The results card runs long (upgrades, garage, shop): its next-race button stays in reach at the bottom. */
 .card .again { position: sticky; bottom: max(8px, env(safe-area-inset-bottom)); z-index: 2; }
+/* The sticky button sits on top of whatever line it lands on. A paper fade above it turns that hard
+   cut into a "there is more below" edge, instead of a sentence sliced in half. */
+.card .again::before {
+  content: ''; position: absolute; left: -4px; right: -4px; bottom: calc(100% + 4px); height: 22px;
+  background: linear-gradient(to top, var(--paper), transparent); pointer-events: none;
+}
 
 .rows { margin: 12px 0 8px; text-align: left; }
 .row { display: flex; justify-content: space-between; padding: 4px 2px; font-size: 16px; }
@@ -299,6 +309,11 @@ button.primary:active { transform: translateY(4px); box-shadow: 0 1px 0 var(--in
 }
 /* the highlight before the results: the HUD steps aside for a REPLAY sign */
 #hud.cine > :not(.replaytag) { visibility: hidden; }
+/* Off the road, the card is the whole screen: the race HUD used to poke out around it — the rank badge
+   and the cash pill stuck past the card's edges on a phone. Hidden between races, except during the
+   highlight replay, which keeps its own tag (.cine above). visibility, not display, so the tag widths
+   setup() measures are still real. */
+#app:not(.racing) #hud:not(.cine) { visibility: hidden; }
 #hud.away { display: none; }
 .replaytag {
   position: absolute; left: 50%; top: max(14px, env(safe-area-inset-top)); transform: translateX(-50%); opacity: 0; pointer-events: none;

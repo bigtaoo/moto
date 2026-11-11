@@ -478,6 +478,7 @@ async function boot(): Promise<void> {
   // every shader built before the first frame, so the race doesn't hitch on its first hits
   await view.prewarm();
   setState(state);
+  titleEl.querySelector('button')!.removeAttribute('disabled'); // a race is ready: the card's button works now
   showTitle();
   requestAnimationFrame(frame);
   // a new player is straight into their first race, no menu tap; the countdown is the tutorial's start
