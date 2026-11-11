@@ -335,9 +335,15 @@ button.primary:disabled:active { transform: none; box-shadow: 0 5px 0 var(--ink)
 .cashline b { background: var(--yellow); padding: 0 6px; border-radius: 6px; }
 .ups { display: flex; flex-direction: column; gap: 6px; }
 .up { display: flex; align-items: center; justify-content: space-between; gap: 8px; text-align: left; }
-.upname { font-weight: 800; font-size: 15px; }
+.upname { font-weight: 800; font-size: 15px; min-width: 0; }
+/* Top speed has ten pips: 10x14 px + 9x3 px of gap is 167 px, and with the 8 px gap and the 82 px button the
+   row wants 257 px. A 320 px phone gives the card 244, and because a flex item's min-width is auto the name
+   column refused to go below its pips, so the MAX button hung 13 px past the card's edge. min-width: 0 lets
+   the column take what is left; the pips keep their 14 px everywhere there is room and only shrink into
+   what is left on the narrowest phones (5 px floor, so ten of them stay countable). Give them a flex
+   basis instead of a width and they shrink on every phone: the name column then sizes to its text. */
 .pips { display: flex; gap: 3px; margin-top: 3px; }
-.pips i { width: 14px; height: 7px; border-radius: 2px; background: rgba(22, 22, 26, 0.2); }
+.pips i { width: 14px; min-width: 5px; height: 7px; border-radius: 2px; background: rgba(22, 22, 26, 0.2); }
 .pips i.on { background: var(--ink); }
 .pips i.lock { background: none; outline: 1px dashed rgba(22, 22, 26, 0.3); outline-offset: -1px; }
 .up button {
@@ -374,7 +380,12 @@ button.primary:disabled:active { transform: none; box-shadow: 0 5px 0 var(--ink)
 .paint:disabled, .carry:disabled { cursor: default; }
 .paint.buy:disabled, .paint.locked, .carry:disabled:not(.on) { opacity: 0.55; }
 .paint.locked > i { font-size: 11px; }
-.carry { flex: 1 1 0; flex-direction: row; justify-content: space-between; padding: 7px 10px; }
+/* The three weapons used to share the row (`flex: 1 1 0`) with the name and the price side by side. The
+   price is the stage's purse, so it grows with the career -- $60 at Rookie, $648–$1,080 at Legend -- while
+   the button does not: on a 384 px phone "Frying pan $648" was clipped by its own border (content 108 px
+   in a 93 px button). Stacked like the paint and hat tiles and sized to their content instead; the strip
+   already scrolls, which is what a long language needs anyway. */
+.carry { flex: 0 0 auto; padding: 7px 10px; }
 .carry b { font-size: 14px; }
 .shop .tip { display: block; font-size: 12px; opacity: 0.7; }
 

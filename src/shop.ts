@@ -19,18 +19,23 @@ export const PAINTS: readonly Paint[] = [
   { body: 0x7fd6b4, ride: 0x2b2b33, mark: 0xff6fa8, price: 1500 },
   { body: 0x3c3f58, ride: 0xe0602a, mark: 0x5fe0ff, price: 2500 },
   { body: 0xff8fc8, ride: 0x7a3cff, mark: 0xffffff, price: 9000 },
-  { body: 0xd9b45a, ride: 0x1c1c22, mark: 0xe23b3b, price: 30000 },
+  { body: 0xd9b45a, ride: 0x1c1c22, mark: 0xe23b3b, price: 110000 },
 ];
 
 /** Hats for the dummy (looks only, they wobble), bought once and kept. 0 is bare-headed. Names: `hat0`.. */
 export const HATS = ['none', 'cap', 'party', 'top', 'cowboy', 'viking', 'cone'] as const;
 export type Hat = (typeof HATS)[number];
-export const HAT_PRICE = [0, 600, 1000, 1800, 5000, 12000, 32000];
+export const HAT_PRICE = [0, 600, 1000, 1800, 5000, 12000, 120000];
 
 /**
  * The season (`save.tier`) each paint and hat goes on sale in. Once the upgrades are capped the later seasons
  * paid far more than their one ride cost (scripts/career.ts ended Legend $60–170k up with nothing to buy), and
  * every paint and hat was affordable by the middle of Pro; these give Pro and Legend something to save for.
+ *
+ * The gate alone was not enough. A Legend race pays 10.8x a Rookie one, so the shop still ran dry around race
+ * 95 of ~145 and the last fifty races earned ~$330k with nothing on sale (see 3.3.25). The two tier-2 goods
+ * and the last ride carry that whole season now: they are priced off what Legend actually pays, not off what
+ * the Pro-era goods cost.
  */
 export const PAINT_TIER = [0, 0, 0, 0, 1, 2];
 export const HAT_TIER = [0, 0, 0, 0, 1, 1, 2];
