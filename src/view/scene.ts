@@ -56,6 +56,10 @@ export class RaceView {
   private readonly camLook = new THREE.Vector3();
   private readonly v = new THREE.Vector3();
   private readonly v2 = new THREE.Vector3();
+  /** A spare camera the steering gain is measured on, so the real one is never disturbed. */
+  private readonly probe = new THREE.PerspectiveCamera(60, 1, 0.3, 600);
+  private gain = 0;
+  private gainKey = '';
   private focusX = 0;
   private focusZ = 0;
   private fovBoost = 0;
@@ -214,6 +218,40 @@ export class RaceView {
     out.x = (this.v.x * 0.5 + 0.5) * this.stage.cssW;
     out.y = (-this.v.y * 0.5 + 0.5) * this.stage.cssH;
     return true;
+  }
+
+  /**
+   * Screen px the player slides sideways for one metre across the road. It is far less than the projection's
+   * px per metre, because the camera follows them sideways (CAM.follow) and the look-at point tracks them as
+   * well, so most of the move is taken straight back out again: 22 px/m of a projected 41 in landscape,
+   * 31 of 45 in portrait (doc 3.3.30). A drag is scaled by this, so the bike keeps up with the thumb.
+   *
+   * Measured on a straight, flat reference rather than on the road under the player: the bends and hills
+   * would make the number differ by the metre, and a steering scale that moved under the thumb would be
+   * worse than one a few per cent out. The speed boost is in it, though -- at a racing 26 m/s it widens the
+   * fov by 8 degrees and takes a sixth off the bike's travel, which is far too much to leave out. A drag
+   * holds the number it was given when the finger went down, so none of this moves mid-drag.
+   */
+  steerPxPerMetre(): number {
+    const st = this.stage;
+    const key = `${st.cssW}x${st.cssH}x${Math.round(this.fovBoost * 4)}`;
+    if (this.gainKey !== key) {
+      const cfg = st.portrait ? CAM.portrait : CAM.landscape;
+      const cam = this.probe;
+      cam.fov = cfg.fov + this.fovBoost;
+      cam.aspect = st.cssW / Math.max(1, st.cssH);
+      cam.updateProjectionMatrix();
+      // inside the barrier CAM's `out` term is 0, so the camera takes exactly `follow` of the player's move
+      const screenX = (fx: number): number => {
+        cam.position.set(-fx * cfg.follow, cfg.h, -cfg.back);
+        cam.lookAt(this.v.set(-fx * cfg.follow * 0.8, cfg.lookY, cfg.look));
+        cam.updateMatrixWorld();
+        return (this.v.set(-fx, 0.8, 0).project(cam).x * 0.5 + 0.5) * st.cssW;
+      };
+      this.gain = Math.abs(screenX(1) - screenX(-1)) / 2;
+      this.gainKey = key;
+    }
+    return this.gain;
   }
 
   update(dt: number, alpha: number): void {

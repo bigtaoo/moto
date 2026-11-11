@@ -5,15 +5,26 @@
 // for it at start and again on every press of a finger or mouse in it, and the HUD asks for a click while
 // a keyboard player's keys don't reach it (keysReach).
 
-import { ROAD_HALF } from '../sim/config';
-
 const TAP_MS = 230;
 const TAP_PX = 14;
+/** A camera this flat would make a pixel of thumb worth half the road: a floor, never reached in practice. */
+const MIN_GAIN = 8;
 /** Keys the page around the game would scroll on: in a portal's iframe they must only drive the game. */
 const NO_SCROLL = new Set([' ', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright']);
 
 /** A mouse (and so most likely a keyboard) is the main pointer: a desktop, not a phone or tablet. */
 export const DESKTOP = typeof matchMedia === 'function' && matchMedia('(pointer: fine)').matches;
+
+/**
+ * Where a drag of `dx` CSS px from `anchor` (metres across the road) points, held inside [lo, hi].
+ * `pxPerMetre` is how far the bike itself slides on screen for a metre across the road
+ * (RaceView.steerPxPerMetre), so a pixel of thumb buys a pixel of bike: the bike stays under the finger
+ * instead of trailing it. Sizing the drag off the window's width instead made the same gesture mean three
+ * different things on a phone held one way or the other (doc 3.3.30).
+ */
+export function dragTarget(anchor: number, dx: number, pxPerMetre: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, anchor + dx / Math.max(MIN_GAIN, pxPerMetre)));
+}
 
 /** Whether key presses reach the game now (a portal's iframe keeps them until a click in it). */
 export function keysReach(): boolean {
@@ -27,6 +38,8 @@ interface Touch {
   t0: number;
   moved: boolean;
   anchor: number;
+  /** Screen px per metre when the finger went down: held for the drag's life so it can't warp mid-swipe. */
+  gain: number;
 }
 
 export class Controls {
@@ -52,8 +65,9 @@ export class Controls {
    * @param playerX where the player is across the road
    * @param reach how far across the player can ride right now: a drag starts from inside it, so pushing out
    *   against the barrier (to slip into a trail's opening when it comes) doesn't leave the next drag offset
+   * @param gain screen px the bike moves per metre across the road (0 before a race has a view)
    */
-  constructor(el: HTMLElement, private readonly playerX: () => number, private readonly reach: () => [number, number]) {
+  constructor(el: HTMLElement, private readonly playerX: () => number, private readonly reach: () => [number, number], private readonly gain: () => number = () => 0) {
     // ask for the keys from the start (a portal's iframe may still keep them until a click), and on every press
     window.focus();
     window.addEventListener('pointerdown', () => window.focus(), true);
@@ -64,11 +78,6 @@ export class Controls {
     window.addEventListener('keydown', this.key);
     window.addEventListener('keyup', this.key);
     window.addEventListener('blur', () => { this.keys.clear(); this.syncKeys(); });
-  }
-
-  /** Metres of road per CSS pixel: the screen's width covers 1.2 road widths. */
-  private get scale(): number {
-    return (2 * ROAD_HALF * 1.2) / Math.max(320, window.innerWidth);
   }
 
   reset(): void {
@@ -90,17 +99,23 @@ export class Controls {
     }
     const [lo, hi] = this.reach();
     const anchor = Math.max(lo, Math.min(hi, this.targetX ?? this.playerX()));
-    this.drag = { id: e.pointerId, x0: e.clientX, y0: e.clientY, t0: performance.now(), moved: false, anchor };
+    this.drag = { id: e.pointerId, x0: e.clientX, y0: e.clientY, t0: performance.now(), moved: false, anchor, gain: this.gain() };
   };
 
   private readonly move = (e: PointerEvent): void => {
     const d = this.drag;
     if (!d || e.pointerId !== d.id) return;
     const dx = e.clientX - d.x0;
-    if (!d.moved && Math.hypot(dx, e.clientY - d.y0) > TAP_PX) d.moved = true;
+    if (!d.moved && Math.hypot(dx, e.clientY - d.y0) > TAP_PX) {
+      // the travel spent proving this is not a tap starts the drag over: counting it would snap the bike
+      // sideways the moment the finger passed TAP_PX
+      d.moved = true;
+      d.x0 = e.clientX;
+      return;
+    }
     if (!d.moved) return;
     const [lo, hi] = this.reach();
-    this.targetX = Math.max(lo, Math.min(hi, d.anchor + dx * this.scale));
+    this.targetX = dragTarget(d.anchor, dx, d.gain, lo, hi);
   };
 
   private readonly up = (e: PointerEvent): void => {

@@ -115,7 +115,7 @@ const controls = new Controls(canvas, () => (world ? world.player.x : 0), () => 
     else lo = -C.CUT.outer;
   }
   return [lo, hi];
-});
+}, () => (view ? view.steerPxPerMetre() : 0));
 
 function newRace(): void {
   view?.dispose();
