@@ -57,9 +57,23 @@ html, body {
 }
 .place b { font-size: 34px; font-weight: 900; }
 .place span { font-size: 16px; opacity: 0.7; margin-left: 2px; }
-.hp { display: flex; gap: 4px; }
+/* The health row is the one thing in the top bar that grows: one pip per max hp, and the hp upgrade takes
+   that from 3 to 9 (src/sim/config.ts PLAYER_BASE.hp + UPGRADE_MAX.hp). Nine 16 px pips are 176 px, and the
+   row's other fixed parts -- 24 px of padding, the place box, the 54 px kept clear for the sound switch, the
+   44 px pause button and three 8 px gaps -- want 208 more, 384 in a chase race where the place box carries a
+   target icon. That is exactly a 384 px phone with nothing to spare; a 360 px one cut 7 px off the pause
+   button and a 320 px one pushed the whole button off the screen, so at full health the player could not
+   pause at all. Round 5 moved the money box out of this row for the same reason (3.3.22), but the health row
+   has nowhere to go: the left slot under the progress bar is the wanted stars. So the pips give way instead.
+   The pause button is a 44 px touch target and must never shrink; a pip is information, and a pip one pixel
+   smaller costs far less than a button that is not there. flex lets them shrink only as far as the line
+   needs: 16 px wherever there is room (384 and up), about 13 px at 360, about 9 px at 320, and the 6 px floor
+   means they can never vanish. Unlike the upgrade pips of round 6 (3.3.25), a flex basis is safe here --
+   there is no text beside them, so the row's max-content is still the nine bases and the pips keep their full
+   size whenever the line fits. */
+.hp { display: flex; gap: 4px; min-width: 0; }
 .hp i {
-  width: 16px; height: 16px; border-radius: 50%;
+  width: 16px; height: 16px; flex: 0 1 16px; min-width: 6px; border-radius: 50%;
   background: rgba(22, 22, 26, 0.35); border: 2px solid var(--ink);
 }
 .hp i.on { background: conic-gradient(var(--ink) 0 25%, var(--yellow) 0 50%, var(--ink) 0 75%, var(--yellow) 0); }
