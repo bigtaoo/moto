@@ -10,13 +10,49 @@ type FileTrack = 'title' | 'race1' | 'race2' | 'race3';
 /** A file, or a tune made in code (./tune) from a seed: `gen12`, or a boss race's faster minor one, `boss12`. */
 type Track = FileTrack | `gen${number}` | `boss${number}`;
 const SFX = ['thunk1', 'thunk2', 'thunk3', 'thunk_big', 'scrape', 'whoosh1', 'whoosh2', 'dodge', 'crash', 'siren',
-  'alarm', 'tell', 'pickup', 'count', 'go', 'coin', 'cash', 'click'] as const;
+  'alarm', 'tell', 'pickup', 'count', 'go', 'cash', 'click'] as const;
 type Name = (typeof SFX)[number] | Track | SynthName;
 const isMade = (t: Track): t is `gen${number}` | `boss${number}` => t.startsWith('gen') || t.startsWith('boss');
 
 const url = (n: Name) => `${import.meta.env.BASE_URL}audio/${n}.mp3`;
 const MUSIC_VOL = 0.32;
 const SFX_VOL = 0.75;
+/** Effects sounding at once. A race fires 300-450 of them and they were piling up 8 deep (doc 3.3.29). */
+const MAX_VOICES = 6;
+/** The same effect again inside this gap is one event heard twice: +6 dB and no more news. */
+const DEDUPE = 0.04;
+
+/** One effect on its way out: the times are the context's, and `stop` cuts it short. */
+export interface Voice {
+  n: Name;
+  start: number;
+  end: number;
+  vol: number;
+  stop?: () => void;
+}
+
+/**
+ * May this effect start? Refuses a repeat of a sound that began a moment ago, and once MAX_VOICES are
+ * sounding refuses the new one unless it is louder than the quietest, which is then cut short to make room
+ * -- so a crash is still heard over six whooshes, and six whooshes never become a wall.
+ * Mutates `live` (it drops what has finished and appends what it admits); pure otherwise, hence testable.
+ */
+export function admit(live: Voice[], now: number, v: Voice, dedupe = DEDUPE, max = MAX_VOICES): boolean {
+  for (let i = live.length - 1; i >= 0; i--) if (live[i].end <= now) live.splice(i, 1);
+  if (live.some((o) => o.n === v.n && Math.abs(v.start - o.start) < dedupe)) return false;
+  if (live.length >= max) {
+    let worst = 0;
+    for (let i = 1; i < live.length; i++) if (live[i].vol < live[worst].vol) worst = i;
+    if (live[worst].vol >= v.vol) return false;
+    live[worst].stop?.();
+    live.splice(worst, 1);
+  }
+  live.push(v);
+  return true;
+}
+
+/** The effects sounding right now (see `admit`). */
+const live: Voice[] = [];
 
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
@@ -100,7 +136,17 @@ export function unlockAudio(): void {
   try {
     ctx = new AudioContext();
     master = ctx.createGain();
-    master.connect(ctx.destination);
+    // Nothing else stops a pile-up reaching the speakers: six effects and a music track summed past full
+    // scale and the output hard-clipped (peak 1.33, doc 3.3.29). The threshold sits above a race's 90th
+    // percentile, so ordinary moments pass through untouched and only the pile-ups are held down.
+    const limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -3;
+    limiter.knee.value = 0;
+    limiter.ratio.value = 20;
+    limiter.attack.value = 0.001;
+    limiter.release.value = 0.15;
+    limiter.connect(ctx.destination);
+    master.connect(limiter);
     sfxBus = ctx.createGain();
     sfxBus.connect(master);
     musicBus = ctx.createGain();
@@ -198,13 +244,21 @@ export const shiftTrack = (n: number): Track => `gen${900 + (n % 8)}`;
 function play(n: Name, vol = 1, rate = 1, delay = 0): void {
   const b = buffers.get(n);
   if (!b || !ctx || !sfxBus || holds.size) return;
+  const at = ctx.currentTime + delay;
+  const pitch = rate * (0.94 + Math.random() * 0.12);
   const src = ctx.createBufferSource();
   src.buffer = b;
-  src.playbackRate.value = rate * (0.94 + Math.random() * 0.12);
+  src.playbackRate.value = pitch;
   const g = ctx.createGain();
   g.gain.value = vol;
+  const voice: Voice = { n, start: at, end: at + b.duration / pitch, vol, stop: () => { try { src.stop(); } catch { /* already over */ } } };
+  if (!admit(live, ctx.currentTime, voice)) return;
+  src.onended = () => {
+    const i = live.indexOf(voice);
+    if (i >= 0) live.splice(i, 1);
+  };
   src.connect(g).connect(sfxBus);
-  src.start(ctx.currentTime + delay);
+  src.start(at);
 }
 
 const pick = <T>(xs: readonly T[]): T => xs[Math.floor(Math.random() * xs.length)];
