@@ -1,9 +1,26 @@
+/* The game's digits: a 4 kB subset of Baloo 2 ExtraBold (SIL OFL 1.1 — src/assets/digits-baloo2.LICENSE.txt),
+   inlined so it is there before the first frame: no request, no swap, dev and build alike.
+   The `unicode-range` line is the whole trick — the browser takes the digits and the few signs that travel with them
+   ($ % + , . / : × −) from this face and every letter from the system font, so translated words keep their own
+   shapes and no line can overflow in Russian or Turkish. The file is src/assets/digits-baloo2.woff2; to remake it,
+   ask Google Fonts for the subset and download the woff2 its CSS points at (a desktop Chrome user agent, or it
+   serves ttf):
+   fonts.googleapis.com/css2?family=Baloo+2:wght@800&text=0123456789%24%25%2B%2F%3A%2C.%E2%88%92%C3%97 */
+@font-face {
+  font-family: 'DB Digits';
+  font-style: normal;
+  font-weight: 1 1000; /* the one cut answers for every weight, so nothing is ever synthesised bolder */
+  font-display: block;
+  src: url(data:font/woff2;base64,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) format('woff2');
+  unicode-range: U+24-25, U+2b-2c, U+2e-3a, U+d7, U+2212;
+}
+
 :root {
   --yellow: #f2c230;
   --ink: #16161a;
   --paper: #f4f4f0;
   --red: #e0453a;
-  --font: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font: 'DB Digits', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -92,7 +109,7 @@ html, body {
 .nemcard.show { animation: league 5s ease-out forwards; }
 .remount, .double {
   display: flex; flex-direction: column; align-items: center; border: 0; border-radius: 999px; cursor: pointer;
-  background: #1f8a3a; color: #fff; font: 900 18px system-ui, sans-serif; padding: 10px 22px;
+  background: #1f8a3a; color: #fff; font: 900 18px var(--font); padding: 10px 22px;
 }
 .remount small, .double small { font-size: 12px; font-weight: 600; opacity: 0.8; }
 .remount { position: absolute; left: 50%; bottom: 22%; transform: translateX(-50%); pointer-events: auto; animation: pulse 0.9s ease-in-out infinite alternate; }
@@ -102,7 +119,7 @@ html, body {
 /* the taunt: up for a moment after a KO, on the right above the slap zone */
 .taunt {
   position: absolute; right: max(16px, env(safe-area-inset-right)); bottom: 34%; display: none; pointer-events: auto; cursor: pointer;
-  border: 3px solid var(--ink); border-radius: 999px; background: #e8408a; color: #fff; font: 900 17px system-ui, sans-serif; padding: 8px 16px;
+  border: 3px solid var(--ink); border-radius: 999px; background: #e8408a; color: #fff; font: 900 17px var(--font); padding: 8px 16px;
 }
 .taunt.on { display: block; animation: wiggle 0.25s ease-in-out infinite alternate; }
 @keyframes wiggle { from { transform: rotate(-4deg); } to { transform: rotate(4deg) scale(1.06); } }
@@ -154,7 +171,8 @@ html, body {
   display: flex; align-items: baseline; gap: 3px; color: var(--paper); font-weight: 900; line-height: 1;
   -webkit-text-stroke: 1.5px var(--ink); paint-order: stroke fill; text-shadow: 0 3px 0 var(--ink); contain: layout; transition: opacity 0.3s;
 }
-.speedo b { font-size: 34px; min-width: 2.1ch; text-align: right; font-variant-numeric: tabular-nums; }
+/* 3.1ch of the digit face's tabular figures: 0-999 all take the same box, so km/h never shifts. */
+.speedo b { font-size: 34px; min-width: 3.1ch; text-align: right; font-variant-numeric: tabular-nums; }
 .speedo b.fast { color: var(--yellow); }
 .speedo span { font-size: 14px; }
 .hinting .speedo { opacity: 0; } /* the controls line runs under it on a phone */
