@@ -35,4 +35,18 @@ export default defineConfig({
   server: { port: 5180, watch: { ignored: ['**/docs/**', '**/dist/**', '**/store/**'] } },
   // three.js is one ~700 kB chunk; scripts/checkBundle.mjs holds the real budget
   build: { chunkSizeWarningLimit: 900 },
+  // `npm run coverage`. What is measured is what a node test can actually reach and judge: the
+  // simulation, the game flow, the language table lookups, and the two view modules that hold real
+  // logic (the audio mixer, the quality ladder). Left out are the entry point, the modules that only
+  // exist to drive three.js, the DOM or the host's SDK, and the six translation tables, which are data
+  // and are checked key by key in i18n.test.ts instead. Measured against everything, the drawing code
+  // buries the number that matters under a few thousand lines nothing here can run (doc 3.3.32).
+  test: {
+    coverage: {
+      provider: 'v8',
+      include: ['src/*.ts', 'src/sim/**/*.ts', 'src/i18n/index.ts', 'src/view/audio.ts', 'src/view/quality.ts'],
+      exclude: ['src/**/*.test.ts', 'src/main.ts', 'src/events.ts', 'src/launchMode.ts', 'src/platform.ts', 'src/haptics.ts'],
+      reporter: ['text'],
+    },
+  },
 });

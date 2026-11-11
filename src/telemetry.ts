@@ -47,10 +47,19 @@ function report(kind: ErrKind, extra: Props = {}): void {
   track('error_report', { kind, screen: funnel.currentScreen(), stage: bootStage, n: n + 1, ...extra });
 }
 
-addEventListener('error', (e) => {
+/**
+ * Wire a page listener, if there is a page. Everything here is wired at module scope, so without this
+ * guard merely importing this file -- or anything that imports it, which is most of the game's flow --
+ * throws outside a browser, and none of it can be unit-tested (doc 3.3.32).
+ */
+const on = (ev: string, f: (e: never) => void, opts?: boolean | AddEventListenerOptions): void => {
+  if (typeof addEventListener === 'function') addEventListener(ev, f as EventListener, opts);
+};
+
+on('error', (e: ErrorEvent) => {
   if (e instanceof ErrorEvent) { win.js++; report('js_error'); }
 }, true);
-addEventListener('unhandledrejection', () => { win.rej++; report('unhandled_rejection'); });
+on('unhandledrejection', () => { win.rej++; report('unhandled_rejection'); });
 
 // long main-thread tasks (Chromium): counted only while racing, as the sample's window is the race's
 if (typeof PerformanceObserver === 'function' && PerformanceObserver.supportedEntryTypes?.includes('longtask')) {
@@ -165,8 +174,8 @@ function inputKind(p: Race['presses']): string {
   const [k, n] = Object.entries(p).sort((a, b) => b[1] - a[1])[0];
   return n > 0 ? k : 'none';
 }
-addEventListener('keydown', (e) => { if (race && !e.repeat) race.presses.key++; }, { capture: true, passive: true });
-addEventListener('pointerdown', (e) => { if (race) race.presses[e.pointerType === 'mouse' ? 'mouse' : 'touch']++; }, { capture: true, passive: true });
+on('keydown', (e: KeyboardEvent) => { if (race && !e.repeat) race.presses.key++; }, { capture: true, passive: true });
+on('pointerdown', (e: PointerEvent) => { if (race) race.presses[e.pointerType === 'mouse' ? 'mouse' : 'touch']++; }, { capture: true, passive: true });
 
 const upTotal = (s: Save) => s.up.top + s.up.steer + s.up.hp;
 
@@ -263,7 +272,7 @@ let idleScreen = '';
 let idleSent = 0;
 let idleWas = false;
 const IDLE_S: Record<string, number> = { race: 30, results: 45, title: 30 }; // the scooter rides itself: 15 s of straight road with no input is still playing
-for (const ev of ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart']) addEventListener(ev, () => { lastInput = now(); }, { capture: true, passive: true });
+for (const ev of ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart']) on(ev, () => { lastInput = now(); }, { capture: true, passive: true });
 
 /**
  * One animation frame: `ms` its real length (before any clamp), `racing` a player's race on screen (no
@@ -323,11 +332,12 @@ function sendSample(p: Props | null): void {
 
 // ---- leaving -----------------------------------------------------------------------------------
 
-document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) return;
-  if (race) race.hides++;
-  sendSample(sampler.flush());
-  stutter.away();
+if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    if (race) race.hides++;
+    sendSample(sampler.flush());
+    stutter.away();
+  }
 });
 
 // what the player was in the middle of goes on session_end; a race left half-run is an abandon
@@ -344,7 +354,7 @@ funnel.onLeave(() => {
   }
   return out;
 });
-addEventListener('pagehide', () => {
+on('pagehide', () => {
   if (bootStage !== 'ready') { track('boot_left', { stage: bootStage, ms: Math.round(now()) }); return; }
   sendSample(sampler.flush());
   if (race && funnel.currentScreen() === 'race') {

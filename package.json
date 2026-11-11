@@ -10,6 +10,7 @@
     "bot": "tsx scripts/bot.ts",
     "first20": "tsx scripts/first20.ts",
     "test": "vitest run",
+    "coverage": "vitest run --coverage",
     "check:filelength": "node scripts/checkFileLength.mjs",
     "check:bundle": "node scripts/checkBundle.mjs dist",
     "build:playgama": "npm run build && (python3 scripts/pack_playgama.py || python scripts/pack_playgama.py)",
@@ -21,6 +22,7 @@
   "devDependencies": {
     "@types/node": "^26.6.5",
     "@types/three": "^0.186.0",
+    "@vitest/coverage-v8": "^4.1.12",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vite": "^8.3.5",

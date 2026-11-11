@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { LANGS, getLang, ord, setLang, t } from '.';
+import { LANGS, type Lang, getLang, money, num, ord, setLang, t } from '.';
 
 const holes = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
 
@@ -34,5 +34,26 @@ describe('i18n', () => {
     expect(t('fined', { n: 40 })).toContain('40');
     setLang('fr');
     expect([ord(1), ord(2)]).toEqual(['1re', '2e']);
+  });
+
+  it('writes an ordinal in every language, not just the two with rules', () => {
+    // one per language, so a new language cannot be added with a hole where its places go
+    const second: Record<Lang, string> = { en: '2nd', ru: '2-е', es: '2.º', pt: '2º', tr: '2.', de: '2.', fr: '2e' };
+    for (const [code, want] of Object.entries(second)) {
+      setLang(code);
+      expect(ord(2), code).toBe(want);
+      expect(ord(1).startsWith('1'), code).toBe(true);
+    }
+    expect(Object.keys(second).sort()).toEqual(Object.keys(LANGS).sort());
+  });
+
+  it('groups digits the way the language does, and keeps the dollar sign', () => {
+    setLang('en');
+    expect(num(12500)).toBe('12,500');
+    expect(money(12500)).toBe('$12,500');
+    expect(money(-40)).toBe('−$40');
+    setLang('de');
+    expect(num(12500)).toBe('12.500'); // and cached: the second call takes the stored formatter
+    expect(money(12500)).toBe('$12.500');
   });
 });

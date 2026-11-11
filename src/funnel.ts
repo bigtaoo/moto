@@ -68,10 +68,13 @@ export function event(name: string, data?: Record<string, string | number | bool
 let leaveFields: () => Record<string, string | number | boolean> = () => ({});
 export const onLeave = (f: typeof leaveFields): void => { leaveFields = f; };
 
-// leaving: the last screen, how long, how many races (pagehide is the one that fires on phones too)
+// leaving: the last screen, how long, how many races (pagehide is the one that fires on phones too).
+// Guarded, because this is module scope: without it importing this file outside a browser throws, and
+// it is imported by most of the game's flow (doc 3.3.32).
 let left = false;
-addEventListener('pagehide', () => {
+export function leave(): void {
   if (left) return;
   left = true;
   track('session_end', { reason: screen, sec: sec(), races: racesThisSession, played: Math.round(played), ...leaveFields() });
-});
+}
+if (typeof addEventListener === 'function') addEventListener('pagehide', () => leave());
