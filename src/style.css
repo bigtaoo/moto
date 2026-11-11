@@ -63,12 +63,18 @@ html, body {
   background: rgba(22, 22, 26, 0.35); border: 2px solid var(--ink);
 }
 .hp i.on { background: conic-gradient(var(--ink) 0 25%, var(--yellow) 0 50%, var(--ink) 0 75%, var(--yellow) 0); }
+/* The money box: under the progress bar on the right, facing the wanted stars. It used to ride in the top
+   row, where a seven-figure balance squeezed the row until the pause button deformed and the sound switch
+   landed on top of it — on a 360 px phone that happened with $987,654 in the bank. Out of the row, the row's
+   width no longer depends on how rich the player is. */
 .cash {
+  position: absolute; right: max(12px, env(safe-area-inset-right)); top: calc(max(10px, env(safe-area-inset-top)) + 66px);
   font-weight: 900; font-size: 20px; background: var(--yellow);
   border: 3px solid var(--ink); border-radius: 10px; padding: 2px 10px;
 }
 .pausebtn, .mutebtn {
-  pointer-events: auto; width: 44px; height: 44px; border-radius: 10px; padding: 0;
+  /* flex: none — a 44 px touch target is the point of them; they must never be squeezed by the row */
+  pointer-events: auto; flex: none; width: 44px; height: 44px; border-radius: 10px; padding: 0;
   display: flex; align-items: center; justify-content: center; color: var(--ink);
   border: 3px solid var(--ink); background: var(--paper); font-size: 20px; cursor: pointer;
 }
@@ -455,6 +461,7 @@ button.primary:disabled:active { transform: none; box-shadow: 0 5px 0 var(--ink)
   .speedo b { font-size: 28px; }
   .prog { top: calc(max(8px, env(safe-area-inset-top)) + 44px); left: 25%; right: 25%; }
   .heat { top: calc(max(8px, env(safe-area-inset-top)) + 56px); }
+  .cash { top: calc(max(8px, env(safe-area-inset-top)) + 56px); font-size: 17px; }
   .card { max-width: 640px; display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px; align-items: start; padding: 12px 16px; }
   .card > h2, .card > .sub { grid-column: 1; }
   .card .rows { grid-column: 1; margin: 6px 0; }

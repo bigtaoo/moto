@@ -41,6 +41,8 @@ export class Hud {
   private tagW: number[] = [];
   /** Scratch for the tags already placed this frame: x, y, half-width per tag. */
   private readonly placed: number[] = [];
+  /** The HUD's width: a tag is kept inside it, so a name never hangs off the screen. */
+  private roomW = 0;
   private readonly banner: HTMLElement;
   private readonly chaser: HTMLElement;
   private readonly hint: HTMLElement;
@@ -86,11 +88,11 @@ export class Hud {
           <div class="place"><b>8</b><span>/8</span></div>
           <div class="hp"></div>
           <div class="grow"></div>
-          <div class="cash">$0</div>
           <button class="pausebtn" aria-label="Pause">${icon('pause')}</button>
         </div>
         <div class="prog"><div class="fill"></div></div>
         <div class="heat"></div>
+        <div class="cash">$0</div>
         <div class="labels"></div>
         <div class="slap l"></div>
         <div class="slap r"></div>
@@ -161,7 +163,9 @@ export class Hud {
 
   resize(): void {
     this.barW = this.bar.clientWidth || 200;
+    this.roomW = this.root.clientWidth || this.barW;
     this.dotPx.fill(-1);
+    this.tagX.fill(NaN);
   }
 
   /** Build the per-race bits: progress dots and rival name tags. */
@@ -320,7 +324,11 @@ export class Hud {
       cls(l, 'open', open);
       // an icon class adds its 1em badge in front of the name, which the measured width predates
       const half = (this.tagW[i] + (nem || grudge || hunt || tell || open ? 15 : 0)) / 2 + 3;
-      let x = this.pt.x, y = this.pt.y;
+      // A rider at the edge of the road used to get a tag half off the screen (`.labels` clips it), so the
+      // name was cut in two. Held inside the screen instead: it still sits over its rider, just not past the
+      // edge. Clamped before the stacking pass, so two tags pushed to the same corner still part vertically.
+      const lo = half + 4, hi = this.roomW - half - 4;
+      let x = hi > lo ? Math.max(lo, Math.min(hi, this.pt.x)) : this.pt.x, y = this.pt.y;
       for (let pass = 0; pass < 3; pass++) {
         let hit = false;
         for (let k = 0; k < placed.length; k += 3) {
