@@ -249,7 +249,10 @@ export class Hud {
     this.bannerT = 1.4;
   }
 
-  /** A small call-out under the banner (near misses, KO chains): several can stack, each fades on its own. */
+  /**
+   * A small call-out under the banner: up to three stack and each fades on its own, so this is the lane for
+   * anything that happens often (KOs, dodges, near misses, chains) -- see the note at the top of src/events.ts.
+   */
   pop(text: string, kind = ''): void {
     const box = this.root.querySelector('.pops');
     if (!box) return;

@@ -1,5 +1,11 @@
 // What each sim event looks and sounds like: the HUD's call-outs, the hit effects, the camera's shake, the
 // hitstop and the slow-motion beat. The race's end ('over') is the game flow's, in main.ts.
+//
+// Two call-out lanes, and which one a message takes matters (round 13's measurement, doc 3.3.28):
+// `hud.flash` is the one banner, so a second flash wipes the first; `hud.pop` stacks up to three, each
+// living out its own second. So the banner is for what happens a handful of times a race and changes how
+// you ride -- a fall, security, a hunt, the nemesis -- and everything that repeats (a KO, a dodge, a
+// weapon picked up, a jump) goes to the pops, where it can be read next to the one before it.
 
 import type { World, SimEvent } from './sim/world';
 import * as C from './sim/config';
@@ -48,13 +54,13 @@ export function react(e: SimEvent, w: World, view: RaceView, hud: Hud, feel: Fee
       break;
     case 'whiff':
       if (e.dodged) {
-        hud.flash(t('dodged'), 'go');
+        hud.pop(t('dodged'));
         sfx.dodge();
       }
       break;
     case 'steal':
       if (e.from === 0) {
-        hud.flash(t(!e.took ? 'knockedLoose' : WEAPON[e.kind][0]), 'go');
+        hud.pop(t(!e.took ? 'knockedLoose' : WEAPON[e.kind][0]));
         sfx.pickup();
       } else if (e.to === 0) hud.flash(t(!e.took ? 'weaponLoose' : WEAPON[e.kind][1], { name: w.riders[e.from].name }), 'bad');
       break;
@@ -97,7 +103,7 @@ export function react(e: SimEvent, w: World, view: RaceView, hud: Hud, feel: Fee
         else if (w.grudgeKos > feel.lastGrudgeKos) {
           feel.lastGrudgeKos = w.grudgeKos;
           hud.flash(t('grudgeSettled', { n: C.GRUDGE_BONUS + C.KO_BONUS }), 'ko');
-        } else if (!w.chase) hud.flash(t('ko', { n: C.KO_BONUS }), 'ko');
+        } else if (!w.chase) hud.pop(t('ko', { n: C.KO_BONUS }), 'big'); // 12 a race: the pops, so it can't wipe the banner
       }
       break;
     }
@@ -132,7 +138,7 @@ export function react(e: SimEvent, w: World, view: RaceView, hud: Hud, feel: Fee
       break;
     case 'pickup':
       if (e.rider === 0) {
-        hud.flash(t(WEAPON[e.kind][2]), 'go');
+        hud.pop(t(WEAPON[e.kind][2]));
         sfx.pickup();
       }
       break;
@@ -219,7 +225,7 @@ export function react(e: SimEvent, w: World, view: RaceView, hud: Hud, feel: Fee
       break;
     case 'jump':
       if (near(e.rider)) sfx.whoosh();
-      if (e.rider === 0) hud.flash(t('air'), 'go');
+      if (e.rider === 0) hud.pop(t('air'));
       break;
     case 'land':
       if (near(e.rider)) sfx.thunk(e.stomp >= 0);
