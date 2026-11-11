@@ -39,6 +39,19 @@ const CAM = {
 };
 
 
+/**
+ * Degrees the camera widens by at `speed`. The old single slope (0.55 deg per m/s, capped at 10) ran out at
+ * 30.2 m/s, which the player passes about the Mobility Scooter -- and 60% of a mid- or late-career race was
+ * spent over that line, so every top-speed upgrade after it bought a bigger number on the HUD and no change
+ * on screen at all (doc 3.3.31). The first slope is untouched, so the early career looks exactly as it did;
+ * past the old ceiling a shallower one carries on to 14 degrees, which the fastest bike in the game
+ * (49.3 m/s) still does not quite reach.
+ */
+function speedFov(speed: number): number {
+  const over = Math.max(0, speed - 12) * 0.55;
+  return over <= 10 ? over : Math.min(14, 10 + (over - 10) * (0.18 / 0.55));
+}
+
 export class RaceView {
   readonly group = new THREE.Group();
   readonly riders: RiderView[];
@@ -367,8 +380,7 @@ export class RaceView {
     }
     cam.position.copy(this.camPos);
     cam.lookAt(this.camLook);
-    const boost = Math.min(10, Math.max(0, p.speed - 12) * 0.55) * (MOTION.calm ? 0.4 : 1);
-    this.fovBoost += (boost - this.fovBoost) * Math.min(1, dt * 3);
+    this.fovBoost += (speedFov(p.speed) * (MOTION.calm ? 0.4 : 1) - this.fovBoost) * Math.min(1, dt * 3);
     const fov = cfg.fov + this.fovBoost;
     if (Math.abs(cam.fov - fov) > 0.05) {
       cam.fov = fov;

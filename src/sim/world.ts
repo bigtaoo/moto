@@ -20,6 +20,25 @@ import { newFlair, updateFlair } from './flair';
 
 export * from './types';
 
+/**
+ * The share of its `accel` the player's bike still has at its current speed: all of it below C.PULL.knee of
+ * the bike's own top, then sliding to C.PULL.tail at the top, so the last fifth of the dial has to be earned
+ * on a clean stretch of road (doc 3.3.31). Measured against `r.top`, the engine's limit, not against the
+ * target it is chasing this tick.
+ *
+ * Rivals keep the flat pull on purpose. Their `pace` is a fiction the AI writes and rewrites -- it is a plan,
+ * not a throttle -- so a taper read off it throttles a rival that merely *chose* to ease up. Applied to
+ * everyone it cost the brawl: a rival that dropped back could no longer close, the pack dispersed, and
+ * division 0 lost 13% of its fights and division 4 24% of them.
+ */
+function pull(r: Rider): number {
+  if (!r.isPlayer) return 1;
+  const K = C.PULL;
+  const f = r.top > 0 ? r.speed / r.top : 1;
+  if (f <= K.knee) return 1;
+  return Math.max(K.tail, 1 - ((f - K.knee) / (1 - K.knee)) * (1 - K.tail));
+}
+
 export class World {
   tick = 0;
   readonly length: number;
@@ -306,7 +325,7 @@ export class World {
     const g = slip ? slip.grip : 1;
     if (!air) {
       const target = r.braking || (r.finished && r.isPlayer) ? 0 : this.topNow(r) * (trail ? C.CUT.top : 1);
-      if (r.speed < target) r.speed = Math.min(target, r.speed + r.accel * C.DT);
+      if (r.speed < target) r.speed = Math.min(target, r.speed + r.accel * pull(r) * C.DT);
       else r.speed = Math.max(target, r.speed - (r.braking ? C.BRAKE : C.COAST) * C.DT);
       // a blow carries the rider sideways for a moment before they can steer against it
       if (r.isPlayer) {

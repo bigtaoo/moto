@@ -108,9 +108,9 @@ export interface Vehicle {
 
 export const VEHICLES: readonly Vehicle[] = [
   { name: 'Test Scooter', price: 0, rung: 0, top: 0, steer: 0, hp: 0, accel: 0, blurb: 'Standard issue. Kick to start.' },
-  { name: 'Shopping Cart', price: 3500, rung: 2, top: 0.8, steer: -0.6, hp: 2, accel: 0, blurb: 'Heavy, rattly, hard to knock over.' },
-  { name: 'Office Chair', price: 9000, rung: 4, top: 1.8, steer: 2, hp: 0, accel: 1.5, blurb: 'Spins on a dime. Swivel to win.' },
-  { name: 'Mobility Scooter', price: 20000, rung: 6, top: 3, steer: 0.5, hp: 2, accel: 0.5, blurb: 'Top speed of a sports car. Probably illegal.' },
-  { name: 'Toilet Rocket', price: 45000, rung: 9, top: 4.6, steer: 0, hp: 1, accel: 2.5, blurb: 'Do not ask how it works.' },
-  { name: 'Jet Bathtub', price: 200000, rung: 12, top: 6.2, steer: 1, hp: 2, accel: 3, blurb: 'Bubbles not included. Top of the line.' },
+  { name: 'Shopping Cart', price: 3500, rung: 2, top: 0.85, steer: -0.6, hp: 2, accel: 0, blurb: 'Heavy, rattly, hard to knock over.' },
+  { name: 'Office Chair', price: 9000, rung: 4, top: 1.95, steer: 2, hp: 0, accel: 1.5, blurb: 'Spins on a dime. Swivel to win.' },
+  { name: 'Mobility Scooter', price: 20000, rung: 6, top: 3.25, steer: 0.5, hp: 2, accel: 0.5, blurb: 'Top speed of a sports car. Probably illegal.' },
+  { name: 'Toilet Rocket', price: 45000, rung: 9, top: 5, steer: 0, hp: 1, accel: 2.5, blurb: 'Do not ask how it works.' },
+  { name: 'Jet Bathtub', price: 200000, rung: 12, top: 6.7, steer: 1, hp: 2, accel: 3, blurb: 'Bubbles not included. Top of the line.' },
 ];

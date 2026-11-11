@@ -4,7 +4,7 @@
  * Bump on any change to the race rules that alters what a seed plus inputs produce, and record the new
  * golden hash in world.test.ts. Replays and (later) online rooms only mix the same version.
  */
-export const SIM_VERSION = 23;
+export const SIM_VERSION = 24;
 
 export const TICK_HZ = 30;
 export const DT = 1 / TICK_HZ;
@@ -15,15 +15,23 @@ export const LANE_X = [-5.25, -1.75, 1.75, 5.25] as const;
 export const ONCOMING_LANE = 0;
 export const EDGE = ROAD_HALF - 0.55;
 
-/** Two and a half minutes of racing, measured: see docs 3.3.21. */
+/** Two and a half minutes of racing, measured: see docs 3.3.21, held there through 3.3.31's faster bikes. */
 export const RACE_LEN = 3400;
 export const TIME_CAP_S = 240;
 /** Weapon pickups, as fractions of the race. */
 export const PICKUP_AT = [0.08, 0.22, 0.36, 0.5, 0.64, 0.78, 0.9];
 export const COUNTDOWN_S = 2;
 
-export const PLAYER_BASE = { top: 26.5, accel: 7, steer: 8.5, hp: 3 };
-export const UPGRADE_STEP = { top: 1.3, steer: 0.9, hp: 1 };
+export const PLAYER_BASE = { top: 28.6, accel: 7, steer: 8.5, hp: 3 };
+/**
+ * How the engine's pull falls off near the bike's own top speed. Below `knee` of it the full `accel` is
+ * there, so getting back up after a fall is as quick as it ever was; over the knee the pull slides down to
+ * `tail` of it at the top, so the last fifth has to be earned on a clean stretch of road. Without this the
+ * push was flat and the speed trace was a square wave -- half a race pinned at exactly the top, the other
+ * half on the ground (doc 3.3.31).
+ */
+export const PULL = { knee: 0.55, tail: 0.07 };
+export const UPGRADE_STEP = { top: 1.4, steer: 0.9, hp: 1 };
 /** Levels per upgrade. Toughness stops early: past that the player could not be knocked off at all. */
 export const UPGRADE_MAX = { top: 10, steer: 8, hp: 6 };
 /**
@@ -294,13 +302,13 @@ export interface RivalSpec {
 }
 
 export const ROSTER: RivalSpec[] = [
-  { name: 'Bumper', top: 27.2, aggr: 0.9, aware: 0.8, body: 0xe8e4da, ride: 0xd23c3c, weapon: 'bat' },
-  { name: 'Wobbles', top: 25.6, aggr: 0.4, aware: 0.45, body: 0x7fb6e8, ride: 0x2f5fb0 },
-  { name: 'Dent', top: 26.6, aggr: 0.75, aware: 0.75, body: 0xf09a4a, ride: 0x2b2b30 },
-  { name: 'Sticker', top: 26.0, aggr: 0.55, aware: 0.6, body: 0x9ad07a, ride: 0x6b3fa0, weapon: 'pan' },
-  { name: 'Nugget', top: 25.2, aggr: 0.3, aware: 0.55, body: 0xd9a6e0, ride: 0x18a39a },
-  { name: 'Torque', top: 27.6, aggr: 0.6, aware: 0.9, body: 0xb0b4bc, ride: 0xe0b020 },
-  { name: 'Crumple', top: 26.2, aggr: 0.85, aware: 0.5, body: 0xe86a8a, ride: 0x3a7d3a },
+  { name: 'Bumper', top: 28.7, aggr: 0.9, aware: 0.8, body: 0xe8e4da, ride: 0xd23c3c, weapon: 'bat' },
+  { name: 'Wobbles', top: 27.0, aggr: 0.4, aware: 0.45, body: 0x7fb6e8, ride: 0x2f5fb0 },
+  { name: 'Dent', top: 28.1, aggr: 0.75, aware: 0.75, body: 0xf09a4a, ride: 0x2b2b30 },
+  { name: 'Sticker', top: 27.4, aggr: 0.55, aware: 0.6, body: 0x9ad07a, ride: 0x6b3fa0, weapon: 'pan' },
+  { name: 'Nugget', top: 26.6, aggr: 0.3, aware: 0.55, body: 0xd9a6e0, ride: 0x18a39a },
+  { name: 'Torque', top: 29.1, aggr: 0.6, aware: 0.9, body: 0xb0b4bc, ride: 0xe0b020 },
+  { name: 'Crumple', top: 27.6, aggr: 0.85, aware: 0.5, body: 0xe86a8a, ride: 0x3a7d3a },
 ];
 
 export const RIVAL_HP = 3;
