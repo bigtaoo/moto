@@ -7,12 +7,30 @@ import { crash } from './combat';
 
 const CAR_COLORS = [0xd8d8d8, 0x3f6fb5, 0xb53f3f, 0x2e8b57, 0xe0c040, 0x444a55, 0xf08a30, 0x8a5cc0];
 
+/**
+ * Would a car in `lane` at `z` close the last way through? A rider needs one lane going their way still
+ * open abreast of it: not this one, not one coned off or ramped, and with no car already across it. The
+ * oncoming lane doesn't count as a way through - riding up it is the gamble, not the gap.
+ */
+function wallsRoad(w: World, lane: number, z: number): boolean {
+  const W = C.TRAFFIC.wall;
+  for (let l = 0; l < 4; l++) {
+    if (l === lane || l === C.ONCOMING_LANE) continue;
+    if (w.road.blockAhead(l, z - W, 2 * W) < Infinity) continue;
+    if (w.cars.some((c) => c.lane === l && Math.abs(c.z - z) < W)) continue;
+    return false;
+  }
+  return true;
+}
+
 export function spawnCar(w: World, z: number): void {
   const lane = w.traffic.int(4);
   const x = C.LANE_X[lane];
   for (const c of w.cars) if (c.lane === lane && Math.abs(c.z - z) < C.TRAFFIC.gap) return;
   // not in a coned-off lane or on a ramp
   if (w.road.blockAhead(lane, z - C.CAR.halfL - 3, 2 * C.CAR.halfL + 6) < Infinity) return;
+  // never park a wall across the road: there is always a lane to take instead of a car to hit
+  if (lane !== C.ONCOMING_LANE && wallsRoad(w, lane, z)) return;
   // nor on top of (or right on the tail of) the security buggy
   const pt = w.patrol;
   if (pt.active && Math.abs(pt.x - x) < C.CAR.halfW + C.PATROL.halfW + 0.5 && Math.abs(pt.z - z) < C.TRAFFIC.gap) return;

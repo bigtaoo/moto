@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { World, type Rider, type SimEvent } from './world';
 import { Road } from './road';
+import { spawnCar } from './traffic';
 import { Prng } from './rng';
 import * as C from './config';
 
@@ -127,6 +128,23 @@ describe('road features and divisions', () => {
       expect(intoCones).toBe(false);
       expect(car.lane).toBe(2);
     }
+  });
+
+  it('a spawning car never closes the last way through', () => {
+    /** `n` spawn rolls at `z`, with a car already parked in each of `taken`. */
+    const tries = (taken: number[]): number[] => {
+      const w = world(4, 11);
+      const z = w.player.z + 150;
+      w.cars.length = 0;
+      for (const lane of taken) w.cars.push({ id: 900 + lane, x: C.LANE_X[lane], z, pz: z, speed: 15, cruise: 15, lane, color: 0, brushed: false });
+      for (let i = 0; i < 300; i++) spawnCar(w, z);
+      // the oncoming lane is never a way through, so the rule doesn't hold it open either
+      return w.cars.filter((c) => c.lane !== C.ONCOMING_LANE && !taken.includes(c.lane)).map((c) => c.lane);
+    };
+    // one lane left open: no car may take it, whichever lane the roll picks
+    for (const taken of [[1, 2], [1, 3], [2, 3]]) expect(tries(taken)).toEqual([]);
+    // two still open: the rule is the wall, not the spawn, so cars do land
+    expect(tries([1]).length).toBeGreaterThan(0);
   });
 
   it('a trail: in through the opening, held on it between the openings, and quicker than the road', () => {
