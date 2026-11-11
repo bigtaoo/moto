@@ -142,7 +142,7 @@ export class Ragdoll {
     // budget); built once per colours and kept across races (see `cached` in toon.ts).
     this.mesh = rigidMesh(cached(`rag:${body}:${ride}:${mark}`, () => bodyGeo(body, ride, mark)), mat, this.bones, new THREE.Sphere(new THREE.Vector3(), 2.4));
     this.group.add(this.mesh, ...this.bones);
-    this.group.visible = false;
+    this.shown(false);
   }
 
   /**
@@ -169,7 +169,7 @@ export class Ragdoll {
     this.age = 0;
     this.acc = 0;
     this.bumpT = 0.15;
-    this.group.visible = true;
+    this.shown(true);
   }
 
   /** Let go from sim (x, y, z) at velocity (vx, vy, vz), tumbling head over heels: the launch mode's dummy. */
@@ -188,7 +188,7 @@ export class Ragdoll {
     this.age = 0;
     this.acc = 0;
     this.bumpT = 0.15;
-    this.group.visible = true;
+    this.shown(true);
   }
 
   /**
@@ -231,7 +231,16 @@ export class Ragdoll {
 
   hide(): void {
     this.active = false;
-    this.group.visible = false;
+    this.shown(false);
+  }
+
+  /**
+   * Out on the road or put away. A body put away also drops out of the renderer's matrix walk, so its
+   * fourteen bones cost nothing while it waits; the walk picks them up again the frame it is thrown.
+   */
+  private shown(on: boolean): void {
+    this.group.visible = on;
+    this.group.matrixWorldAutoUpdate = on;
   }
 
   /** Pelvis in sim space, for the camera. */

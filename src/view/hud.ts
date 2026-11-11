@@ -26,6 +26,9 @@ export class Hud {
   /** Each dot's last offset along the bar, in whole pixels: the transform is written only when it moves. */
   private dotPx: number[] = [];
   private readonly labels: HTMLElement[] = [];
+  /** Each rival tag's last screen spot, in tenths of a pixel: the transform is written only when it moves. */
+  private tagX: number[] = [];
+  private tagY: number[] = [];
   private readonly banner: HTMLElement;
   private readonly chaser: HTMLElement;
   private readonly hint: HTMLElement;
@@ -60,7 +63,7 @@ export class Hud {
   readonly muteBtn: HTMLButtonElement;
   private soundOff = false;
   private barW = 200;
-  private last = { place: '', hp: '', cash: -1, slapL: false, slapR: false, chaser: '', incL: false, incR: false, heat: '' };
+  private last = { place: '', hp: '', cash: -1, fill: -1, slapL: false, slapR: false, chaser: '', incL: false, incR: false, heat: '' };
   private bannerT = 0;
   private readonly pt = { x: 0, y: 0 };
 
@@ -169,10 +172,12 @@ export class Hud {
       lab.appendChild(l);
       this.labels.push(l);
     }
-    this.last = { place: '', hp: '', cash: -1, slapL: false, slapR: false, chaser: '', incL: false, incR: false, heat: '' };
+    this.last = { place: '', hp: '', cash: -1, fill: -1, slapL: false, slapR: false, chaser: '', incL: false, incR: false, heat: '' };
     this.speedT = 0;
     this.tellT = w.riders.map(() => 0);
     this.dotPx = w.riders.map(() => -1);
+    this.tagX = w.riders.map(() => NaN);
+    this.tagY = w.riders.map(() => NaN);
     this.chaser.classList.remove('on');
     this.banner.className = 'banner';
     this.resize();
@@ -268,7 +273,9 @@ export class Hud {
     }
     // progress
     const len = w.length;
-    this.fill.style.transform = `scaleX(${Math.min(1, p.z / len)})`;
+    // in thousandths of the bar: a finer step than a phone can show, and the write is skipped between them
+    const prog = Math.round(Math.min(1, Math.max(0, p.z / len)) * 1000);
+    if (prog !== this.last.fill) { this.last.fill = prog; this.fill.style.transform = `scaleX(${prog / 1000})`; }
     for (let i = 0; i < w.riders.length; i++) {
       if (w.chase) this.dots[i].classList.toggle('gone', w.riders[i].state === 'away'); // a runner caught
       const px = Math.round(Math.min(1, Math.max(0, w.riders[i].z / len)) * this.barW);
@@ -294,7 +301,11 @@ export class Hud {
       if (l.classList.contains('tell') !== tell) l.classList.toggle('tell', tell);
       const open = r.openT > 0 && !tell;
       if (l.classList.contains('open') !== open) l.classList.toggle('open', open);
-      l.style.transform = `translate(${this.pt.x.toFixed(1)}px, ${this.pt.y.toFixed(1)}px) translate(-50%, -100%)`;
+      const tx = Math.round(this.pt.x * 10), ty = Math.round(this.pt.y * 10);
+      if (tx === this.tagX[i] && ty === this.tagY[i]) continue;
+      this.tagX[i] = tx;
+      this.tagY[i] = ty;
+      l.style.transform = `translate(${tx / 10}px, ${ty / 10}px) translate(-50%, -100%)`;
     }
     // slap reach indicators
     let left = false;

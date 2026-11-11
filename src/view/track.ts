@@ -96,6 +96,10 @@ export class Track {
     this.works();
     this.trails();
     this.ramps();
+    // Nothing a track holds ever moves again (cones are knocked over through an instance matrix, not by
+    // moving the mesh), so each piece keeps the matrix it was built with and the renderer walks none of
+    // them per frame. The group itself stays live: three's force flag still reaches inside if it moves.
+    this.group.traverse((o) => { if (o !== this.group) { o.updateMatrix(); o.matrixAutoUpdate = o.matrixWorldAutoUpdate = false; } });
   }
 
   /** Is (x, z) on or by a trail (keep trees and signs off it)? */

@@ -384,7 +384,7 @@ export class RaceView {
       const rv = this.riders[i];
       if (r.state === 'away') {
         // Off the road (a thug waiting to be sent in): hidden, and its drawn x starts fresh when it returns.
-        rv.root.visible = false;
+        rv.root.matrixWorldAutoUpdate = rv.root.visible = false;
         this.drawX[i] = undefined as unknown as number;
         this.ragdolls[i].update(dt);
         continue;
@@ -397,8 +397,8 @@ export class RaceView {
       rv.setWeapon(r.weapon);
       rv.charge = r.isPlayer ? Math.max(0, Math.min(1, (r.charge - 6) / (CHARGE.full - 6))) : 0;
       rv.update(dt, r.speed, this.drawVx[i], r.rubT > 0 ? r.rubSide : 0);
-      // Blink while invulnerable after getting back up.
-      rv.root.visible = r.invT <= 0 || Math.floor(r.invT / 3) % 2 === 0;
+      // Blink while invulnerable after getting back up; while hidden its bones leave the matrix walk too.
+      rv.root.matrixWorldAutoUpdate = rv.root.visible = r.invT <= 0 || Math.floor(r.invT / 3) % 2 === 0;
       if (r.state === 'ride') this.shadows.add(x, z, 0.5, 0.75);
       else this.shadows.add(x, z, 0.6, 0.6);
       const rd = this.ragdolls[i];
