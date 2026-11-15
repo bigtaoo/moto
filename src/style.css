@@ -108,7 +108,7 @@ html, body {
 }
 .prog .dot.me { width: 16px; height: 16px; left: -8px; border-width: 3px; z-index: 2; }
 
-.labels { position: absolute; inset: 0; overflow: hidden; }
+.labels { position: absolute; inset: 0; overflow: hidden; transition: opacity 0.18s; }
 .tag {
   position: absolute; left: 0; top: 0; opacity: 0;
   font-size: 12px; font-weight: 800; letter-spacing: 0.02em;
@@ -226,6 +226,8 @@ html, body {
   transform: translate(-50%, -50%) scale(0.6); opacity: 0;
 }
 .banner.show { animation: pop 1.3s ease-out forwards; }
+/* The banner crosses the tag lane: outlined letters over a dark pill garbled both. Tags step back. */
+#hud.flashing .labels { opacity: 0.18; }
 .banner.ko, .banner.go { color: var(--yellow); }
 .banner.bad, .banner.warn { color: #ff8a7a; }
 .pops {
@@ -298,12 +300,11 @@ button.primary:disabled { opacity: 0.45; cursor: default; }
 button.primary:disabled:active { transform: none; box-shadow: 0 5px 0 var(--ink); }
 /* The results card runs long (upgrades, garage, shop): its next-race button stays in reach at the bottom. */
 .card .again { position: sticky; bottom: max(8px, env(safe-area-inset-bottom)); z-index: 2; }
-/* The sticky button sits on top of whatever line it lands on. A paper fade above it turns that hard
-   cut into a "there is more below" edge, instead of a sentence sliced in half. */
-.card .again::before {
-  content: ''; position: absolute; left: -4px; right: -4px; bottom: calc(100% + 4px); height: 22px;
-  background: linear-gradient(to top, var(--paper), transparent); pointer-events: none;
-}
+/* The sticky button sat straight on whatever line it landed on -- a row of hats showed around and
+   under it, half of it unreachable. It carries a band of the card's paper with it now: outer shadows
+   paint under the button's own face but over the rows it floats above, so the band needs no element. */
+.card .again, .card .again:disabled:active { box-shadow: 0 5px 0 var(--ink), 0 0 0 16px var(--paper); }
+.card .again:active { box-shadow: 0 1px 0 var(--ink), 0 0 0 16px var(--paper); }
 
 .rows { margin: 12px 0 8px; text-align: left; }
 .row { display: flex; justify-content: space-between; padding: 4px 2px; font-size: 16px; }
@@ -334,6 +335,12 @@ button.primary:disabled:active { transform: none; box-shadow: 0 5px 0 var(--ink)
    highlight replay, which keeps its own tag (.cine above). visibility, not display, so the tag widths
    setup() measures are still real. */
 #app:not(.racing) #hud:not(.cine) { visibility: hidden; }
+/* Same one level up: a card over a running race (pause, how-to) left the HUD around its edges --
+   the cash pill came out sliced by the card's right border. Any open card hides it. */
+#app:has(.overlay:not(.hidden)) #hud:not(.cine) { visibility: hidden; }
+/* The sound key floats above the cards (z 20) and landed on whatever was in their top right -- a
+   daily star, a ride in the garage strip, untappable under it. The cards carry their own switch. */
+#app:has(.overlay:not(.hidden)) .mutebtn, #app:has(.lcard) .mutebtn { display: none; }
 #hud.away { display: none; }
 .replaytag {
   position: absolute; left: 50%; top: max(14px, env(safe-area-inset-top)); transform: translateX(-50%); opacity: 0; pointer-events: none;
@@ -451,7 +458,12 @@ button.primary:disabled:active { transform: none; box-shadow: 0 5px 0 var(--ink)
 .lx { position: absolute; top: max(10px, env(safe-area-inset-top)); left: max(10px, env(safe-area-inset-left)); width: 40px; height: 40px; font-size: 20px; font-weight: 900; border: 3px solid var(--ink); border-radius: 50%; background: var(--paper); cursor: pointer; }
 .lhud { position: absolute; top: max(10px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); text-align: center; color: #fff; -webkit-text-stroke: 1.5px var(--ink); paint-order: stroke; font-weight: 900; pointer-events: none; }
 .lhud .ld { display: block; font-size: 44px; line-height: 1; }
+/* under the big "39 m": a bare "39" read as a second distance -- the burst marks it as the score */
 .lhud .lp { font-size: 22px; color: var(--yellow); }
+.lhud .lp::before {
+  content: ''; display: inline-block; width: 0.85em; height: 0.85em; margin-right: 4px; vertical-align: -0.08em;
+  background: currentColor; -webkit-mask: var(--ic-burst) center / contain no-repeat; mask: var(--ic-burst) center / contain no-repeat;
+}
 .lmeter { position: absolute; left: 12%; right: 12%; bottom: calc(max(16px, env(safe-area-inset-bottom)) + 40px); height: 22px; border: 3px solid var(--ink); border-radius: 11px; background: rgba(255, 255, 255, 0.8); overflow: hidden; pointer-events: none; transition: opacity 0.3s; }
 .lmeter i, .lmeter b { position: absolute; top: 0; bottom: 0; }
 .lzone { right: 0; background: #7bd389; }
@@ -470,6 +482,8 @@ button.primary:disabled:active { transform: none; box-shadow: 0 5px 0 var(--ink)
 .lpop.on { animation: lpop 0.9s ease-out forwards; }
 @keyframes lfade { 0%, 75% { opacity: 1; } 100% { opacity: 0; } }
 @keyframes lpop { 0% { opacity: 1; transform: translate(-50%, 0) scale(1.3); } 100% { opacity: 0; transform: translate(-50%, -50px) scale(1); } }
+/* the launch card is the race card's case: its own HUD (distance, meter, the X) steps out behind it */
+.launch:has(.lcard) > :not(.lcard) { visibility: hidden; }
 .lcard { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: calc(100% - 32px); max-width: 340px; }
 .lcard .st { margin-top: 4px; }
 .lbest { margin: 10px 0 0; font-weight: 800; }

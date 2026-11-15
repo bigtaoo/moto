@@ -266,4 +266,6 @@ export const ES: Table = {
   launchNewBest: "¡Nuevo récord!",
   launchBest: "Récord: {n}",
   launchAgain: "¡Otra vez!",
+  settings: "Ajustes",
+  settingsTip: "Sonido, gráficos, cómo jugar",
 };

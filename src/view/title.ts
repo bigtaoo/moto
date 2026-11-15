@@ -18,6 +18,10 @@ import { LAUNCH } from '../sim/launch';
 const launchButton = (save: Save): string =>
   save.races < LAUNCH.unlock ? '' : `<button class="shift launchgo"><span>${icon('burst')} ${t('launchGo')}</span><small>${save.launchBest ? t('launchBest', { n: save.launchBest }) : t('launchTip')}</small></button>`;
 
+/** Sound, graphics and how to play, off the road: the pause menu used to be the only way in. */
+const optsButton = (): string =>
+  `<button class="shift optsgo"><span>${icon('soundOn')} ${t('settings')}</span><small>${t('settingsTip')}</small></button>`;
+
 /** The next ride the player doesn't own, and how far off it is. */
 function nextRide(save: Save): string {
   const i = VEHICLES.findIndex((_, v) => { const st = rideState(save, v); return st === 'buy' || st === 'locked'; });
@@ -61,5 +65,5 @@ export function titleInfo(save: Save, fresh: Unlocked[] = [], ad = false): strin
   if (save.races === 0) return '';
   const mult = dayMult(stage(save.div, save.tier, save.endless).prize);
   const win = save.daily.won ? '' : `<div class="dc"><span>${t('firstWin')}</span><b>+${money(Math.round(FIRST_WIN_PAY * mult))}</b></div>`;
-  return streak(save, ad) + (shiftOpen(save) ? shiftButton(save, 'shift shiftgo') : '') + launchButton(save) + nextRide(save) + nemesis(save) + dailyHtml(rows(save.daily), [], 0, win) + achHtml(save, fresh) + boardButton();
+  return streak(save, ad) + (shiftOpen(save) ? shiftButton(save, 'shift shiftgo') : '') + launchButton(save) + nextRide(save) + nemesis(save) + dailyHtml(rows(save.daily), [], 0, win) + achHtml(save, fresh) + boardButton() + optsButton();
 }

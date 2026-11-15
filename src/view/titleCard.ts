@@ -21,6 +21,8 @@ export interface TitleCardActions {
   onTitle: () => boolean;
   shift: () => void;
   launch: () => void;
+  /** The settings card (the pause menu without the race's rows). */
+  opts: () => void;
 }
 
 /** The title card for a returning player: where they stand, and what to go for. */
@@ -41,5 +43,7 @@ export function drawTitle(save: Save, on: TitleCardActions): void {
   if (sh) sh.onclick = () => { if (on.onTitle()) on.shift(); };
   const lg = info.querySelector<HTMLButtonElement>('.launchgo');
   if (lg) lg.onclick = () => { if (on.onTitle()) on.launch(); };
+  const og = info.querySelector<HTMLButtonElement>('.optsgo');
+  if (og) og.onclick = () => { if (on.onTitle()) on.opts(); };
   wireBoard(info, on.app);
 }

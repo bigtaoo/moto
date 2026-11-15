@@ -266,4 +266,6 @@ export const TR: Table = {
   launchNewBest: "Yeni rekor!",
   launchBest: "Rekor: {n}",
   launchAgain: "Tekrar!",
+  settings: "Ayarlar",
+  settingsTip: "Ses, grafik, nasıl oynanır",
 };

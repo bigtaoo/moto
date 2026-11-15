@@ -13,6 +13,9 @@ import { type Save, storeSave } from './meta';
 import { sfx, music, raceTrack } from './view/audio';
 import { buzz } from './haptics';
 import { t, money } from './i18n';
+import { icon } from './view/icons';
+import * as platform from './platform';
+import * as tele from './telemetry';
 import * as funnel from './funnel';
 
 /** Ticks at most per frame (a slow frame catches up, a long stall doesn't). */
@@ -167,7 +170,7 @@ export class LaunchMode {
   private card(): void {
     const l = this.l;
     const s = this.save;
-    const cash = launchCash(l, this.div.prize);
+    let cash = launchCash(l, this.div.prize);
     const best = l.score > s.launchBest;
     s.cash += cash;
     s.launchBest = Math.max(s.launchBest, l.score);
@@ -176,15 +179,32 @@ export class LaunchMode {
     funnel.event('launch_end', { dist: Math.round(l.dist), smashed: l.smashed, score: l.score, cash, best });
     const el = document.createElement('div');
     el.className = 'lcard card';
-    el.innerHTML = `<h2>${t('launchGo')}</h2>
-      <div class="st"><span>${t('launchDist')}</span><b>${Math.round(l.dist)} m</b></div>
-      <div class="st"><span>${t('launchSmashed')}</span><b>${l.smashed}</b></div>
-      <div class="st"><span>${t('launchScore')}</span><b>${l.score}</b></div>
-      <div class="st me"><span>${t('earned')}</span><b>+${money(cash)}</b></div>
-      <div class="lbest">${best ? `<em>${t('launchNewBest')}</em>` : t('launchBest', { n: s.launchBest })}</div>
-      <button class="primary lagain">${t('launchAgain')}</button><button class="shift lback">${t('back')}</button>`;
-    el.querySelector<HTMLButtonElement>('.lagain')!.onclick = () => this.start();
-    el.querySelector<HTMLButtonElement>('.lback')!.onclick = () => this.exit();
+    // The same offer the race's results card makes: an ad for twice the round's pay, once.
+    let dbl = cash > 0 && platform.rewardedReady();
+    let doubled = false;
+    const draw = (): void => {
+      el.innerHTML = `<h2>${t('launchGo')}</h2>
+        <div class="st"><span>${t('launchDist')}</span><b>${Math.round(l.dist)} m</b></div>
+        <div class="st"><span>${t('launchSmashed')}</span><b>${l.smashed}</b></div>
+        <div class="st"><span>${t('launchScore')}</span><b>${l.score}</b></div>
+        <div class="st me"><span>${t(doubled ? 'adBonus' : 'earned')}</span><b>+${money(cash)}</b></div>
+        <div class="lbest">${best ? `<em>${t('launchNewBest')}</em>` : t('launchBest', { n: s.launchBest })}</div>
+        ${dbl ? `<button class="double"><span>${icon('play')} ${t('double', { n: cash })}</span><small>${t('watchAd')}</small></button>` : ''}
+        <button class="primary lagain">${t('launchAgain')}</button><button class="shift lback">${t('back')}</button>`;
+      el.querySelector<HTMLButtonElement>('.lagain')!.onclick = () => this.start();
+      el.querySelector<HTMLButtonElement>('.lback')!.onclick = () => this.exit();
+      const d = el.querySelector<HTMLButtonElement>('.double');
+      if (d) d.onclick = () => {
+        d.disabled = true;
+        void platform.showRewarded('launch_double').then((ok) => {
+          if (ok) { s.cash += cash; cash *= 2; doubled = true; storeSave(s); sfx.coin(); }
+          dbl = false;
+          draw();
+        });
+      };
+    };
+    if (dbl) tele.adOffer('launch_double');
+    draw();
     this.root.appendChild(el);
   }
 

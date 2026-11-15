@@ -187,6 +187,7 @@ export class Hud {
     this.tagW = this.labels.map((l) => l.offsetWidth); // one layout per race, read before anything moves
     this.chaser.classList.remove('on');
     this.banner.className = 'banner';
+    this.root.classList.remove('flashing');
     this.resize();
   }
 
@@ -229,6 +230,9 @@ export class Hud {
     void this.banner.offsetWidth; // restart the animation
     this.banner.className = `banner show ${kind}`;
     this.bannerT = 1.4;
+    // The banner crosses the lane the rival tags float in. They stand down while it is up, so the two
+    // never garble each other -- a nemesis tag behind "KNOCKED OFF!" could not be read at all.
+    this.root.classList.add('flashing');
   }
 
   /**
@@ -385,7 +389,7 @@ export class Hud {
     if (taunt !== this.tauntOn) { this.tauntOn = taunt; this.tauntBtn.classList.toggle('on', taunt); }
     if (this.bannerT > 0) {
       this.bannerT -= dt;
-      if (this.bannerT <= 0) this.banner.className = 'banner';
+      if (this.bannerT <= 0) { this.banner.className = 'banner'; this.root.classList.remove('flashing'); }
     }
   }
 }

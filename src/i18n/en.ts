@@ -271,6 +271,9 @@ export const EN = {
   launchNewBest: "New best!",
   launchBest: "Best: {n}",
   launchAgain: "Again!",
+  // the title's settings card (the pause menu off the road)
+  settings: "Settings",
+  settingsTip: "Sound, graphics, how to play",
 };
 
 export type Key = keyof typeof EN;

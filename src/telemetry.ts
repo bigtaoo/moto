@@ -252,7 +252,7 @@ export function paused(): void {
 }
 
 /** A rewarded ad was offered (the result is platform.ts's ad_result). */
-export function adOffer(placement: 'double_cash' | 'streak_double'): void {
+export function adOffer(placement: 'double_cash' | 'streak_double' | 'launch_double'): void {
   track('ad_offer', { placement, ...(race ? { step_id: race.step.step_id as string } : {}) });
 }
 

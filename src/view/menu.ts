@@ -1,4 +1,6 @@
 // The pause menu: resume, restart the race, music and effects, the graphics setting, and how to play.
+// The same card, minus the race's own rows, is the title's settings: before 3.3.37 a player had to
+// start a race and pause it to reach the sound switches, the graphics setting or how to play.
 
 import { icon } from './icons';
 import { DESKTOP } from './input';
@@ -29,6 +31,8 @@ export class Menu {
   on: MenuActions = { resume() {}, restart() {}, music() {}, sfx() {}, haptics() {}, shake() {}, quality() {}, home() {} };
   private settings: MenuSettings = { music: true, sfx: true, haptics: true, quality: 'auto', shake: true };
   private help = false;
+  /** 'pause' is the race's menu; 'settings' is the same card off the road, with a Done instead. */
+  private mode: 'pause' | 'settings' = 'pause';
 
   constructor(private readonly el: HTMLElement) {
     el.addEventListener('click', (e) => {
@@ -41,9 +45,10 @@ export class Menu {
     return !this.el.classList.contains('hidden');
   }
 
-  show(on: boolean, s?: MenuSettings): void {
+  show(on: boolean, s?: MenuSettings, mode: 'pause' | 'settings' = 'pause'): void {
     if (s) this.settings = { ...s };
     this.help = false;
+    this.mode = mode;
     this.el.classList.toggle('hidden', !on);
     if (on) this.draw();
   }
@@ -56,7 +61,7 @@ export class Menu {
   private act(a: string): void {
     const s = this.settings;
     switch (a) {
-      case 'resume': this.on.resume(); return;
+      case 'resume': if (this.mode === 'settings') { this.show(false); return; } this.on.resume(); return;
       case 'restart': this.on.restart(); return;
       case 'music': s.music = !s.music; this.on.music(s.music); break;
       case 'sfx': s.sfx = !s.sfx; this.on.sfx(s.sfx); break;
@@ -82,8 +87,9 @@ export class Menu {
     }
     const sw = (a: string, label: string, val: string, on = true) =>
       `<button class="opt ${on ? '' : 'off'}" data-a="${a}"><span>${label}</span><b>${val}</b></button>`;
-    card.innerHTML = `<h2>${t('paused')}</h2>
-      <button class="primary" data-a="resume">${icon('play')} ${t('resume')}</button>
+    const race = this.mode === 'pause';
+    card.innerHTML = `<h2>${t(race ? 'paused' : 'settings')}</h2>
+      <button class="primary" data-a="resume">${icon(race ? 'play' : 'left')} ${t(race ? 'resume' : 'back')}</button>
       <div class="opts">
         ${sw('music', t('music'), t(s.music ? 'on' : 'off'), s.music)}
         ${sw('sfx', t('effects'), t(s.sfx ? 'on' : 'off'), s.sfx)}
@@ -91,8 +97,10 @@ export class Menu {
         ${sw('shake', t('shake'), t(s.shake ? 'on' : 'off'), s.shake)}
         ${sw('quality', t('graphics'), t(Q_NAMES[s.quality]))}
         <button class="opt" data-a="help"><span>${t('howTo')}</span><b>?</b></button>
-        <button class="opt" data-a="restart"><span>${t('restart')}</span><b>${icon('left')}</b></button>
-        <button class="opt" data-a="home"><span>${t('toMenu')}</span><b>${icon('left')}</b></button>
-      </div>`;
+      </div>
+      ${race ? `<div class="opts">
+        <button class="opt" data-a="restart"><span>${icon('left')} ${t('restart')}</span></button>
+        <button class="opt" data-a="home"><span>${icon('left')} ${t('toMenu')}</span></button>
+      </div>` : ''}`;
   }
 }

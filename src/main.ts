@@ -359,6 +359,7 @@ const showTitle = (): void => drawTitle(save, {
   ach: bootAch, app, onTitle: () => state === 'title',
   shift: () => { chase = true; newRace(); startRace(); },
   launch: () => { if (!launch) launch = new LaunchMode(stage, view.group, save, app, () => { launch = null; showTitle(); }); },
+  opts: () => hud.menu.show(true, menuSettings(save), 'settings'),
 });
 
 async function boot(): Promise<void> {
