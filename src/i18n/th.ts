@@ -270,4 +270,11 @@ export const TH: Table = {
   settingsTip: 'เสียง กราฟิก วิธีเล่น',
   language: 'ภาษา',
   langAuto: 'อัตโนมัติ',
+  // the garage: upgrades, rides and looks in one place (3.3.40)
+  upgrades: 'อัปเกรด',
+  rides: 'พาหนะ',
+  looks: 'รูปลักษณ์',
+  garageTip: 'อัปเกรด พาหนะ สีและหมวก',
+  canBuy: 'ซื้อไหว {n} อย่าง',
+  nothingToBuy: 'ยังซื้ออะไรไม่ไหว',
 };

@@ -270,4 +270,11 @@ export const TR: Table = {
   settingsTip: "Ses, grafik, nasıl oynanır",
   language: "Dil",
   langAuto: "Otomatik",
+  // the garage: upgrades, rides and looks in one place (3.3.40)
+  upgrades: "Yükseltmeler",
+  rides: "Araçlar",
+  looks: "Görünüm",
+  garageTip: "Yükseltmeler, araçlar, boya ve şapkalar",
+  canBuy: "{n} tanesine paran yetiyor",
+  nothingToBuy: "Henüz paran hiçbirine yetmiyor",
 };

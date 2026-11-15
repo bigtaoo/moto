@@ -1,3 +1,4 @@
+@import './style.garage.css';
 @import './style.landscape.css';
 /* The game's digits: a 4 kB subset of Baloo 2 ExtraBold (SIL OFL 1.1 — src/assets/digits-baloo2.LICENSE.txt),
    inlined so it is there before the first frame: no request, no swap, dev and build alike.

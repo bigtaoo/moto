@@ -270,4 +270,11 @@ export const ID: Table = {
   settingsTip: 'Suara, grafik, cara bermain',
   language: 'Bahasa',
   langAuto: 'Otomatis',
+  // the garage: upgrades, rides and looks in one place (3.3.40)
+  upgrades: 'Peningkatan',
+  rides: 'Kendaraan',
+  looks: 'Tampilan',
+  garageTip: 'Peningkatan, kendaraan, cat dan topi',
+  canBuy: '{n} terjangkau',
+  nothingToBuy: 'Belum ada yang terjangkau',
 };

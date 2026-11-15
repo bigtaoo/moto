@@ -21,6 +21,8 @@ export interface TitleCardActions {
   onTitle: () => boolean;
   shift: () => void;
   launch: () => void;
+  /** Upgrades, rides and looks, on their own screen. */
+  garage: () => void;
   /** The settings card (the pause menu without the race's rows). */
   opts: () => void;
 }
@@ -32,6 +34,10 @@ export function drawTitle(save: Save, on: TitleCardActions): void {
     best.textContent = t('best', { div: C.stage(save.div, save.tier, save.endless).name, n: save.cup.race + 1, m: CUP_RACES, cash: save.cash })
       + (save.titles ? t('champs', { n: save.titles }) : '');
   }
+  // A returning player has read the tagline (and it is the one line on the card never translated):
+  // its 52 px go to the grid of places to go instead.
+  const tag = document.querySelector<HTMLElement>('#title .card p');
+  if (tag) tag.classList.toggle('gone', save.races > 0);
   const info = document.getElementById('titleinfo');
   if (!info) return;
   const ad = !save.streak.doubled && save.streak.pay > 0 && save.streak.day === today() && platform.rewardedReady();
@@ -43,6 +49,8 @@ export function drawTitle(save: Save, on: TitleCardActions): void {
   if (sh) sh.onclick = () => { if (on.onTitle()) on.shift(); };
   const lg = info.querySelector<HTMLButtonElement>('.launchgo');
   if (lg) lg.onclick = () => { if (on.onTitle()) on.launch(); };
+  const gg = info.querySelector<HTMLButtonElement>('.garagego');
+  if (gg) gg.onclick = () => { if (on.onTitle()) on.garage(); };
   const og = info.querySelector<HTMLButtonElement>('.optsgo');
   if (og) og.onclick = () => { if (on.onTitle()) on.opts(); };
   wireBoard(info, on.app);

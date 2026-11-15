@@ -270,4 +270,11 @@ export const KO: Table = {
   settingsTip: '소리, 그래픽, 플레이 방법',
   language: '언어',
   langAuto: '자동',
+  // the garage: upgrades, rides and looks in one place (3.3.40)
+  upgrades: '업그레이드',
+  rides: '탈것',
+  looks: '겉모습',
+  garageTip: '업그레이드, 탈것, 도색과 모자',
+  canBuy: '살 수 있는 것 {n}개',
+  nothingToBuy: '아직 살 수 있는 게 없다',
 };

@@ -270,4 +270,11 @@ export const VI: Table = {
   settingsTip: 'Âm thanh, đồ họa, cách chơi',
   language: 'Ngôn ngữ',
   langAuto: 'Tự động',
+  // the garage: upgrades, rides and looks in one place (3.3.40)
+  upgrades: 'Nâng cấp',
+  rides: 'Phương tiện',
+  looks: 'Ngoại hình',
+  garageTip: 'Nâng cấp, xe, sơn và mũ',
+  canBuy: 'Mua được {n} thứ',
+  nothingToBuy: 'Chưa mua nổi thứ gì',
 };

@@ -270,4 +270,11 @@ export const PL: Table = {
   settingsTip: 'Dźwięk, grafika, jak grać',
   language: 'Język',
   langAuto: 'Auto',
+  // the garage: upgrades, rides and looks in one place (3.3.40)
+  upgrades: 'Ulepszenia',
+  rides: 'Pojazdy',
+  looks: 'Wygląd',
+  garageTip: 'Ulepszenia, pojazdy, lakiery i czapki',
+  canBuy: 'Stać cię na {n}',
+  nothingToBuy: 'Na razie nic cię nie stać',
 };

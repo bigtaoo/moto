@@ -1,16 +1,17 @@
-// The results screen: the race's pay, the nemesis, the cup table, the day's challenges, the upgrades and the
-// garage. Taps on it count only once it has been up long enough to be seen, so a tap meant for the race
-// doesn't buy something or skip it.
+// The results screen: the race's pay, the nemesis, the cup table and the day's challenges -- what the race
+// did, and nothing else. What cash buys moved to the garage (view/garage.ts) in 3.3.40; one button goes
+// there. Taps count only once the screen has been up long enough to be seen, so a tap meant for the race
+// doesn't skip it.
 
 import { icon } from './icons';
-import { CHASE, GRUDGE_BONUS, UPGRADE_MAX, UPGRADE_CAP, VEHICLES, DIVISIONS, stage, type Vehicle, type WeaponKind } from '../sim/config';
+import { CHASE, GRUDGE_BONUS, stage } from '../sim/config';
 import type { Save } from '../meta';
-import { BREAK_AT, rideState, upgradeLock, upgradePrice, type CupEnd, type FeudOutcome, type Nemesis, type UpKey } from '../career';
+import { BREAK_AT, type CupEnd, type FeudOutcome, type Nemesis } from '../career';
 import type { DailyOutcome, DailyRow, Kind } from '../daily';
 import type { Flair } from '../sim/flair';
 import type { Mutator } from '../sim/fun';
 import { t, ord, money, type Key } from '../i18n';
-import { shopHtml, bindShop } from './shop';
+import { garageButton } from './garage';
 import type { Unlocked } from '../rewards';
 import { shiftOpen, type ShiftResult } from '../shift';
 
@@ -60,11 +61,8 @@ export interface RaceResult {
 }
 
 export interface ResultActions {
-  buy: (k: UpKey) => void;
-  ride: (v: number) => void;
-  paint: (i: number) => void;
-  hat: (i: number) => void;
-  carry: (k: WeaponKind) => void;
+  /** The garage: upgrades, rides and looks, on their own screen. */
+  garage: () => void;
   double: () => void;
   again: () => void;
   /** A security shift instead of the next race (offered once they are open). */
@@ -84,13 +82,9 @@ export interface ShiftActions {
 export const shiftButton = (save: Save, cls = 'shift'): string =>
   `<button class="${cls}"><span>${icon('target')} ${t('shiftGo')}</span><small>${t('shiftTip', { n: Math.round(CHASE.bounty * stage(save.div, save.tier, save.endless).prize) })}</small></button>`;
 
-const UP_NAMES: Record<UpKey, Key> = { top: 'upTop', steer: 'upSteer', hp: 'upHp' };
 const DAILY_NAMES: Record<Kind, Key> = { kos: 'dKos', shoves: 'dShoves', podium: 'dPodium', win: 'dWin', races: 'dRaces', clean: 'dClean', grudge: 'dGrudge' };
 /** How long the screen is up before a tap or key on it counts. */
 const ARM_MS = 600;
-
-/** A ride's name in the player's language. */
-export const rideName = (i: number): string => t(`ride${i}` as Key);
 
 /** The day's challenges as a list: done ones ticked, the others with their progress. */
 export function dailyHtml(rows: DailyRow[], fresh: Kind[] = [], pay = 0, extra = ''): string {
@@ -100,16 +94,6 @@ export function dailyHtml(rows: DailyRow[], fresh: Kind[] = [], pay = 0, extra =
     return `<div class="dc ${cls}"><span>${t(DAILY_NAMES[r.kind], { n: r.goal })}</span><b>${right}</b></div>`;
   }).join('');
   return `<div class="daily"><div class="cuphead">${t('daily')}</div>${items}${extra}</div>`;
-}
-
-/** What a vehicle adds over the scooter, in the player's words. */
-function statLine(v: Vehicle): string {
-  const sg = (n: number) => (n > 0 ? '+' : n < 0 ? '−' : '±') + Math.abs(n);
-  if (!v.top && !v.steer && !v.hp && !v.accel) return t('baseline');
-  return [
-    v.top ? `${sg(Math.round(v.top * 3.6))} ${t('kmh')}` : '', v.accel ? `${sg(v.accel)} ${t('kick')}` : '',
-    v.steer ? `${sg(v.steer)} ${t('grip')}` : '', v.hp ? `${sg(v.hp)} ${t('tough')}` : '',
-  ].filter(Boolean).join(' · ');
 }
 
 function againLabel(l: League): string {
@@ -122,7 +106,6 @@ function againLabel(l: League): string {
 }
 
 const row = (a: string, b: string, cls = '') => `<div class="row ${cls}"><span>${a}</span><b>${b}</b></div>`;
-const locked = (what: string) => `${icon('lock')} ${t('unlocks', { s: what })}`;
 
 export class Results {
   private shownAt = 0;
@@ -158,7 +141,7 @@ export class Results {
     const guard = (f: () => void) => () => { if (this.armed) f(); };
     this.again = on.again;
     (card.querySelector('.again') as HTMLButtonElement).onclick = guard(on.again);
-    (card.querySelector('.shift:not(.home)') as HTMLButtonElement).onclick = guard(on.shift);
+    (card.querySelector('.shiftgo') as HTMLButtonElement).onclick = guard(on.shift);
     (card.querySelector('.home') as HTMLButtonElement).onclick = guard(on.home);
     this.el.classList.remove('hidden');
   }
@@ -167,19 +150,9 @@ export class Results {
   show(res: RaceResult, save: Save, on: ResultActions): void {
     if (!this.open) this.shownAt = performance.now();
     const card = this.el.querySelector('.card') as HTMLElement;
-    const ups = (Object.keys(UP_NAMES) as UpKey[]).map((k) => {
-      const lvl = save.up[k];
-      const cost = upgradePrice(save, k);
-      const lock = upgradeLock(save, k);
-      const cap = UPGRADE_CAP[save.tier][k];
-      const pips = Array.from({ length: UPGRADE_MAX[k] }, (_, i) => `<i class="${i < lvl ? 'on' : i >= cap ? 'lock' : ''}"></i>`).join('');
-      const label = cost !== null ? money(cost) : lock ? locked(lock) : t('max');
-      return `<div class="up"><div class="upname">${t(UP_NAMES[k])}<div class="pips">${pips}</div></div>
-        <button data-k="${k}" ${cost === null || save.cash < cost ? 'disabled' : ''}>${label}</button></div>`;
-    }).join('');
     const d = res.daily;
-    // a new player's first results are the race and what to upgrade: the challenges and the garage come in
-    // from the 2nd, the paint, hat and weapon shop from the 3rd (save.races counts this race already)
+    // a new player's first results are just the race: the day's challenges and the way back to the title
+    // come in from the 2nd (save.races counts this race already)
     const n = save.races;
     card.innerHTML = `
       <h2 class="${res.place === 1 ? 'win' : ''}">${t('place', { o: ord(res.place) })}</h2>
@@ -207,17 +180,13 @@ export class Results {
       ${n >= NEW.daily ? dailyHtml(d.rows, d.done, d.done.length ? d.cash / d.done.length : 0) : ''}
       ${res.grudges.length ? `<div class="grudges">${t('holding')} <b>${res.grudges.join(', ')}</b><br><small>${t('grudgeTip', { n: GRUDGE_BONUS })}</small></div>` : ''}
       <div class="cashline">${t('cash')} <b>${money(save.cash)}</b></div>
-      <div class="ups">${ups}${n >= NEW.garage ? garageHtml(save) : ''}${n >= NEW.shop ? shopHtml(save) : ''}</div>
       <button class="primary again">${againLabel(res.league)}</button>
-      ${shiftOpen(save) ? shiftButton(save) : ''}
-      ${n >= NEW.home ? `<button class="shift home">${t('toMenu')}</button>` : ''}`;
+      <div class="tiles">${garageButton(save)}${shiftOpen(save) ? shiftButton(save, 'shift shiftgo') : ''}${n >= NEW.home ? `<button class="shift home">${t('toMenu')}</button>` : ''}</div>`;
     const guard = (f: () => void) => () => { if (this.armed) f(); };
-    card.querySelectorAll<HTMLButtonElement>('.up button').forEach((b) => { b.onclick = guard(() => on.buy(b.dataset.k as UpKey)); });
-    card.querySelectorAll<HTMLButtonElement>('.ride').forEach((b) => { b.onclick = guard(() => on.ride(Number(b.dataset.v))); });
-    bindShop(card, guard, on);
+    (card.querySelector('.garagego') as HTMLButtonElement).onclick = guard(on.garage);
     this.again = on.again;
     (card.querySelector('.again') as HTMLButtonElement).onclick = guard(on.again);
-    const sh = card.querySelector<HTMLButtonElement>('.shift:not(.home)');
+    const sh = card.querySelector<HTMLButtonElement>('.shiftgo');
     if (sh) sh.onclick = guard(on.shift);
     const hm = card.querySelector<HTMLButtonElement>('.home');
     if (hm) hm.onclick = guard(on.home);
@@ -239,24 +208,12 @@ export function shiftHtml(r: ShiftResult, save: Save): string {
     </div>
     <div class="cashline">${t('cash')} <b>${money(save.cash)}</b></div>
     <button class="primary again">${t('backToCup')}</button>
-    ${shiftButton(save)}
+    ${shiftButton(save, 'shift shiftgo')}
     <button class="shift home">${t('toMenu')}</button>`;
 }
 
 /** From which race's results each part of the card shows (a new player's first results stay short). */
-export const NEW = { daily: 2, garage: 2, shop: 3, home: 2 };
-
-/** The rides: the one being ridden, the others owned, the next to buy, and what is still locked. */
-function garageHtml(save: Save): string {
-  const cards = VEHICLES.map((v, i) => {
-    const st = rideState(save, i);
-    const label = st === 'riding' ? t('riding') : st === 'owned' ? t('rideIt') : st === 'buy' ? money(v.price)
-      : locked(stage(v.rung % DIVISIONS.length, Math.floor(v.rung / DIVISIONS.length)).name);
-    const off = st === 'riding' || st === 'locked' || (st === 'buy' && save.cash < v.price);
-    return `<button class="ride ${st}" data-v="${i}" ${off ? 'disabled' : ''}><b>${rideName(i)}</b><span>${statLine(v)}</span><small>${t(`blurb${i}` as Key)}</small><i>${label}</i></button>`;
-  }).join('');
-  return `<div class="garage"><div class="cuphead">${t('garage')}</div><div class="rides">${cards}</div></div>`;
-}
+export const NEW = { daily: 2, home: 2 };
 
 function feudRows(res: RaceResult): string {
   const o = res.feud.out;

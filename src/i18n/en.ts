@@ -276,6 +276,13 @@ export const EN = {
   settingsTip: "Sound, graphics, how to play",
   language: "Language",
   langAuto: "Auto",
+  // the garage: upgrades, rides and looks in one place (3.3.40)
+  upgrades: "Upgrades",
+  rides: "Rides",
+  looks: "Looks",
+  garageTip: "Upgrades, rides, paint and hats",
+  canBuy: "{n} you can afford",
+  nothingToBuy: "Nothing you can afford yet",
 };
 
 export type Key = keyof typeof EN;

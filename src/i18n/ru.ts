@@ -270,4 +270,11 @@ export const RU: Table = {
   settingsTip: "Звук, графика, как играть",
   language: "Язык",
   langAuto: "Авто",
+  // the garage: upgrades, rides and looks in one place (3.3.40)
+  upgrades: "Улучшения",
+  rides: "Транспорт",
+  looks: "Внешний вид",
+  garageTip: "Улучшения, транспорт, краска и шляпы",
+  canBuy: "По карману: {n}",
+  nothingToBuy: "Пока ничего по карману",
 };

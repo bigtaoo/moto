@@ -1,0 +1,30 @@
+/* The garage screen and the title's tile grid (3.3.40). Split out of style.css, which is at its
+   500-line cap: these rules are the one place where cash is spent, and the one place the lobby
+   sends a player to. `@import`-ed at the top of style.css, so `.card` and friends still apply. */
+
+/* ---------- the lobby's destinations ---------- */
+/* Five stacked full-width buttons ran the title card 64 px past a 719 px phone. Two to a row,
+   same height, so the fold falls under the grid instead of through it. */
+.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 10px 0 8px; }
+.tiles .shift { width: 100%; margin: 0; justify-content: center; min-height: 52px; padding: 6px 8px; }
+.tiles .shift span { font-size: 15px; }
+.tiles .shift small { line-height: 1.15; }
+/* The garage with something affordable in it: the one tile that is worth a tap right now. */
+.shift.has { background: var(--yellow); box-shadow: 0 3px 0 var(--ink); }
+
+.card p.gone { display: none; }
+
+/* ---------- the garage ---------- */
+#garage .card { text-align: left; }
+.ghead { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.ghead h2 { font-size: 26px; }
+.tabs { display: flex; gap: 6px; margin: 10px 0 8px; }
+.tab {
+  flex: 1; padding: 8px 4px; font: inherit; font-weight: 800; font-size: 15px; cursor: pointer;
+  background: var(--paper, #fff); border: 3px solid var(--ink); border-radius: 10px;
+}
+.tab.on { background: var(--ink); color: var(--paper); }
+/* One tab at a time, but the three differ by hundreds of pixels; a floor keeps the Back button
+   from jumping up the screen when the player switches to a shorter one. */
+.gbody { min-height: 240px; }
+.gbody .garage, .gbody .shop { margin-top: 0; }

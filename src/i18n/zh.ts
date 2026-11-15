@@ -270,4 +270,11 @@ export const ZH: Table = {
   settingsTip: '声音、画质、玩法说明',
   language: '语言',
   langAuto: '自动',
+  // the garage: upgrades, rides and looks in one place (3.3.40)
+  upgrades: '升级',
+  rides: '载具',
+  looks: '外观',
+  garageTip: '升级、载具、涂装和帽子',
+  canBuy: '有 {n} 样买得起',
+  nothingToBuy: '暂时还买不起新东西',
 };

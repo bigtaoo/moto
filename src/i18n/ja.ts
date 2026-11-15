@@ -270,4 +270,11 @@ export const JA: Table = {
   settingsTip: '音、グラフィック、遊び方',
   language: '言語',
   langAuto: '自動',
+  // the garage: upgrades, rides and looks in one place (3.3.40)
+  upgrades: 'アップグレード',
+  rides: '乗り物',
+  looks: '見た目',
+  garageTip: '強化、乗り物、塗装と帽子',
+  canBuy: '買えるもの {n} 件',
+  nothingToBuy: 'まだ買えるものはない',
 };

@@ -23,6 +23,13 @@
   .overlay .card.small .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 18px; }
   .overlay .card .howto { columns: 2; column-gap: 18px; }
   .overlay .card .howto li { break-inside: avoid; }
+  /* 3.3.40: the results' secondary buttons travel as one .tiles block, so it takes the column the
+     loose buttons used to; a 420px-tall screen has no room for two of them side by side. The garage
+     is a card of its own -- head, tabs, body -- and must not be dealt into the results grid. */
+  .overlay .card .tiles { grid-column: 2; grid-template-columns: 1fr; margin-top: 8px; }
+  #title .card .tiles { grid-template-columns: 1fr; }
+  #garage .card { display: block; max-width: 560px; }
+  #garage .gbody { min-height: 0; }
   .logo { font-size: 34px; }
   .logo .sym { width: 44px; height: 44px; }
 }

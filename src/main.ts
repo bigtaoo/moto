@@ -179,6 +179,11 @@ function backToTitle(): void {
   showTitle();
 }
 
+/** The garage over the card that asked for it; `back` puts that card up again when it closes (3.3.40). */
+function openGarage(acts: ReturnType<typeof shopActions>, back: () => void): void {
+  hud.garage.show(save, { ...acts, close: () => { hud.garage.hide(); back(); } });
+}
+
 function finishRace(): void {
   const w = world;
   if (settled === w) return;
@@ -188,7 +193,10 @@ function finishRace(): void {
   const place = res.place;
   setState('results');
   platform.lifecycle(place <= C.PROMOTE ? 'level_completed' : 'level_failed', { world: w.div.name, level: String(res.league.race) });
-  const show = () => hud.results.show(res, save, { ...shop, double, again: () => nextRace('race_end'), shift: () => nextRace('race_end', true), home: backToTitle });
+  const show = () => hud.results.show(res, save, {
+    garage: () => { hud.results.hide(); openGarage(shop, show); },
+    double, again: () => nextRace('race_end'), shift: () => nextRace('race_end', true), home: backToTitle,
+  });
   const double = () => {
     void platform.showRewarded('double_cash').then((ok) => {
       if (ok && !res.doubled) {
@@ -201,7 +209,7 @@ function finishRace(): void {
       if (state === 'results') show();
     });
   };
-  const shop = shopActions(save, () => show(), (u) => res.ach.push(...u));
+  const shop = shopActions(save, () => hud.garage.redraw(), (u) => res.ach.push(...u));
   if (BOT || moments.score < HIGHLIGHT.min) return show();
   cine = new Highlight(recorder.finish(w), moments.tick, view, hud, (skipped) => {
     cine = null;
@@ -358,6 +366,11 @@ let showStats: ((dt: number) => void) | null = null;
 let bootAch: Unlocked[] = [];
 const showTitle = (): void => drawTitle(save, {
   ach: bootAch, app, onTitle: () => state === 'title',
+  garage: () => {
+    const acts = shopActions(save, () => hud.garage.redraw(), (u) => bootAch = [...bootAch, ...u]);
+    titleEl.classList.add('hidden');
+    openGarage(acts, () => { titleEl.classList.remove('hidden'); showTitle(); });
+  },
   shift: () => { chase = true; newRace(); startRace(); },
   launch: () => { if (!launch) launch = new LaunchMode(stage, view.group, save, app, () => { launch = null; showTitle(); }); },
   opts: () => hud.menu.show(true, menuSettings(save), 'settings'),

@@ -8,6 +8,7 @@ import type { RaceView } from './scene';
 import { BREAK_AT, type Nemesis } from '../career';
 import { Results } from './results';
 import { Menu } from './menu';
+import { Garage } from './garage';
 import { t, money } from '../i18n';
 
 const $ = <T extends HTMLElement = HTMLElement>(root: ParentNode, sel: string) => root.querySelector(sel) as T;
@@ -65,6 +66,8 @@ export class Hud {
   private tellT: number[] = [];
   readonly results: Results;
   readonly menu: Menu;
+  /** Upgrades, rides and looks: reached from the title card and from the results. */
+  readonly garage: Garage;
   readonly pauseBtn: HTMLButtonElement;
   /** The player's sound switch, on every screen. */
   readonly muteBtn: HTMLButtonElement;
@@ -101,6 +104,7 @@ export class Hud {
         <button class="taunt"></button>
       </div>
       <div id="results" class="overlay hidden"><div class="card"></div></div>
+      <div id="garage" class="overlay hidden"><div class="card"></div></div>
       <div id="paused" class="overlay hidden"><div class="card small"></div></div>
     `);
     this.root = $(host, '#hud');
@@ -124,6 +128,7 @@ export class Hud {
     this.tauntBtn = $(this.root, '.taunt');
     this.results = new Results($(host, '#results'));
     this.menu = new Menu($(host, '#paused'));
+    this.garage = new Garage($(host, '#garage'));
     this.pauseBtn = $(this.root, '.pausebtn');
     this.muteBtn = host.appendChild(document.createElement('button'));
     this.muteBtn.className = 'mutebtn';
@@ -141,6 +146,7 @@ export class Hud {
     this.tauntBtn.textContent = DESKTOP ? `${t('taunt')} [T]` : t('taunt');
     this.setSound(!this.soundOff);
     this.menu.localize();
+    this.garage.redraw();
   }
 
   /** Show the sound switch as on or off. */

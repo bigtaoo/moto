@@ -1,8 +1,10 @@
-// The title screen for a returning player: what to go for next (the next ride, the nemesis) and today's
-// challenges, so the first thing they see is a reason to race.
+// The title screen for a returning player: where they stand, a grid of places to go (the garage, the side
+// games, the board, the settings) and, folded away under it, today's challenges and the achievements.
+// Before 3.3.40 it was one long column of everything, 783 px of it on a 719 px phone.
 
 import { icon } from './icons';
-import { dailyHtml, rideName } from './results';
+import { dailyHtml } from './results';
+import { garageButton, rideName } from './garage';
 import { VEHICLES, DIVISIONS, stage } from '../sim/config';
 import type { Save } from '../meta';
 import { BREAK_AT, riderName, rideState } from '../career';
@@ -60,10 +62,20 @@ export function achHtml(save: Save, fresh: Unlocked[]): string {
   return `<details class="achs"${fresh.length ? ' open' : ''}><summary>${t('achievements', { n: save.ach.length, m: ACHIEVEMENTS.length })}</summary>${items}</details>`;
 }
 
+/** Today's challenges, folded away: the summary carries how many of them are done. */
+function dailyFold(save: Save): string {
+  const rs = rows(save.daily);
+  const mult = dayMult(stage(save.div, save.tier, save.endless).prize);
+  const win = save.daily.won ? '' : `<div class="dc"><span>${t('firstWin')}</span><b>+${money(Math.round(FIRST_WIN_PAY * mult))}</b></div>`;
+  const done = rs.filter((r) => r.done).length;
+  return `<details class="achs"><summary>${t('daily')} ${done}/${rs.length}</summary>${dailyHtml(rs, [], 0, win)}</details>`;
+}
+
 /** The returning player's goals, as HTML for the title card; `ad`: the streak's doubling ad is on offer. */
 export function titleInfo(save: Save, fresh: Unlocked[] = [], ad = false): string {
   if (save.races === 0) return '';
-  const mult = dayMult(stage(save.div, save.tier, save.endless).prize);
-  const win = save.daily.won ? '' : `<div class="dc"><span>${t('firstWin')}</span><b>+${money(Math.round(FIRST_WIN_PAY * mult))}</b></div>`;
-  return streak(save, ad) + (shiftOpen(save) ? shiftButton(save, 'shift shiftgo') : '') + launchButton(save) + nextRide(save) + nemesis(save) + dailyHtml(rows(save.daily), [], 0, win) + achHtml(save, fresh) + boardButton() + optsButton();
+  // where they stand, then where they can go: one tap each, instead of a column to scroll through
+  const tiles = garageButton(save) + (shiftOpen(save) ? shiftButton(save, 'shift shiftgo') : '') + launchButton(save) + boardButton() + optsButton();
+  return streak(save, ad) + nextRide(save) + nemesis(save)
+    + `<div class="tiles">${tiles}</div>` + dailyFold(save) + achHtml(save, fresh);
 }
