@@ -10,7 +10,7 @@ import { RaceView } from './view/scene';
 import { Stage } from './view/stage';
 import { Controls, DESKTOP, keysReach } from './view/input';
 import { Hud } from './view/hud';
-import { titleInfo } from './view/title';
+import { drawTitle } from './view/titleCard';
 import { sfx, unlockAudio, hold, setMuted, setChannel, music, raceTrack, shiftTrack, preloadAudio } from './view/audio';
 import { installIconCss } from './view/icons';
 import { statsOverlay } from './view/stats';
@@ -28,10 +28,9 @@ import { setLang, t } from './i18n';
 import { setHaptics } from './haptics';
 import { MOTION, setCalm } from './view/motion';
 import { PAINTS, HATS } from './shop';
-import { shopActions, counted, streakDouble } from './shopping';
+import { shopActions, counted } from './shopping';
 import { settleShift } from './shift';
 import { blocker } from './view/blocker';
-import { wireBoard } from './view/board';
 import { unlock, visit, dayMult, type Unlocked } from './rewards';
 
 const params = new URLSearchParams(location.search);
@@ -175,6 +174,18 @@ function nextRace(placement: string, shift = false): void {
   tele.raceStart(world);
 }
 
+/** Out of a race or the results and back to the title card (3.3.33: nothing ever went back, so the launch
+ * game, the achievements, the board and the streak's ad all sat where a reload was the only way to them). */
+function backToTitle(): void {
+  if (state === 'title' || launch) return;
+  setPaused(false);
+  chase = false;
+  newRace(); // the next race waits behind the card, as it does on a boot
+  setState('title');
+  titleEl.classList.remove('hidden');
+  showTitle();
+}
+
 function finishRace(): void {
   const w = world;
   if (settled === w) return;
@@ -184,7 +195,7 @@ function finishRace(): void {
   const place = res.place;
   setState('results');
   platform.lifecycle(place <= C.PROMOTE ? 'level_completed' : 'level_failed', { world: w.div.name, level: String(res.league.race) });
-  const show = () => hud.results.show(res, save, { ...shop, double, again: () => nextRace('race_end'), shift: () => nextRace('race_end', true) });
+  const show = () => hud.results.show(res, save, { ...shop, double, again: () => nextRace('race_end'), shift: () => nextRace('race_end', true), home: backToTitle });
   const double = () => {
     void platform.showRewarded('double_cash').then((ok) => {
       if (ok && !res.doubled) {
@@ -214,7 +225,7 @@ function finishShift(w: World): void {
   storeSave(save);
   funnel.event('shift_end', { caught: r.caught, of: r.of, cash: r.earned, n: shifts });
   setState('results');
-  hud.results.showShift(r, save, { again: () => nextRace('shift_end'), shift: () => nextRace('shift_end', true) });
+  hud.results.showShift(r, save, { again: () => nextRace('shift_end'), shift: () => nextRace('shift_end', true), home: backToTitle });
 }
 
 function tick(): void {
@@ -232,6 +243,7 @@ function tick(): void {
     inp.taunt = controls.taunt;
     controls.taunt = false;
   } else {
+    inp.targetX = null; // a finger left on the screen when the race ended must not steer the results away
     inp.steer = 0;
     inp.brake = false;
     inp.attack = false;
@@ -310,6 +322,7 @@ hud.menu.on = {
   haptics: (on) => { save.hapticsOff = !on; setHaptics(on); setting('haptics', on); },
   shake: (on) => { save.calm = !on; setCalm(save.calm); setting('shake', on); },
   quality: (q) => { save.quality = q; stage.setQualityMode(q); setting('quality', q); },
+  home: backToTitle,
 };
 
 /** "Back on now": a rewarded ad puts a downed player straight back on the scooter, once a race. */
@@ -404,27 +417,13 @@ function frame(now: number): void {
 
 let showStats: ((dt: number) => void) | null = null;
 
-/** The title card for a returning player: where they stand, and what to go for. */
-function showTitle(): void {
-  const best = document.getElementById('best');
-  if (best && save.races > 0) {
-    best.textContent = t('best', { div: C.stage(save.div, save.tier, save.endless).name, n: save.cup.race + 1, m: CUP_RACES, cash: save.cash }) + (save.titles ? t('champs', { n: save.titles }) : '');
-  }
-  const info = document.getElementById('titleinfo');
-  if (!info) return;
-  const ad = !save.streak.doubled && save.streak.pay > 0 && save.streak.day === today() && platform.rewardedReady();
-  info.innerHTML = titleInfo(save, bootAch, ad);
-  if (ad) tele.adOffer('streak_double');
-  const x2 = info.querySelector<HTMLButtonElement>('.x2');
-  if (x2) streakDouble(save, x2, () => { if (state === 'title') showTitle(); });
-  const sh = info.querySelector<HTMLButtonElement>('.shiftgo');
-  if (sh) sh.onclick = () => { if (state !== 'title') return; chase = true; newRace(); startRace(); };
-  const lg = info.querySelector<HTMLButtonElement>('.launchgo');
-  if (lg) lg.onclick = () => { if (state === 'title' && !launch) launch = new LaunchMode(stage, view.group, save, app, () => { launch = null; showTitle(); }); };
-  wireBoard(info, app);
-}
 /** Achievements the boot found won (an older save, a long streak): marked new on the title card. */
 let bootAch: Unlocked[] = [];
+const showTitle = (): void => drawTitle(save, {
+  ach: bootAch, app, onTitle: () => state === 'title',
+  shift: () => { chase = true; newRace(); startRace(); },
+  launch: () => { if (!launch) launch = new LaunchMode(stage, view.group, save, app, () => { launch = null; showTitle(); }); },
+});
 
 async function boot(): Promise<void> {
   await platform.initPlatform();

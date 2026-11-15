@@ -69,12 +69,15 @@ export interface ResultActions {
   again: () => void;
   /** A security shift instead of the next race (offered once they are open). */
   shift: () => void;
+  /** Back to the title card, where the launch game, the board and the achievements live. */
+  home: () => void;
 }
 
 /** A finished shift's buttons: back to the cup, or another shift. */
 export interface ShiftActions {
   again: () => void;
   shift: () => void;
+  home: () => void;
 }
 
 /** The secondary button that starts a security shift. */
@@ -155,7 +158,8 @@ export class Results {
     const guard = (f: () => void) => () => { if (this.armed) f(); };
     this.again = on.again;
     (card.querySelector('.again') as HTMLButtonElement).onclick = guard(on.again);
-    (card.querySelector('.shift') as HTMLButtonElement).onclick = guard(on.shift);
+    (card.querySelector('.shift:not(.home)') as HTMLButtonElement).onclick = guard(on.shift);
+    (card.querySelector('.home') as HTMLButtonElement).onclick = guard(on.home);
     this.el.classList.remove('hidden');
   }
 
@@ -205,15 +209,18 @@ export class Results {
       <div class="cashline">${t('cash')} <b>${money(save.cash)}</b></div>
       <div class="ups">${ups}${n >= NEW.garage ? garageHtml(save) : ''}${n >= NEW.shop ? shopHtml(save) : ''}</div>
       <button class="primary again">${againLabel(res.league)}</button>
-      ${shiftOpen(save) ? shiftButton(save) : ''}`;
+      ${shiftOpen(save) ? shiftButton(save) : ''}
+      ${n >= NEW.home ? `<button class="shift home">${t('toMenu')}</button>` : ''}`;
     const guard = (f: () => void) => () => { if (this.armed) f(); };
     card.querySelectorAll<HTMLButtonElement>('.up button').forEach((b) => { b.onclick = guard(() => on.buy(b.dataset.k as UpKey)); });
     card.querySelectorAll<HTMLButtonElement>('.ride').forEach((b) => { b.onclick = guard(() => on.ride(Number(b.dataset.v))); });
     bindShop(card, guard, on);
     this.again = on.again;
     (card.querySelector('.again') as HTMLButtonElement).onclick = guard(on.again);
-    const sh = card.querySelector<HTMLButtonElement>('.shift');
+    const sh = card.querySelector<HTMLButtonElement>('.shift:not(.home)');
     if (sh) sh.onclick = guard(on.shift);
+    const hm = card.querySelector<HTMLButtonElement>('.home');
+    if (hm) hm.onclick = guard(on.home);
     const dbl = card.querySelector<HTMLButtonElement>('.double');
     if (dbl) dbl.onclick = guard(() => { dbl.disabled = true; on.double(); });
     this.el.classList.remove('hidden');
@@ -232,11 +239,12 @@ export function shiftHtml(r: ShiftResult, save: Save): string {
     </div>
     <div class="cashline">${t('cash')} <b>${money(save.cash)}</b></div>
     <button class="primary again">${t('backToCup')}</button>
-    ${shiftButton(save)}`;
+    ${shiftButton(save)}
+    <button class="shift home">${t('toMenu')}</button>`;
 }
 
 /** From which race's results each part of the card shows (a new player's first results stay short). */
-export const NEW = { daily: 2, garage: 2, shop: 3 };
+export const NEW = { daily: 2, garage: 2, shop: 3, home: 2 };
 
 /** The rides: the one being ridden, the others owned, the next to buy, and what is still locked. */
 function garageHtml(save: Save): string {

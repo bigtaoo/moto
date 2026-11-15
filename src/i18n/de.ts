@@ -181,6 +181,7 @@ export const DE: Table = {
   shiftCaught: "{n} von {m} geschnappt",
   shiftSweep: "Alle erwischt",
   backToCup: "Zurück zum Cup",
+  toMenu: "Hauptmenü",
   board: "Top-Raufbolde",
   boardTitle: "Meiste Takedowns",
   boardEmpty: "Noch keine Einträge. Sei der Erste!",

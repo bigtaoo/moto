@@ -60,16 +60,16 @@ describe('nemesis', () => {
     return r;
   };
 
-  it('builds bad blood from knockdowns and beating the player home, and names a nemesis', () => {
+  it('builds bad blood from every tangle, either way, and names a nemesis', () => {
     const f = newFeud();
     let out = settleFeud(f, race({ ko: [[3, 2]] }), 1); // 2 KOs (+4), finished ahead (+1)
     expect(f.beef[3]).toBe(5);
     expect(out.fresh).toBeNull();
-    out = settleFeud(f, race({ ko: [[3, 1]], by: [[2, 1]] }), 1);
+    out = settleFeud(f, race({ ko: [[3, 3]], by: [[3, 2]] }), 1); // +6 ahead +1, and +2 for the player's own
     expect(out.fresh).toBe(3);
     expect(f.nemesis).toEqual({ id: 3, hurt: 0, paid: 0 });
     expect(f.beef[3]).toBe(0);
-    expect(f.beef[2]).toBe(1); // ahead +1 twice, knocked off once
+    expect(f.beef[2]).toBe(2); // ahead of the player twice, never in a fight with them
   });
 
   it('pays revenge and beating them home, and breaks them after BREAK_AT', () => {
@@ -95,10 +95,10 @@ describe('nemesis', () => {
     expect(settleFeud(f, race({}), 1).fresh).toBe(1);
   });
 
-  it('never lets bad blood go below zero', () => {
+  it("counts the player's own knockdowns as bad blood instead of cancelling it out", () => {
     const f = newFeud();
     settleFeud(f, race({ by: [[5, 3]], places: [1, 2, 3, 4, 5, 6, 7, 8] }), 1);
-    expect(f.beef[5]).toBe(0);
+    expect(f.beef[5]).toBe(3); // three knockdowns given, none taken, home first: still a rivalry
   });
 });
 

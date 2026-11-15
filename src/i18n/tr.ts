@@ -181,6 +181,7 @@ export const TR: Table = {
   shiftCaught: "{m} kaçaktan {n} yakalandı",
   shiftSweep: "Hepsi yakalandı",
   backToCup: "Kupaya dön",
+  toMenu: "Ana menü",
   board: "En iyi kavgacılar",
   boardTitle: "En çok düşüren",
   boardEmpty: "Henüz skor yok. İlk sen ol!",

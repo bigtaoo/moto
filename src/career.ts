@@ -192,18 +192,21 @@ export function chooseRide(save: Save, v: number): boolean {
 }
 
 // ---- the nemesis -------------------------------------------------------------------------------
-// Every rival keeps a tally of bad blood with the player: knocking them off and beating them home add
-// to it, being knocked off takes it down. The first to reach NEMESIS_AT becomes the player's nemesis
+// Every rival keeps a tally of bad blood with the player: knocking the player off counts double, beating
+// them home or being knocked off by them counts one. The bad blood is mutual, so nothing takes it down --
+// until 3.3.33 the player's own knockdowns cancelled it out, so a player who fought well never earned a
+// nemesis at all (scripts/career.ts: the first appeared at race 62-76 of an 80-96 race career, and most
+// players quit long before that). The first to reach NEMESIS_AT becomes the player's nemesis
 // (one at a time): faster and keener in every race (C.NEMESIS), and worth a bounty each time the
 // player knocks them off. Beating them outright in a race (knocking them off and finishing ahead) BREAK_AT
 // times breaks them for good.
 
-export const NEMESIS_AT = 6;
+export const NEMESIS_AT = 14;
 export const BREAK_AT = 3;
 /** Cash, times the division's prize multiplier: per revenge KO, for beating them home, for breaking them. */
-export const REVENGE_PAY = 150;
-export const AHEAD_PAY = 100;
-export const BREAK_PAY = 500;
+export const REVENGE_PAY = 60;
+export const AHEAD_PAY = 50;
+export const BREAK_PAY = 300;
 
 export interface Nemesis {
   id: number;
@@ -269,7 +272,7 @@ export function settleFeud(f: Feud, r: RaceFeud, prizeMul: number): FeudOutcome 
     const place = r.places[id] ?? 0;
     if (!place && !r.koPlayer[id] && !r.koByPlayer[id]) continue;
     const beat = place > 0 && place < me ? 1 : 0;
-    f.beef[id] = Math.max(0, f.beef[id] + (r.koPlayer[id] ?? 0) * 2 + beat - (r.koByPlayer[id] ?? 0));
+    f.beef[id] = f.beef[id] + (r.koPlayer[id] ?? 0) * 2 + beat + (r.koByPlayer[id] ?? 0);
   }
   if (!f.nemesis && !out.broken) {
     let best = 0;

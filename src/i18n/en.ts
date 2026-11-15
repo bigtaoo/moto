@@ -186,6 +186,7 @@ export const EN = {
   shiftCaught: "Caught {n} of {m}",
   shiftSweep: "Clean sweep",
   backToCup: "Back to the cup",
+  toMenu: 'Main menu',
   board: "Top brawlers",
   boardTitle: "Most takedowns",
   boardEmpty: "No scores yet. Be the first!",

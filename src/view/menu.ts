@@ -17,6 +17,8 @@ export interface MenuActions {
   haptics: (on: boolean) => void;
   shake: (on: boolean) => void;
   quality: (q: QualityMode) => void;
+  /** Leave the race and go back to the title card. */
+  home: () => void;
 }
 
 const QUALITIES: QualityMode[] = ['auto', 'low', 'high'];
@@ -24,7 +26,7 @@ const Q_NAMES: Record<QualityMode, Key> = { auto: 'qAuto', low: 'qLow', high: 'q
 
 export class Menu {
   /** Set by the game; the menu calls these. */
-  on: MenuActions = { resume() {}, restart() {}, music() {}, sfx() {}, haptics() {}, shake() {}, quality() {} };
+  on: MenuActions = { resume() {}, restart() {}, music() {}, sfx() {}, haptics() {}, shake() {}, quality() {}, home() {} };
   private settings: MenuSettings = { music: true, sfx: true, haptics: true, quality: 'auto', shake: true };
   private help = false;
 
@@ -61,6 +63,7 @@ export class Menu {
       case 'haptics': s.haptics = !s.haptics; this.on.haptics(s.haptics); break;
       case 'shake': s.shake = !s.shake; this.on.shake(s.shake); break;
       case 'quality': s.quality = QUALITIES[(QUALITIES.indexOf(s.quality) + 1) % QUALITIES.length]; this.on.quality(s.quality); break;
+      case 'home': this.on.home(); return;
       case 'help': this.help = true; break;
       case 'back': this.help = false; break;
     }
@@ -89,6 +92,7 @@ export class Menu {
         ${sw('quality', t('graphics'), t(Q_NAMES[s.quality]))}
         <button class="opt" data-a="help"><span>${t('howTo')}</span><b>?</b></button>
         <button class="opt" data-a="restart"><span>${t('restart')}</span><b>${icon('left')}</b></button>
+        <button class="opt" data-a="home"><span>${t('toMenu')}</span><b>${icon('left')}</b></button>
       </div>`;
   }
 }

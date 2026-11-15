@@ -181,6 +181,7 @@ export const PT: Table = {
   shiftCaught: "Apanhados {n} de {m}",
   shiftSweep: "Limpeza total",
   backToCup: "Voltar à taça",
+  toMenu: "Menu principal",
   board: "Melhores brigões",
   boardTitle: "Mais derrubadas",
   boardEmpty: "Ainda sem pontuações. Sê o primeiro!",

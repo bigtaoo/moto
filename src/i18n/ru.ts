@@ -181,6 +181,7 @@ export const RU: Table = {
   shiftCaught: "Поймано {n} из {m}",
   shiftSweep: "Все пойманы",
   backToCup: "Назад к кубку",
+  toMenu: "Главное меню",
   board: "Лучшие драчуны",
   boardTitle: "Больше всех сбитых",
   boardEmpty: "Пока пусто. Будь первым!",
