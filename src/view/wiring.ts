@@ -7,7 +7,7 @@ import { setCalm, MOTION } from './motion';
 import { setHaptics } from '../haptics';
 import * as funnel from '../funnel';
 import { storeSave, type Save } from '../meta';
-import { setLang, resolve } from '../i18n';
+import { loadLang, resolve } from '../i18n';
 import * as platform from '../platform';
 import type { Hud } from './hud';
 import type { Controls } from './input';
@@ -53,7 +53,8 @@ export function wireMenu(w: Wiring): void {
     haptics: (on) => { w.save().hapticsOff = !on; setHaptics(on); set('haptics', on); },
     shake: (on) => { w.save().calm = !on; setCalm(w.save().calm); set('shake', on); },
     quality: (q) => { w.save().quality = q; w.stage()?.setQualityMode(q); set('quality', q); },
-    lang: (l) => { w.save().lang = l; setLang(l ?? platform.language()); set('lang', l ?? 'auto'); w.relocalize(); },
+    // the words arrive in their own chunk, so the screens redraw once it is here (3.3.39)
+    lang: (l) => { w.save().lang = l; set('lang', l ?? 'auto'); void loadLang(l ?? platform.language()).then(() => w.relocalize()); },
     home: w.home,
   };
 }

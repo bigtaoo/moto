@@ -8,7 +8,7 @@ import { newCup, newFeud, GATE_AT, type Cup, type Feud } from './career';
 import { saveData } from './platform';
 import { readDaily, today, type Daily } from './daily';
 import type { QualityMode } from './view/quality';
-import { LANGS, type Lang } from './i18n';
+import { isLang, type Lang } from './i18n';
 import { newStreak, ACH_IDS, type Streak, type Life } from './rewards';
 
 export interface Save {
@@ -133,7 +133,7 @@ const fresh: Save = {
       sfxOff: s.sfxOff === true,
       hapticsOff: s.hapticsOff === true,
       quality: s.quality === 'low' || s.quality === 'high' ? s.quality : 'auto',
-      lang: typeof s.lang === 'string' && s.lang in LANGS ? (s.lang as Lang) : null,
+      lang: isLang(s.lang) ? s.lang : null,
       calm: typeof s.calm === 'boolean' ? s.calm : null,
       daily: readDaily(s.daily, today()),
       streak: { day: count(s.streak?.day), n: count(s.streak?.n), pay: count(s.streak?.pay), doubled: s.streak?.doubled === true },

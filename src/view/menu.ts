@@ -7,7 +7,7 @@ import { DESKTOP } from './input';
 import { CAN_BUZZ } from '../haptics';
 import type { QualityMode } from './quality';
 import { CUP_RACES } from '../career';
-import { t, NATIVE, LANGS, type Key, type Lang } from '../i18n';
+import { t, NATIVE, CODES, isLang, type Key, type Lang } from '../i18n';
 
 export interface MenuSettings { music: boolean; sfx: boolean; haptics: boolean; quality: QualityMode; shake: boolean; lang: Lang | null; auto: Lang; }
 
@@ -26,7 +26,7 @@ export interface MenuActions {
 }
 
 const QUALITIES: QualityMode[] = ['auto', 'low', 'high'];
-const CODES = Object.keys(LANGS) as Lang[];
+
 const Q_NAMES: Record<QualityMode, Key> = { auto: 'qAuto', low: 'qLow', high: 'qHigh' };
 
 export class Menu {
@@ -79,7 +79,7 @@ export class Menu {
       default:
         if (a.startsWith('l:')) {
           const c = a.slice(2);
-          s.lang = (CODES.includes(c as Lang) ? c : null) as Lang | null;
+          s.lang = isLang(c) ? c : null;
           this.on.lang(s.lang);
           break;
         }
@@ -99,7 +99,7 @@ export class Menu {
       card.innerHTML = `<h2>${t('language')}</h2>
         <div class="opts langs">
           ${sw('l:', t('langAuto'), s.auto.toUpperCase(), cur === null)}
-          ${CODES.map((c) => sw(`l:${c}`, NATIVE[c], c.toUpperCase(), cur === c)).join('')}
+          ${CODES.map((c) => sw(`l:${c}`, NATIVE[c], '', cur === c)).join('')}
         </div>
         <button class="primary" data-a="back">${icon('left')} ${t('back')}</button>`;
       return;

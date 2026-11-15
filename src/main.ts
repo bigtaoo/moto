@@ -25,7 +25,7 @@ import { Moments, Highlight, HIGHLIGHT } from './highlight';
 import { LaunchMode } from './launchMode';
 import { today } from './daily';
 import * as platform from './platform';
-import { setLang, t } from './i18n';
+import { setLang, loadLang, t } from './i18n';
 import { setHaptics } from './haptics';
 import { MOTION, setCalm } from './view/motion';
 import { PAINTS, HATS } from './shop';
@@ -366,10 +366,9 @@ const showTitle = (): void => drawTitle(save, {
 async function boot(): Promise<void> {
   await platform.initPlatform();
   tele.bootMark('bridge');
-  if (!params.has('lang')) {
-    setLang(platform.language());
-    localize();
-  }
+  // the language's words are their own chunk (3.3.39): fetch it before the first screen is drawn
+  await loadLang(params.get('lang') ?? platform.language());
+  localize();
   try {
     stage = new Stage(canvas);
   } catch (e) {
@@ -390,7 +389,7 @@ async function boot(): Promise<void> {
   const read = await platform.loadData();
   save = parseSave(read.data);
   // the player's own pick beats the platform's language; ?lang=xx beats both (3.3.38)
-  if (save.lang && !params.has('lang')) { setLang(save.lang); localize(); }
+  if (save.lang && !params.has('lang')) { await loadLang(save.lang); localize(); }
   tele.bootMark('save');
   tele.begin(save, canvas, () => stage.tier);
   stage.setQualityMode(save.quality);
