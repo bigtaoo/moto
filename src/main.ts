@@ -11,6 +11,7 @@ import { Stage } from './view/stage';
 import { Controls, DESKTOP, keysReach } from './view/input';
 import { Hud } from './view/hud';
 import { drawTitle } from './view/titleCard';
+import { wireMenu, wireChrome, menuSettings, type Wiring } from './view/wiring';
 import { sfx, unlockAudio, hold, setMuted, setChannel, music, raceTrack, shiftTrack, preloadAudio } from './view/audio';
 import { installIconCss } from './view/icons';
 import { statsOverlay } from './view/stats';
@@ -282,7 +283,7 @@ function setPaused(on: boolean): void {
   if (state !== 'race' || paused === on) return;
   paused = on;
   if (on && !document.hidden) tele.paused();
-  hud.menu.show(on, { music: !save.musicOff, sfx: !save.sfxOff, haptics: !save.hapticsOff, quality: save.quality, shake: !MOTION.calm });
+  hud.menu.show(on, menuSettings(save));
   hold('pause', on);
 }
 
@@ -292,22 +293,21 @@ platform.host.onPause = (on) => {
 };
 platform.host.onAudio = (on) => setMuted('host', !on);
 
-/** A pause-menu setting changed: into the save and the analytics. */
-function setting(name: string, value: string | boolean): void {
-  storeSave(save);
-  funnel.event('settings_changed', { setting: name, value });
-}
-
 /** The player's own sound switch, kept in the save. */
 function toggleSound(): void {
   save.muted = !save.muted;
   setMuted('player', save.muted);
   hud.setSound(!save.muted);
-  setting('sound', !save.muted);
+  storeSave(save);
+  funnel.event('settings_changed', { setting: 'sound', value: !save.muted });
 }
 
-hud.menu.on = {
-  resume: () => setPaused(false),
+/** Everything the pause menu and the page chrome reach back into (src/view/wiring.ts). */
+const wiring: Wiring = {
+  save: () => save, hud, controls, stage: () => stage, titleEl,
+  at: () => state, paused: () => paused, setPaused, home: () => backToTitle(), start: () => startRace(),
+  toggleSound: () => { if (save) toggleSound(); },
+  remount: () => remount(),
   restart: () => {
     if (state !== 'race') return;
     if (!world.chase) {
@@ -317,13 +317,8 @@ hud.menu.on = {
     setPaused(false);
     nextRace('restart', world.chase);
   },
-  music: (on) => { save.musicOff = !on; setChannel('music', on); setting('music', on); },
-  sfx: (on) => { save.sfxOff = !on; setChannel('sfx', on); setting('sfx', on); },
-  haptics: (on) => { save.hapticsOff = !on; setHaptics(on); setting('haptics', on); },
-  shake: (on) => { save.calm = !on; setCalm(save.calm); setting('shake', on); },
-  quality: (q) => { save.quality = q; stage.setQualityMode(q); setting('quality', q); },
-  home: backToTitle,
 };
+wireMenu(wiring);
 
 /** "Back on now": a rewarded ad puts a downed player straight back on the scooter, once a race. */
 function remount(): void {
@@ -342,36 +337,7 @@ function remount(): void {
 }
 
 
-controls.onPause = () => setPaused(!paused);
-controls.onAny = () => { unlockAudio(); funnel.input(); };
-// any first tap or key unlocks sound (iOS wants it in the gesture's own handler, which may be the release)
-for (const ev of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) document.addEventListener(ev, () => { unlockAudio(); funnel.input(); }, true);
-document.addEventListener('click', (e) => { if ((e.target as Element).closest?.('button')) sfx.click(); });
-// Enter or Space: start from the title, go on from the results (a focused button takes its own key)
-document.addEventListener('keydown', (e) => {
-  if (e.repeat || (e.key !== 'Enter' && e.key !== ' ')) return;
-  const b = (e.target as Element).closest?.('button');
-  if (b) { if (e.key === ' ') b.click(); return; }
-  if (state === 'title' && !titleEl.classList.contains('hidden')) startRace();
-  else if (state === 'results') hud.results.continue();
-  else return;
-  e.preventDefault();
-});
-hud.muteBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
-hud.muteBtn.addEventListener('click', () => { if (save) toggleSound(); });
-hud.pauseBtn.addEventListener('click', () => setPaused(true));
-// a click, not a press: a finger steering across the screen when the button comes up doesn't buy an ad
-hud.remountBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
-hud.remountBtn.addEventListener('click', remount);
-for (const ev of ['pointerdown', 'pointerup'] as const) hud.tauntBtn.addEventListener(ev, (e) => e.stopPropagation());
-hud.tauntBtn.addEventListener('pointerdown', () => { controls.taunt = true; });
-// a hidden page is silent whatever screen it is on, and a race pauses
-document.addEventListener('visibilitychange', () => {
-  hold('hidden', document.hidden);
-  if (document.hidden) setPaused(true);
-});
-titleEl.querySelector('button')!.addEventListener('click', startRace);
-window.addEventListener('resize', () => { stage?.resize(); hud.resize(); });
+wireChrome(wiring);
 
 let lastT = performance.now();
 function frame(now: number): void {

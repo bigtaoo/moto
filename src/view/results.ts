@@ -286,10 +286,12 @@ function leagueHtml(l: League): string {
     `<div class="st ${r.me ? 'me' : ''} ${r.rank <= 3 ? 'up' : ''}"><span>${r.rank}. ${r.name}</span><b>${r.pts}</b></div>`).join('');
   const e = l.end;
   const bonus = e?.bonus ? ` +${money(e.bonus)}` : '';
+  // the last division promotes nobody, so "top 3 go up" would be a lie there: say what it really takes
   const head = e
-    ? e.champion ? `<div class="cupend win">${t('champion', { n: e.bonus })}</div>`
+    ? e.onGate ? `<div class="cupend win">${t('through', { o: ord(e.rank), n: e.bonus })}</div>`
+      : e.champion ? `<div class="cupend win">${t('champion', { n: e.bonus })}</div>`
       : e.promoted ? `<div class="cupend win">${t('promoted', { o: ord(e.rank) })}${bonus}</div>`
-      : `<div class="cupend">${t('cupRank', { o: ord(e.rank) })}${bonus} · ${t('top3')}</div>`
+      : `<div class="cupend">${t('cupRank', { o: ord(e.rank) })}${bonus} · ${t(e.last ? (e.gateNext ? 'topAgain' : 'topWin') : 'top3')}</div>`
     : '';
   return `<div class="cup"><div class="cuphead">${t('cupHead', { div: l.div })} · ${e ? t('final') : t('raceN', { n: l.race, m: l.races })}</div>${head}${rows}</div>`;
 }

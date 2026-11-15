@@ -1,9 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { newCup, scoreRace, standings, cupOver, endCup, CUP_RACES, POINTS, CUP_BONUS, newFeud, settleFeud, REVENGE_PAY, AHEAD_PAY, BREAK_PAY, settleRace, buyUpgrade, upgradePrice, upgradeLock, rideState, chooseRide, type RaceSummary } from './career';
+import { newCup, scoreRace, standings, cupOver, endCup, GATE_AT, CUP_RACES, POINTS, CUP_BONUS, newFeud, settleFeud, REVENGE_PAY, AHEAD_PAY, BREAK_PAY, settleRace, buyUpgrade, upgradePrice, upgradeLock, rideState, chooseRide, type RaceSummary } from './career';
 import { parseSave } from './meta';
 import { PAINTS, HATS, HAT_PRICE, PAINT_TIER, HAT_TIER, choosePaint, chooseHat, wearState, buyCarry, carryPrice } from './shop';
 import { World } from './sim/world';
 import * as C from './sim/config';
+
+/** One race as the career settles it: the player in `place`, nothing else going on. */
+const raceSummary = (place: number, extra: Partial<RaceSummary> = {}): RaceSummary => ({
+  place, kos: 0, grudgeKos: 0, shoves: 0, nearPay: 0, chainPay: 0, fines: 0, grudges: [], places: places(place),
+  koPlayer: Array(C.ROSTER.length + 1).fill(0), koByPlayer: Array(C.ROSTER.length + 1).fill(0), ...extra,
+});
 
 /** Places for the player and the roster: the player at `me`, the rivals filling the rest in id order. */
 function places(me: number): number[] {
@@ -48,6 +54,41 @@ describe('career cup', () => {
     const e = endCup(cup, C.DIVISIONS.length - 1);
     expect(e).toMatchObject({ rank: 1, promoted: false, champion: true });
     expect(standings(cup)[0].id).toBe(0);
+  });
+
+  it('lets the second top-three cup in a row through the top division', () => {
+    const last = C.DIVISIONS.length - 1;
+    const near = () => { const c = newCup(); for (let i = 0; i < CUP_RACES; i++) scoreRace(c, places(2)); return c; };
+
+    // first near miss: no title, but it is remembered
+    const a = endCup(near(), last, 0, 0, 0);
+    expect(a).toMatchObject({ champion: false, promoted: false, last: true, onGate: false, gateNext: 1 });
+    expect(a.rank).toBeGreaterThan(1);
+
+    // second in a row: through, and the counter starts over
+    const b = endCup(near(), last, 0, 0, a.gateNext);
+    expect(b).toMatchObject({ champion: true, onGate: true, gateNext: 0 });
+    expect(GATE_AT).toBe(2);
+  });
+
+  it('forgets the near miss when the player drops out of the top three', () => {
+    const last = C.DIVISIONS.length - 1;
+    const off = newCup();
+    for (let i = 0; i < CUP_RACES; i++) scoreRace(off, places(6));
+    const e = endCup(off, last, 0, 0, 1);
+    expect(e).toMatchObject({ champion: false, onGate: false, gateNext: 0 });
+  });
+
+  it('carries the near miss through the save, and a won cup clears it', () => {
+    const save = parseSave(null);
+    save.div = C.DIVISIONS.length - 1;
+    expect(save.gate).toBe(0);
+    for (let i = 0; i < CUP_RACES; i++) settleRace(save, raceSummary(2));
+    expect(save.gate).toBe(1);
+    expect(save.tier).toBe(0);
+    for (let i = 0; i < CUP_RACES; i++) settleRace(save, raceSummary(2));
+    expect(save.gate).toBe(0);
+    expect(save.tier).toBe(1); // through to the next season on the second top-three cup
   });
 });
 
@@ -103,10 +144,7 @@ describe('nemesis', () => {
 });
 
 describe('career settlement, seasons and the garage', () => {
-  const summary = (place: number, extra: Partial<RaceSummary> = {}): RaceSummary => ({
-    place, kos: 0, grudgeKos: 0, shoves: 0, nearPay: 0, chainPay: 0, fines: 0, grudges: [], places: places(place),
-    koPlayer: Array(C.ROSTER.length + 1).fill(0), koByPlayer: Array(C.ROSTER.length + 1).fill(0), ...extra,
-  });
+  const summary = raceSummary;
 
   it('pays the race at the stage purse and moves the cup on', () => {
     const save = parseSave(null);

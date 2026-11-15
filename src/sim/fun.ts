@@ -16,7 +16,10 @@ export const BOWL = { slide: 3.2, minSpeed: 4, x: 1.05, z: 1.5, pay: 40, max: 3 
 export const OIL = { back: 2.5, halfW: 1.0, halfZ: 0.9, grace: 60, life: 900, kick: 4 };
 
 /** Right after the player puts someone down they have `ticks` ticks to taunt: it pays, and costs pace. */
-export const TAUNT = { ticks: 30, pay: 30, slow: 0.86, show: 24 };
+// 3.3.34: a one-second window for $30 -- half a knockdown -- at the cost of 14% of top speed was a deal
+// nobody took, on a button that sits away from the steering thumb. Two seconds, three knockdowns' worth,
+// and a lighter brake on the pace: now it is worth reaching for.
+export const TAUNT = { ticks: 60, pay: 90, slow: 0.93, show: 48 };
 
 /**
  * The boss of the cup's last race: one rival, bigger and armoured. Every blow on it does one damage (a full

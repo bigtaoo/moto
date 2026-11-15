@@ -55,16 +55,32 @@ export interface CupEnd {
   /** Champion of a tier with another after it: on to the next season, back at the first division. */
   nextTier: boolean;
   bonus: number;
+  /** This was the tier's last division, where finishing 2nd or 3rd does not promote. */
+  last: boolean;
+  /** Won on the second top-three cup in a row rather than outright (see `gate`). */
+  onGate: boolean;
+  /** Top-three cups in a row at the last division, carried to the next one (see `gate`). */
+  gateNext: number;
 }
 
+/**
+ * The last division of a season promotes nobody: only its champion moves the career on. Until 3.3.34 a
+ * player who kept finishing 2nd there replayed the same four races forever -- scripts/career.ts had one
+ * take 2nd five cups running, fifty minutes for nothing, while the card still read "top 3 go up". So the
+ * second top-three cup in a row counts as a win too: `gate` carries those near misses between cups.
+ */
+export const GATE_AT = 2;
+
 /** Close a finished cup: the player's rank, the bonus, and whether they go up (or won the top division). */
-export function endCup(cup: Cup, div: number, tier = 0, plus = 0): CupEnd {
+export function endCup(cup: Cup, div: number, tier = 0, plus = 0, gate = 0): CupEnd {
   const rank = standings(cup).find((s) => s.id === 0)!.rank;
   const top = rank <= C.PROMOTE;
   const last = div >= C.DIVISIONS.length - 1;
   const bonus = Math.round((CUP_BONUS[rank - 1] ?? 0) * C.stage(div, tier, plus).prize);
-  const champion = last && rank === 1;
-  return { rank, promoted: top && !last, champion, nextTier: champion && tier < C.TIERS.length - 1, bonus };
+  const onGate = last && rank > 1 && top && gate + 1 >= GATE_AT;
+  const champion = last && (rank === 1 || onGate);
+  const gateNext = last && top && !champion ? gate + 1 : 0;
+  return { rank, promoted: top && !last, champion, nextTier: champion && tier < C.TIERS.length - 1, bonus, last, onGate, gateNext };
 }
 
 /** What the race left behind, per rider id where it is a list (0 the player). Thugs are not in the lists. */
@@ -125,9 +141,10 @@ export function settleRace(save: Save, s: RaceSummary): Settlement {
   const feud = settleFeud(save.feud, s, st.prize);
   earned += feud.cash;
   const cupRace = save.cup.race;
-  const end = cupOver(save.cup) ? endCup(save.cup, div, tier, save.endless) : null;
+  const end = cupOver(save.cup) ? endCup(save.cup, div, tier, save.endless, save.gate) : null;
   if (end) {
     earned += end.bonus;
+    save.gate = end.gateNext;
     if (end.promoted) save.div++;
     if (end.champion) save.titles++;
     // the last season won: each title from here raises the stakes (C.ENDLESS)

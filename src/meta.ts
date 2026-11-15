@@ -4,7 +4,7 @@
 import type { Upgrades } from './sim/world';
 import { DIVISIONS, TIERS, VEHICLES, UPGRADE_MAX, ROSTER, WEAPON, type WeaponKind } from './sim/config';
 import { PAINTS, HATS } from './shop';
-import { newCup, newFeud, type Cup, type Feud } from './career';
+import { newCup, newFeud, GATE_AT, type Cup, type Feud } from './career';
 import { saveData } from './platform';
 import { readDaily, today, type Daily } from './daily';
 import type { QualityMode } from './view/quality';
@@ -21,6 +21,8 @@ export interface Save {
   cup: Cup;
   /** Times the top division's cup was won. */
   titles: number;
+  /** Top-three cups in a row at a season's last division, towards `GATE_AT` (src/career.ts). */
+  gate: number;
   /** Levels past the career: titles in the last season's top division (C.ENDLESS). */
   endless: number;
   feud: Feud;
@@ -73,7 +75,7 @@ function readFeud(f: Partial<Feud> | undefined): Feud {
 /** The save from its JSON (null or junk: a fresh one). */
 export function parseSave(raw: string | null): Save {
   const fresh: Save = {
-    cash: 0, up: { top: 0, steer: 0, hp: 0 }, grudges: [], races: 0, best: 0, div: 0, cup: newCup(), titles: 0, endless: 0, feud: newFeud(), tier: 0,
+    cash: 0, up: { top: 0, steer: 0, hp: 0 }, grudges: [], races: 0, best: 0, div: 0, cup: newCup(), titles: 0, gate: 0, endless: 0, feud: newFeud(), tier: 0,
     garage: { cur: 0, owned: [0] }, paint: { cur: 0, owned: [0] }, hat: { cur: 0, owned: [0] }, launchBest: 0, carry: null, muted: false, sessions: 0, firstDay: 0, musicOff: false, sfxOff: false, hapticsOff: false, quality: 'auto', calm: null, daily: readDaily(null, today()),
     streak: newStreak(), ach: [], life: { kos: 0, wins: 0 },
   };
@@ -109,6 +111,7 @@ export function parseSave(raw: string | null): Save {
       div: Math.max(0, Math.min(DIVISIONS.length - 1, Math.floor(Number(s.div) || 0))),
       cup,
       titles: count(s.titles),
+      gate: Math.min(GATE_AT - 1, count(s.gate)),
       endless: count(s.endless),
       feud: readFeud(s.feud),
       tier: Math.max(0, Math.min(TIERS.length - 1, Math.floor(num(s.tier)))),
