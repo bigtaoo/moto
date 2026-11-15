@@ -299,6 +299,7 @@ const wiring: Wiring = {
   save: () => save, hud, controls, stage: () => stage, titleEl,
   at: () => state, paused: () => paused, setPaused, home: () => backToTitle(), start: () => startRace(),
   toggleSound: () => { if (save) toggleSound(); },
+  relocalize: () => { localize(); if (state === 'title' && !launch) showTitle(); },
   restart: () => {
     if (state !== 'race') return;
     if (!world.chase) {
@@ -388,6 +389,8 @@ async function boot(): Promise<void> {
   preloadAudio(); // after the Bridge is up (its required step 2), small and in the background
   const read = await platform.loadData();
   save = parseSave(read.data);
+  // the player's own pick beats the platform's language; ?lang=xx beats both (3.3.38)
+  if (save.lang && !params.has('lang')) { setLang(save.lang); localize(); }
   tele.bootMark('save');
   tele.begin(save, canvas, () => stage.tier);
   stage.setQualityMode(save.quality);

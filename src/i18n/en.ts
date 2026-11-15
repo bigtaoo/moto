@@ -274,6 +274,8 @@ export const EN = {
   // the title's settings card (the pause menu off the road)
   settings: "Settings",
   settingsTip: "Sound, graphics, how to play",
+  language: "Language",
+  langAuto: "Auto",
 };
 
 export type Key = keyof typeof EN;

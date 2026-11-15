@@ -8,6 +8,7 @@ import { newCup, newFeud, GATE_AT, type Cup, type Feud } from './career';
 import { saveData } from './platform';
 import { readDaily, today, type Daily } from './daily';
 import type { QualityMode } from './view/quality';
+import { LANGS, type Lang } from './i18n';
 import { newStreak, ACH_IDS, type Streak, type Life } from './rewards';
 
 export interface Save {
@@ -49,6 +50,8 @@ export interface Save {
   /** Phone vibration switched off (src/haptics.ts). */
   hapticsOff: boolean;
   quality: QualityMode;
+  /** The language the player picked in the settings card, or null to follow the platform (src/i18n). */
+  lang: Lang | null;
   /** Calm motion (src/view/motion.ts): the player's pick, or null to follow the system's reduce-motion. */
   calm: boolean | null;
   /** Today's challenges and first win (src/daily.ts). */
@@ -79,7 +82,7 @@ const WAS: Record<string, string> = { koRace: 'kos25', koLife: 'kos1000' };
 
 const fresh: Save = {
     cash: 0, up: { top: 0, steer: 0, hp: 0 }, grudges: [], races: 0, best: 0, div: 0, cup: newCup(), titles: 0, gate: 0, endless: 0, feud: newFeud(), tier: 0,
-    garage: { cur: 0, owned: [0] }, paint: { cur: 0, owned: [0] }, hat: { cur: 0, owned: [0] }, launchBest: 0, carry: null, muted: false, sessions: 0, firstDay: 0, musicOff: false, sfxOff: false, hapticsOff: false, quality: 'auto', calm: null, daily: readDaily(null, today()),
+    garage: { cur: 0, owned: [0] }, paint: { cur: 0, owned: [0] }, hat: { cur: 0, owned: [0] }, launchBest: 0, carry: null, muted: false, sessions: 0, firstDay: 0, musicOff: false, sfxOff: false, hapticsOff: false, quality: 'auto', lang: null, calm: null, daily: readDaily(null, today()),
     streak: newStreak(), ach: [], life: { kos: 0, wins: 0 },
   };
   try {
@@ -130,6 +133,7 @@ const fresh: Save = {
       sfxOff: s.sfxOff === true,
       hapticsOff: s.hapticsOff === true,
       quality: s.quality === 'low' || s.quality === 'high' ? s.quality : 'auto',
+      lang: typeof s.lang === 'string' && s.lang in LANGS ? (s.lang as Lang) : null,
       calm: typeof s.calm === 'boolean' ? s.calm : null,
       daily: readDaily(s.daily, today()),
       streak: { day: count(s.streak?.day), n: count(s.streak?.n), pay: count(s.streak?.pay), doubled: s.streak?.doubled === true },

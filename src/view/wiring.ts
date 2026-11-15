@@ -7,6 +7,8 @@ import { setCalm, MOTION } from './motion';
 import { setHaptics } from '../haptics';
 import * as funnel from '../funnel';
 import { storeSave, type Save } from '../meta';
+import { setLang, resolve } from '../i18n';
+import * as platform from '../platform';
 import type { Hud } from './hud';
 import type { Controls } from './input';
 import type { Stage } from './stage';
@@ -30,6 +32,8 @@ export interface Wiring {
   start: () => void;
   /** The player's own sound switch. */
   toggleSound: () => void;
+  /** Draw every screen again after the language changed. */
+  relocalize: () => void;
 }
 
 /** A pause-menu setting changed: into the save and the analytics. */
@@ -49,13 +53,14 @@ export function wireMenu(w: Wiring): void {
     haptics: (on) => { w.save().hapticsOff = !on; setHaptics(on); set('haptics', on); },
     shake: (on) => { w.save().calm = !on; setCalm(w.save().calm); set('shake', on); },
     quality: (q) => { w.save().quality = q; w.stage()?.setQualityMode(q); set('quality', q); },
+    lang: (l) => { w.save().lang = l; setLang(l ?? platform.language()); set('lang', l ?? 'auto'); w.relocalize(); },
     home: w.home,
   };
 }
 
 /** The menu's switches as they stand, for `Menu.show`. */
 export const menuSettings = (s: Save) =>
-  ({ music: !s.musicOff, sfx: !s.sfxOff, haptics: !s.hapticsOff, quality: s.quality, shake: !MOTION.calm });
+  ({ music: !s.musicOff, sfx: !s.sfxOff, haptics: !s.hapticsOff, quality: s.quality, shake: !MOTION.calm, lang: s.lang, auto: resolve(platform.language()) });
 
 /** Everything outside the race that listens: keys, the HUD's own buttons, the page going away. */
 export function wireChrome(w: Wiring): void {

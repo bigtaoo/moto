@@ -268,4 +268,6 @@ export const TR: Table = {
   launchAgain: "Tekrar!",
   settings: "Ayarlar",
   settingsTip: "Ses, grafik, nasıl oynanır",
+  language: "Dil",
+  langAuto: "Otomatik",
 };

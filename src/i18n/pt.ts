@@ -268,4 +268,6 @@ export const PT: Table = {
   launchAgain: "De novo!",
   settings: "Configurações",
   settingsTip: "Som, gráficos, como jogar",
+  language: "Idioma",
+  langAuto: "Auto",
 };

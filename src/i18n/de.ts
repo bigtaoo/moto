@@ -268,4 +268,6 @@ export const DE: Table = {
   launchAgain: "Nochmal!",
   settings: "Einstellungen",
   settingsTip: "Ton, Grafik, Anleitung",
+  language: "Sprache",
+  langAuto: "Auto",
 };

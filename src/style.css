@@ -444,10 +444,14 @@ button.primary:disabled:active { transform: none; box-shadow: 0 5px 0 var(--ink)
 .ac.new { background: var(--yellow); border-radius: 6px; }
 .opts { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
 .opt {
-  display: flex; justify-content: space-between; align-items: center; min-height: 44px; padding: 8px 12px; cursor: pointer;
+  display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 44px; padding: 8px 12px; cursor: pointer;
   background: #fff; border: 3px solid var(--ink); border-radius: 10px; font-size: 16px; font-weight: 800;
 }
 .opt.off b { opacity: 0.45; }
+/* Eight languages down one column ran off a phone card: two to a row, and room for more. */
+.opts.langs { display: grid; grid-template-columns: 1fr 1fr; }
+.opts.langs .opt { padding: 8px 10px; } .opts.langs b { font-size: 13px; opacity: 0.45; }
+.opts.langs .opt:not(.off) b { opacity: 1; }
 .howto { text-align: left; margin: 10px 0 0; padding-left: 20px; font-size: 15px; line-height: 1.35; }
 .howto li { margin: 4px 0; }
 .blocker { z-index: 30; background: rgba(22, 22, 26, 0.7); }

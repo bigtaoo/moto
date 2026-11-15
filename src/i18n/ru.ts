@@ -268,4 +268,6 @@ export const RU: Table = {
   launchAgain: "Ещё раз!",
   settings: "Настройки",
   settingsTip: "Звук, графика, как играть",
+  language: "Язык",
+  langAuto: "Авто",
 };

@@ -15,6 +15,11 @@ export type { Key };
 export const LANGS = { en: EN as Table, ru: RU, es: ES, pt: PT, tr: TR, de: DE, fr: FR };
 export type Lang = keyof typeof LANGS;
 
+/** What each language calls itself: a player who opened the wrong one has to read their own name. */
+export const NATIVE: Record<Lang, string> = {
+  en: 'English', ru: 'Русский', es: 'Español', pt: 'Português', tr: 'Türkçe', de: 'Deutsch', fr: 'Français',
+};
+
 /** Ordinal numbers as each language writes a race place. */
 const ORD: Record<Lang, (n: number) => string> = {
   en: (n) => n + (n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th'),
@@ -28,10 +33,15 @@ const ORD: Record<Lang, (n: number) => string> = {
 
 let lang: Lang = 'en';
 
+/** The language a code like "ru" or "pt-BR" names; unknown codes give English. */
+export function resolve(code: string | null | undefined): Lang {
+  const c = String(code ?? '').slice(0, 2).toLowerCase();
+  return c in LANGS ? (c as Lang) : 'en';
+}
+
 /** Pick the language from a code like "ru" or "pt-BR"; unknown codes give English. */
 export function setLang(code: string | null | undefined): Lang {
-  const c = String(code ?? '').slice(0, 2).toLowerCase();
-  lang = c in LANGS ? (c as Lang) : 'en';
+  lang = resolve(code);
   if (typeof document !== 'undefined') document.documentElement.lang = lang;
   return lang;
 }

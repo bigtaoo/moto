@@ -268,4 +268,6 @@ export const ES: Table = {
   launchAgain: "¡Otra vez!",
   settings: "Ajustes",
   settingsTip: "Sonido, gráficos, cómo jugar",
+  language: "Idioma",
+  langAuto: "Auto",
 };
