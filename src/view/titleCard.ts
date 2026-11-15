@@ -34,8 +34,8 @@ export function drawTitle(save: Save, on: TitleCardActions): void {
     best.textContent = t('best', { div: C.stage(save.div, save.tier, save.endless).name, n: save.cup.race + 1, m: CUP_RACES, cash: save.cash })
       + (save.titles ? t('champs', { n: save.titles }) : '');
   }
-  // A returning player has read the tagline (and it is the one line on the card never translated):
-  // its 52 px go to the grid of places to go instead.
+  // A returning player has read the tagline: its 52 px go to the grid of places to go instead.
+  // (It is translated -- main.ts writes t('tagline') into it on boot -- so this is about room, not words.)
   const tag = document.querySelector<HTMLElement>('#title .card p');
   if (tag) tag.classList.toggle('gone', save.races > 0);
   const info = document.getElementById('titleinfo');
