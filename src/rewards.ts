@@ -67,11 +67,16 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   { id: 'clean', pay: 500, got: (_, r) => !!r && r.place === 1 && r.falls === 0 },
   { id: 'near6', pay: 600, got: (_, r) => !!r && r.near >= 6 },
   { id: 'chain5', pay: 600, got: (_, r) => !!r && r.chain >= 5 },
-  { id: 'kos25', pay: 800, got: (_, r) => !!r && r.kos >= 25 },
+  // 3.3.35: was 25 in one race. Over 1,528 bot races at three skill levels the best was 24 and the 99th
+  // percentile 18-21 -- 25 never happened once, so the badge sat grey on the title card for every player.
+  // 16 is the highest count every measured career reaches, weak ones included; 18 missed two careers in six.
+  { id: 'koRace', pay: 800, got: (_, r) => !!r && r.kos >= 16 },
   { id: 'nemesis', pay: 800, got: (s) => s.feud.broken >= 1 },
   { id: 'champ', pay: 1500, got: (s) => s.titles >= 1 },
   { id: 'streak7', pay: 1500, got: (s) => s.streak.n >= 7 },
-  { id: 'kos1000', pay: 2000, got: (s) => s.life.kos >= 1000 },
+  // 3.3.35: was 1000 in all. A whole career ends at 507-831 knockdowns, so nobody could finish the list.
+  // 500 lands in every one of 18 measured careers, at race 38-67 of 64-92: a late one, but a real one.
+  { id: 'koLife', pay: 2000, got: (s) => s.life.kos >= 500 },
   { id: 'legend', pay: 3000, got: (s) => s.tier >= TIERS.length - 1 },
   { id: 'rides', pay: 3000, got: (s) => s.garage.owned.length >= VEHICLES.length },
   { id: 'endless', pay: 5000, got: (s) => s.endless >= 1 },

@@ -54,4 +54,21 @@ describe('achievements', () => {
     expect(back.streak).toEqual({ day: 9, n: 0, pay: 0, doubled: false });
     expect(new Set(ACHIEVEMENTS.map((a) => a.id)).size).toBe(ACHIEVEMENTS.length);
   });
+
+  it('carries the two renamed knockdown badges over from an old save, and does not pay them again', () => {
+    const back = parseSave(JSON.stringify({ ...parseSave(null), ach: ['kos25', 'kos1000'], cash: 0 }));
+    expect(back.ach).toEqual(['koRace', 'koLife']);
+    back.life.kos = 9999;
+    const again = unlock(back, { place: 9, falls: 0, kos: 99, near: 0, chain: 0 }).map((a) => a.id);
+    expect(again).not.toContain('koRace');
+    expect(again).not.toContain('koLife');
+  });
+
+  it('asks for knockdown counts a real career reaches: 16 in a race, 500 in all', () => {
+    const save = parseSave(null);
+    save.life.kos = 500;
+    const ids = unlock(save, { place: 4, falls: 1, kos: 16, near: 0, chain: 0 }).map((a) => a.id);
+    expect(ids).toContain('koRace');
+    expect(ids).toContain('koLife');
+  });
 });

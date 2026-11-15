@@ -74,7 +74,10 @@ function readFeud(f: Partial<Feud> | undefined): Feud {
 
 /** The save from its JSON (null or junk: a fresh one). */
 export function parseSave(raw: string | null): Save {
-  const fresh: Save = {
+  /** 3.3.35 renamed two knockdown achievements with their targets: an old save keeps what it won. */
+const WAS: Record<string, string> = { koRace: 'kos25', koLife: 'kos1000' };
+
+const fresh: Save = {
     cash: 0, up: { top: 0, steer: 0, hp: 0 }, grudges: [], races: 0, best: 0, div: 0, cup: newCup(), titles: 0, gate: 0, endless: 0, feud: newFeud(), tier: 0,
     garage: { cur: 0, owned: [0] }, paint: { cur: 0, owned: [0] }, hat: { cur: 0, owned: [0] }, launchBest: 0, carry: null, muted: false, sessions: 0, firstDay: 0, musicOff: false, sfxOff: false, hapticsOff: false, quality: 'auto', calm: null, daily: readDaily(null, today()),
     streak: newStreak(), ach: [], life: { kos: 0, wins: 0 },
@@ -130,7 +133,7 @@ export function parseSave(raw: string | null): Save {
       calm: typeof s.calm === 'boolean' ? s.calm : null,
       daily: readDaily(s.daily, today()),
       streak: { day: count(s.streak?.day), n: count(s.streak?.n), pay: count(s.streak?.pay), doubled: s.streak?.doubled === true },
-      ach: Array.isArray(s.ach) ? ACH_IDS.filter((id) => s.ach!.includes(id)) : [],
+      ach: Array.isArray(s.ach) ? ACH_IDS.filter((id) => s.ach!.includes(id) || s.ach!.includes(WAS[id])) : [],
       life: { kos: count(s.life?.kos), wins: count(s.life?.wins) },
     };
   } catch {

@@ -1,5 +1,6 @@
-/* Landscape phones: short screens get a smaller HUD and a two-column results card. Split out of
-   style.css in 3.3.34, which sat right on the 500-line cap. */
+/* Landscape phones: short screens get a smaller HUD and two-column cards. Split out of style.css in
+   3.3.34, which sat right on the 500-line cap. Every card rule is written as `.overlay .card ...`: this
+   file is @import-ed at the top of style.css, so a plain `.card` would lose every tie to style.css. */
 
 @media (orientation: landscape) and (max-height: 500px) {
   .place b { font-size: 26px; }
@@ -7,13 +8,21 @@
   .prog { top: calc(max(8px, env(safe-area-inset-top)) + 44px); left: 25%; right: 25%; }
   .heat { top: calc(max(8px, env(safe-area-inset-top)) + 56px); }
   .cash { top: calc(max(8px, env(safe-area-inset-top)) + 56px); font-size: 17px; }
-  .card { max-width: 640px; display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px; align-items: start; padding: 12px 16px; }
-  .card > h2, .card > .sub { grid-column: 1; }
-  .card .rows { grid-column: 1; margin: 6px 0; }
-  .card .grudges, .card .cashline, .card .cup, .card .nemres, .card .double, .card .daily { grid-column: 1; }
-  .card .ups { grid-column: 2; grid-row: 1 / span 5; }
-  .card .again, .card .shift { grid-column: 2; }
-  .card.small, #title .card, .card.lcard { display: block; max-width: 300px; }
+  .overlay .card { max-width: 640px; display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px; align-items: start; padding: 12px 16px; }
+  .overlay .card > h2, .overlay .card > .sub { grid-column: 1; }
+  .overlay .card .rows { grid-column: 1; margin: 6px 0; }
+  .overlay .card .grudges, .overlay .card .cashline, .overlay .card .cup, .overlay .card .nemres, .overlay .card .double, .overlay .card .daily { grid-column: 1; }
+  .overlay .card .ups { grid-column: 2; grid-row: 1 / span 5; }
+  .overlay .card .again, .overlay .card .shift { grid-column: 2; }
+  /* 3.3.35: these three were pinned to a 260-300px column, so on an 854px screen the title card ran 753px
+     tall against a 384px viewport and everything under "Sound" needed a scroll. They flow in two columns. */
+  .overlay .card.small, #title .card, .overlay .card.lcard { display: block; max-width: 720px; columns: 2; column-gap: 18px; }
+  .overlay .card.small > *, #title .card > *, .overlay .card.lcard > * { break-inside: avoid; }
+  .overlay .card.small > h2 { column-span: all; }
+  .overlay .card.small { columns: initial; }
+  .overlay .card.small .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 18px; }
+  .overlay .card .howto { columns: 2; column-gap: 18px; }
+  .overlay .card .howto li { break-inside: avoid; }
   .logo { font-size: 34px; }
   .logo .sym { width: 44px; height: 44px; }
 }
