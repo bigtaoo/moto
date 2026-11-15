@@ -145,7 +145,6 @@ interface Race {
   wasDown: boolean;
   pauses: number;
   hides: number;
-  remountOffered: boolean;
 }
 let race: Race | null = null;
 /** When the last results screen came up, and what was bought on it. */
@@ -161,7 +160,7 @@ function stepOf(div: number, tier: number, cupRace: number, ride: number): Props
 export function raceStart(w: World): void {
   if (!save) return;
   const step = stepOf(save.div, save.tier, save.cup.race + 1, save.garage.cur);
-  race = { world: w, step, falls: 0, presses: { key: 0, mouse: 0, touch: 0 }, by: { ko: 0, car: 0, wall: 0, cones: 0, oil: 0, cow: 0 }, downMs: 0, wasDown: false, pauses: 0, hides: 0, remountOffered: false };
+  race = { world: w, step, falls: 0, presses: { key: 0, mouse: 0, touch: 0 }, by: { ko: 0, car: 0, wall: 0, cones: 0, oil: 0, cow: 0 }, downMs: 0, wasDown: false, pauses: 0, hides: 0 };
   stutter.reset();
   const between: Props = resultsAt ? { results_sec: Math.round((now() - resultsAt) / 1000), buys } : {};
   resultsAt = 0;
@@ -252,15 +251,8 @@ export function paused(): void {
   if (race) race.pauses++;
 }
 
-/** The rewarded remount button is up: one offer a race. */
-export function remountOffer(): void {
-  if (!race || race.remountOffered) return;
-  race.remountOffered = true;
-  adOffer('remount');
-}
-
 /** A rewarded ad was offered (the result is platform.ts's ad_result). */
-export function adOffer(placement: 'double_cash' | 'remount' | 'streak_double'): void {
+export function adOffer(placement: 'double_cash' | 'streak_double'): void {
   track('ad_offer', { placement, ...(race ? { step_id: race.step.step_id as string } : {}) });
 }
 

@@ -8,7 +8,7 @@ import { Road } from './road';
 import { clamp, type Rider, type Car, type Pickup, type Patrol, type SimEvent, type Input, type WorldOpts, type Seen, type Hazard, type Slick } from './types';
 import { targetFor, tryAttack, playerAttack, resolveAttack, crash, updatePickups } from './combat';
 import { chaseSetup, chaseEnd } from './chase';
-import { moveDown, recover } from './down';
+import { moveDown } from './down';
 import { contacts } from './contacts';
 import { land, taunt, crownBoss } from './stunts';
 import { placeHazards, updateHazards, grip } from './hazards';
@@ -60,7 +60,7 @@ export class World {
   readonly patrolFrom: number;
   readonly events: SimEvent[] = [];
   readonly grudges: Set<number>;
-  readonly input: Input = { targetX: null, steer: 0, brake: false, attack: false, charge: false, remount: false, taunt: false };
+  readonly input: Input = { targetX: null, steer: 0, brake: false, attack: false, charge: false, taunt: false };
   /** The nemesis' rider id, or -1. */
   readonly nemesis: number;
   /** Times the player knocked the nemesis off this race. */
@@ -297,12 +297,6 @@ export class World {
     p.braking = inp.brake || (this.chase && this.time < C.CHASE.hold);
     playerAttack(this, p);
     taunt(this, p);
-    if (inp.remount && p.state === 'down') {
-      // straight back onto the scooter, with a moment's grace
-      p.bikeX = this.road.clampX(p.bikeX, p.bikeZ);
-      recover(this, p);
-    }
-    inp.remount = false;
   }
 
   private move(r: Rider): void {

@@ -11,7 +11,6 @@ export const EN = {
   hintKeys: '← → steer · Space slap',
   clickForKeys: 'Click the game to use the keys',
   slap: 'SLAP',
-  backOnNow: 'Back on now',
   watchAd: 'watch an ad',
   paused: 'Paused',
   resume: 'Resume',
@@ -54,7 +53,6 @@ export const EN = {
   air: 'AIR!',
   stomped: 'STOMPED {name}! +${n}',
   landedOn: '{name} LANDED ON YOU!',
-  backOn: 'BACK ON!',
   // results
   place: '{o} place',
   prize: 'Prize ({o})',

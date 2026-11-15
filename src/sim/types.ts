@@ -272,8 +272,6 @@ export interface Input {
   attack: boolean;
   /** The slap held down: winds up a haymaker, thrown on letting go (C.CHARGE). */
   charge: boolean;
-  /** Down: back on the scooter right now (paid for with a rewarded ad, once a race). */
-  remount: boolean;
   /** Right after a takedown: show off for a little cash (C.TAUNT). */
   taunt: boolean;
 }

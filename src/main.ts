@@ -81,14 +81,8 @@ function setState(s: typeof state): void {
 let paused = false;
 /** The host (or an ad) has the game paused; separate from the player's own pause menu. */
 let hostPaused = false;
-/** A rewarded ad was asked for and hasn't answered: the race waits for it. */
-let adPending = false;
 /** The WebGL context is gone: nothing runs until it is back. */
 let glLost = false;
-/** The rewarded "back on now" was used this race. */
-let remountUsed = false;
-/** Seconds the player has been down (the remount button waits for the tumble to end). */
-let downClock = 0;
 /** Seconds this race's countdown has stood waiting for the keys to reach the game. */
 let keysWait = 0;
 let acc = 0;
@@ -133,8 +127,6 @@ function newRace(): void {
   hud.setup(world, paint.body);
   hud.results.hide();
   intro();
-  hud.showRemount(false);
-  remountUsed = false;
   controls.reset();
   acc = 0;
   feel = newFeel();
@@ -307,7 +299,6 @@ const wiring: Wiring = {
   save: () => save, hud, controls, stage: () => stage, titleEl,
   at: () => state, paused: () => paused, setPaused, home: () => backToTitle(), start: () => startRace(),
   toggleSound: () => { if (save) toggleSound(); },
-  remount: () => remount(),
   restart: () => {
     if (state !== 'race') return;
     if (!world.chase) {
@@ -319,22 +310,6 @@ const wiring: Wiring = {
   },
 };
 wireMenu(wiring);
-
-/** "Back on now": a rewarded ad puts a downed player straight back on the scooter, once a race. */
-function remount(): void {
-  if (remountUsed || adPending || !hud.remountArmed || state !== 'race' || world.player.state !== 'down') return;
-  remountUsed = true;
-  adPending = true;
-  hud.showRemount(false);
-  void platform.showRewarded('remount').then((ok) => {
-    adPending = false;
-    const down = state === 'race' && world.player.state === 'down';
-    if (ok && down) {
-      world.input.remount = true;
-      hud.flash(t('backOn'), 'go');
-    } else if (!ok || !down) remountUsed = false; // no ad, or nothing left for it to do: no charge
-  });
-}
 
 
 wireChrome(wiring);
@@ -356,7 +331,7 @@ function frame(now: number): void {
     funnel.event('keys_wait', { seconds: Math.round(keysWait) });
     keysWait = 0;
   }
-  const stopped = paused || hostPaused || adPending || glLost;
+  const stopped = paused || hostPaused || glLost;
   tele.frame(ms, state === 'race' && !BOT, !stopped && !waiting);
   stage.frame(ms, state === 'race' && !stopped && !waiting && !document.hidden);
   if (stopped) return;
@@ -372,11 +347,6 @@ function frame(now: number): void {
   }
   view.update(simDt, Math.min(1, acc / C.DT));
   hud.update(world, view, save.cash, dt);
-  downClock = world.player.state === 'down' ? downClock + dt : 0;
-  // not in a new player's first race: their first look at the game is the game, not an ad button
-  const offer = state === 'race' && !BOT && save.races > 0 && !remountUsed && downClock > 0.6 && platform.rewardedReady();
-  hud.showRemount(offer);
-  if (offer) tele.remountOffer();
   if (state === 'race' && !BOT) funnel.playing(dt);
   showStats?.(dt);
 }

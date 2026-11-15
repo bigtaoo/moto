@@ -13,6 +13,7 @@ import { Kit, cached, rigidParts, rigidMesh } from './toon';
 import { JOINT, TARGET, INK_W, rbox, ball, rod, headKit } from './rider';
 
 import { HEAD, SH_L, SH_R, PELVIS, EL_L, HAND_L, EL_R, HAND_R, KNEE_L, FOOT_L, KNEE_R, FOOT_R, L, GagState, nextGag, getUpPose } from './getup';
+import { RunState, nextRun, gaitOf, runArm, setArmLengths } from './runback';
 // Rest pose, roughly as it stands on the scooter. Sim -x is the dummy's left.
 const REST: [number, number, number][] = [
   [0, 1.94, 0.12], [-0.27, 1.64, 0.05], [0.27, 1.64, 0.05], [0, 1.1, -0.05],
@@ -40,6 +41,7 @@ const STEP = 1 / 60;
 
 const dist = (i: number, j: number) => Math.hypot(REST[i][0] - REST[j][0], REST[i][1] - REST[j][1], REST[i][2] - REST[j][2]);
 const LEN = [dist(SH_L, EL_L), dist(EL_L, HAND_L), dist(PELVIS, KNEE_L), dist(KNEE_L, FOOT_L)];
+setArmLengths(LEN[0], LEN[1]);
 
 const a = new THREE.Vector3();
 const dir = new THREE.Vector3();
@@ -123,6 +125,8 @@ export class Ragdoll {
   private fx = 0;
   private fz = 1;
   private gag: GagState = { gag: -1, puffs: 0 };
+  /** Which run back to the scooter this fall gets (runback.ts), picked when the run starts. */
+  private run_: RunState = { run: -1 };
   private readonly puff = (n: number) => this.onImpact?.(this.sx, this.sz, n);
   private stride = 0;
   private readonly from = REST.map(() => new THREE.Vector3());
@@ -275,6 +279,7 @@ export class Ragdoll {
       this.mode = 'run';
       this.upT = 0;
       this.stride = 0;
+      nextRun(this.run_);
       for (let i = 0; i < p.length; i++) this.from[i].copy(p[i]);
       this.sx = p[PELVIS].x;
       this.sz = p[PELVIS].z;
@@ -287,8 +292,9 @@ export class Ragdoll {
     const oz = this.sz + (tz - this.sz) * prog;
     const viewD0 = Math.hypot(tx - this.sx, tz - this.sz);
     const speed = pace * (viewD0 / (this.simD0 - reach));
+    const gait = gaitOf(this.run_.run);
     // little legs going flat out, whatever the pace
-    this.stride += dt * (13 + Math.min(10, speed) * 0.5);
+    this.stride += dt * (gait.rate + Math.min(10, speed) * 0.5);
     let fx = tx - ox;
     let fz = tz - oz;
     const n = Math.hypot(fx, fz);
@@ -296,30 +302,26 @@ export class Ragdoll {
     const k = this.upT * this.upT * (3 - 2 * this.upT);
     const ph = this.stride;
     const sw = Math.sin(ph);
-    const bob = Math.abs(sw) * 0.1;
-    const lean = 0.18 + 0.14 * Math.sin(ph * 0.37);
-    this.roll = 0.3 * Math.sin(ph * 0.5) * k;
+    // a limp drags the bob down on the sore leg's step
+    const bob = Math.abs(sw) * gait.bob - (gait.limp ? Math.max(0, -sw) * gait.limp * 0.06 : 0);
+    const lean = gait.lean + 0.14 * Math.sin(ph * 0.37);
+    this.roll = gait.roll * Math.sin(ph * 0.5) * k;
     for (let i = 0; i < REST.length; i++) {
       let [lx, ly, lz] = REST[i];
       ly -= 0.15; // feet on the road, not the deck
       const leg = i === KNEE_L || i === FOOT_L ? 0 : i === KNEE_R || i === FOOT_R ? Math.PI : -1;
       const side = i === EL_L || i === HAND_L ? -1 : i === EL_R || i === HAND_R ? 1 : 0;
       if (leg >= 0) {
-        // high knees, short steps
+        // high knees, short steps; a limp keeps the sore (right) leg stiff and its step short
+        const sore = gait.limp && leg > 0 ? 1 - gait.limp : 1;
         const s = Math.sin(ph + leg);
-        if (i === KNEE_L || i === KNEE_R) { lz += 0.08 + s * 0.2; ly += Math.max(0, s) * 0.26; }
-        else { lz += Math.sin(ph + leg - 0.7) * 0.26; ly += Math.max(0, -Math.cos(ph + leg)) * 0.3; }
+        if (i === KNEE_L || i === KNEE_R) { lz += 0.08 + s * 0.2 * sore; ly += Math.max(0, s) * 0.26 * gait.knee * sore; }
+        else { lz += Math.sin(ph + leg - 0.7) * 0.26 * sore; ly += Math.max(0, -Math.cos(ph + leg)) * 0.3 * gait.knee * sore; }
       } else if (side) {
-        // both arms up, windmilling out of step with each other
-        const t = ph * 0.8 + (side > 0 ? 0 : 2.2);
-        const sx = side * 0.27;
-        const ux = side * 0.55, uy = 0.72 + 0.2 * Math.sin(t), uz = 0.4 * Math.cos(t);
-        const un = Math.hypot(ux, uy, uz);
-        const ex = sx + (ux / un) * LEN[0], ey = 1.49 + (uy / un) * LEN[0], ez = 0.05 + (uz / un) * LEN[0];
-        const vx = side * (0.25 + 0.35 * Math.sin(t * 1.7)), vy = 0.85, vz = 0.5 * Math.sin(t + 1.3);
-        const vn = Math.hypot(vx, vy, vz);
-        if (i === EL_L || i === EL_R) [lx, ly, lz] = [ex, ey, ez];
-        else [lx, ly, lz] = [ex + (vx / vn) * LEN[1], ey + (vy / vn) * LEN[1], ez + (vz / vn) * LEN[1]];
+        // whichever arms this run uses (runback.ts): windmilling, pumping, clutching its head, trailing...
+        const arm = runArm(this.run_.run, side, ph);
+        const o = i === EL_L || i === EL_R ? 0 : 3;
+        [lx, ly, lz] = [arm[o], arm[o + 1], arm[o + 2]];
       }
       // the body rocks from side to side with each step
       if (i <= PELVIS) { lx += sw * (i === PELVIS ? 0.04 : 0.09); if (i === SH_L || i === SH_R) ly += sw * 0.05 * (i === SH_L ? 1 : -1); }

@@ -58,16 +58,9 @@ export class Hud {
   private readonly unitEl: HTMLElement;
   /** Seconds until the speedometer is next written: a few times a second, so the number can be read. */
   private speedT = 0;
-  readonly remountBtn: HTMLButtonElement;
   /** The taunt, up for a moment after the player puts someone down. */
   readonly tauntBtn: HTMLButtonElement;
   private tauntOn = false;
-  private remountOn = false;
-  private remountAt = 0;
-  /** The remount button is up and has been long enough that a tap on it was meant for it, not a steer. */
-  get remountArmed(): boolean {
-    return this.remountOn && performance.now() - this.remountAt > 350;
-  }
   /** Per rider: seconds left of a swing wound up at the player. */
   private tellT: number[] = [];
   readonly results: Results;
@@ -105,7 +98,6 @@ export class Hud {
         <div class="league"></div>
         <div class="nemcard"></div>
         <div class="speedo"><b>0</b><span></span></div>
-        <button class="remount hidden"></button>
         <button class="taunt"></button>
       </div>
       <div id="results" class="overlay hidden"><div class="card"></div></div>
@@ -129,7 +121,6 @@ export class Hud {
     this.nemEl = $(this.root, '.nemcard');
     this.speedEl = $(this.root, '.speedo b');
     this.unitEl = $(this.root, '.speedo span');
-    this.remountBtn = $(this.root, '.remount');
     this.tauntBtn = $(this.root, '.taunt');
     this.results = new Results($(host, '#results'));
     this.menu = new Menu($(host, '#paused'));
@@ -145,7 +136,6 @@ export class Hud {
     this.slapL.innerHTML = `${icon('left')} ${t('slap')}`;
     this.slapR.innerHTML = `${t('slap')} ${icon('right')}`;
     this.hint.textContent = t(this.hintMode === 'click' ? 'clickForKeys' : CONTROLS);
-    this.remountBtn.innerHTML = `<span>${icon('play')} ${t('backOnNow')}</span><small>${t('watchAd')}</small>`;
     this.pauseBtn.setAttribute('aria-label', t('pause'));
     this.unitEl.textContent = t('kmh');
     this.tauntBtn.textContent = DESKTOP ? `${t('taunt')} [T]` : t('taunt');
@@ -221,14 +211,6 @@ export class Hud {
     this.nemEl.innerHTML = `<b>${icon('skull')} ${t('nemTitle', { name })}</b><span>${t('nemRecord', { hurt: n.hurt, paid: n.paid, max: BREAK_AT })}</span><span>${t('nemBounty', { n: bounty })}</span>`;
     void this.nemEl.offsetWidth;
     this.nemEl.className = 'nemcard show';
-  }
-
-  /** The "back on now" (rewarded ad) button, shown while the player is down. */
-  showRemount(on: boolean): void {
-    if (on === this.remountOn) return;
-    this.remountOn = on;
-    if (on) this.remountAt = performance.now();
-    this.remountBtn.classList.toggle('hidden', !on);
   }
 
   /** The line low on the screen: the touch controls, a pulsing ask for a click while the keys can't reach the game, or nothing. */

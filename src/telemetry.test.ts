@@ -135,15 +135,6 @@ describe('a race, start to finish', () => {
     expect(host.sent).toEqual([]);
   });
 
-  it('offers the remount ad once a race', () => {
-    const w = raced();
-    tele.raceStart(w);
-    host.sent.length = 0;
-    tele.remountOffer();
-    tele.remountOffer();
-    expect(one('ad_offer')).toMatchObject({ placement: 'remount' });
-  });
-
   it('counts the purchases between races onto the next one', () => {
     const w = raced();
     tele.raceStart(w);

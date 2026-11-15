@@ -30,8 +30,6 @@ export interface Wiring {
   start: () => void;
   /** The player's own sound switch. */
   toggleSound: () => void;
-  /** "Back on now": the rewarded ad that remounts a downed player. */
-  remount: () => void;
 }
 
 /** A pause-menu setting changed: into the save and the analytics. */
@@ -81,8 +79,6 @@ export function wireChrome(w: Wiring): void {
   hud.muteBtn.addEventListener('click', () => w.toggleSound());
   hud.pauseBtn.addEventListener('click', () => w.setPaused(true));
   // a click, not a press: a finger steering across the screen when the button comes up doesn't buy an ad
-  hud.remountBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
-  hud.remountBtn.addEventListener('click', () => w.remount());
   for (const ev of ['pointerdown', 'pointerup'] as const) hud.tauntBtn.addEventListener(ev, (e) => e.stopPropagation());
   hud.tauntBtn.addEventListener('pointerdown', () => { controls.taunt = true; });
   // a hidden page is silent whatever screen it is on, and a race pauses

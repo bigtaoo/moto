@@ -5,25 +5,23 @@ import { botInput } from './ai';
 import { hashState } from './hash';
 import { Recorder, playReplay, type Replay } from './replay';
 import { World, type WorldOpts } from './world';
-import { knockOff } from './combat';
 
 // The golden hashes pin what a seed plus inputs produce. If one changes, either the change was meant
 // to alter the race (bump SIM_VERSION in config.ts and paste the new hashes here) or the sim lost
 // its determinism (find out why before touching anything).
-const GOLDEN = { version: 25, mid: '4bf9ecb6', end: 'e4bba831', endTick: 5192 };
+const GOLDEN = { version: 26, mid: 'd19c9b07', end: '3fc42683', endTick: 5192 };
 
 const OPTS: WorldOpts = { seed: 1, upgrades: { top: 2, steer: 2, hp: 2 }, div: 2, nemesis: 3, tier: 1, vehicle: 2 };
 const MID = 60 * TICK_HZ;
 const CAP = 400 * TICK_HZ;
 
 /** A bot race; returns the hash at MID and at the end, and the replay. */
-function race(opts: WorldOpts, remount = false): { mid: string; end: string; tick: number; replay: Replay; world: World } {
+function race(opts: WorldOpts): { mid: string; end: string; tick: number; replay: Replay; world: World } {
   const w = new World(opts);
   const rec = new Recorder(opts);
   let mid = '';
   while (!w.over && w.tick < CAP) {
     botInput(w);
-    if (remount && w.player.state === 'down') w.input.remount = true;
     rec.capture(w);
     w.step();
     w.events.length = 0;
@@ -71,18 +69,12 @@ describe('sim determinism', () => {
     expect(playReplay(r).ok).toBe(false);
   });
 
-  it('replays a race with remounts', () => {
-    const r = race(OPTS, true);
-    expect(r.replay.rows.some((row) => row[4] & 2)).toBe(true);
-    expect(playReplay(JSON.parse(JSON.stringify(r.replay)) as Replay).ok).toBe(true);
-  });
-
   it('refuses a replay from another sim version', () => {
     expect(() => playReplay({ ...a.replay, v: SIM_VERSION + 1 })).toThrow(/sim v/);
   });
 });
 
-describe('nemesis and remount', () => {
+describe('nemesis', () => {
   it('makes the nemesis faster and keener, and nobody else', () => {
     const plain = new World({ seed: 5, div: 1 });
     const nem = new World({ seed: 5, div: 1, nemesis: 4 });
@@ -112,23 +104,6 @@ describe('nemesis and remount', () => {
       got = w.revenge > 0;
     }
     expect(got).toBe(true);
-  });
-
-  it('puts a downed player straight back on the scooter when asked', () => {
-    const w = new World({ seed: 3 });
-    for (let i = 0; i < 90; i++) w.step();
-    const p = w.player;
-    p.hp = 1;
-    // knock the player off by hand: the same path a hit takes
-    knockOff(w, p, w.riders[1]);
-    expect(p.state).toBe('down');
-    w.step();
-    expect(p.state).toBe('down');
-    w.input.remount = true;
-    w.step();
-    expect(p.state).toBe('ride');
-    expect(p.invT).toBeGreaterThan(0);
-    expect(w.input.remount).toBe(false);
   });
 
   it('lets a player just back on the scooter steer off the cones before they count', () => {
