@@ -5,10 +5,17 @@
 // along the horizon (the worst overdraw on screen) aren't drawn and riders and cars far ahead are culled.
 // MSAA can only be chosen when the WebGL context is made, so it is decided once per device, not per tier.
 //
+// Resolution is the fast lever and the tier is the slow one. A tier step is a visible jolt - fewer sparks,
+// the fog closing in, and the pixel ratio jumping a third of the way down - so before taking one the
+// governor shrinks the drawing buffer a notch at a time (`scale`, a multiplier on the tier's pixel ratio).
+// That is the cheapest frames there are to buy and the least noticeable to lose, and it leaves somewhere to
+// go on a machine already sitting at the bottom tier, which before had no gear left.
+//
 // The governor is fed frame times and is plain arithmetic (no DOM), so it is unit tested. Rules (see
-// docs §3.4): under 40 fps for 3 s steps down one tier, and if those 3 s averaged under 15 fps straight to
-// the bottom; over 57 fps for 30 s steps up, at most once a race; if after a step up it can't hold 54 fps
-// it steps back and never steps up again.
+// docs §3.4): under 40 fps for 3 s shrinks the buffer a notch, and once it is at its smallest, steps down a
+// tier instead; 3 s averaging under 15 fps goes straight to the smallest buffer at the bottom tier. Over
+// 57 fps for 5 s gives a notch back, and once the buffer is whole again, 30 s steps up a tier, at most once
+// a race; if after a step up it can't hold 54 fps it steps back and never steps up again.
 
 export interface Tier {
   /** Highest pixel ratio drawn (the screen's own is used when lower). */
@@ -32,7 +39,18 @@ export const TOP = TIERS.length - 1;
 export type QualityMode = 'auto' | 'low' | 'high';
 
 /** Frame rates (fps) and spans (ms) of the rules above. */
-const RULE = { down: 40, floor: 15, up: 57, hold: 54, slowFor: 3000, fastFor: 30000, probe: 5000, probeBad: 1000 };
+const RULE = { down: 40, floor: 15, up: 57, hold: 54, slowFor: 3000, fastFor: 30000, scaleUpFor: 5000, probe: 5000, probeBad: 1000 };
+
+/**
+ * The resolution notch. `min` 0.6 of the tier's pixel ratio is 36% of its pixels - at the bottom tier's 0.5
+ * that is 0.3, a ninth of a plain screen's, which is as blurry as this art survives. Giving it back in
+ * smaller steps than it was taken keeps a machine that sits right on the edge from flapping between two
+ * sizes, and `gap` is there because resizing the drawing buffer costs a frame of its own.
+ */
+export const SCALE = { min: 0.6, down: 0.1, up: 0.05, gap: 1000 };
+
+/** What a frame changed: nothing, the drawing buffer's size, or the whole tier. Both truthy strings. */
+export type Change = '' | 'scale' | 'tier';
 /** Frames are judged in windows of this many ms, so one long frame (a GC, a tab switch) is not a trend. */
 const WINDOW = 500;
 /** A frame this long is a gap (the page was hidden, a dialog was up), not a slow frame. */
@@ -40,8 +58,12 @@ const GAP = 1000;
 
 export class Governor {
   tier: number;
+  /** What the tier's pixel ratio is multiplied by: 1 whole, SCALE.min at its smallest. */
+  scale = 1;
   /** A step up failed: no more stepping up this session. */
   locked = false;
+  /** ms since the drawing buffer last changed size, so one resize has time to settle before the next. */
+  private sinceScale = SCALE.gap;
   private upUsed = false;
   private winT = 0;
   private winN = 0;
@@ -68,40 +90,43 @@ export class Governor {
     this.upUsed = false;
   }
 
-  /** Jump to `tier` (a player setting changed), starting the timing over. */
+  /** Jump to `tier` (a player setting changed), starting the timing over at a whole buffer. */
   reset(tier: number): void {
     this.tier = tier;
+    this.scale = 1;
+    this.sinceScale = SCALE.gap;
     this.probeT = -1;
     this.clear();
   }
 
-  /** One frame of `ms`. `active` false (paused, a menu, hidden) and gaps are not timed. True when the tier changed. */
-  frame(ms: number, active: boolean): boolean {
+  /** One frame of `ms`. `active` false (paused, a menu, hidden) and gaps are not timed. */
+  frame(ms: number, active: boolean): Change {
     if (!active || !(ms > 0) || ms >= GAP) {
       this.clear();
-      return false;
+      return '';
     }
     this.winT += ms;
     this.winN++;
-    if (this.winT < WINDOW) return false;
+    if (this.winT < WINDOW) return '';
     const t = this.winT;
     const n = this.winN;
     this.winT = this.winN = 0;
+    this.sinceScale += t;
     if (this.settle) {
       this.settle = false;
-      return false;
+      return '';
     }
     return this.judge((n * 1000) / t, t, n);
   }
 
-  private judge(fps: number, t: number, n: number): boolean {
+  private judge(fps: number, t: number, n: number): Change {
     if (this.probeT >= 0) {
       this.probeT += t;
       this.probeBad = fps < RULE.hold ? this.probeBad + t : 0;
       if (this.probeBad >= RULE.probeBad) {
         this.locked = true;
         this.probeT = -1;
-        return this.set(this.from);
+        return this.set(this.from) ? 'tier' : '';
       }
       if (this.probeT >= RULE.probe) this.probeT = -1;
     }
@@ -115,19 +140,42 @@ export class Governor {
     }
     if (this.slowT >= RULE.slowFor) {
       const avg = (this.slowN * 1000) / this.slowT;
-      return this.set(avg < RULE.floor ? 0 : this.below());
+      // a slide show: no notch is going to save it, so the smallest buffer and the bottom tier at once
+      if (avg < RULE.floor) {
+        const shrank = this.resize(SCALE.min);
+        return this.set(0) ? 'tier' : shrank ? 'scale' : '';
+      }
+      // a notch of resolution before a tier: pixels are the cheapest thing on screen to give up, and the
+      // only thing left to give at the bottom tier
+      if (this.scale > SCALE.min) return this.sinceScale < SCALE.gap ? '' : this.resize(this.scale - SCALE.down) ? 'scale' : '';
+      return this.set(this.below()) ? 'tier' : '';
     }
-    if (this.fastT >= RULE.fastFor && !this.upUsed && !this.locked && this.probeT < 0) {
+    if (this.scale < 1 && this.fastT >= RULE.scaleUpFor) {
+      this.fastT = 0;
+      return this.sinceScale < SCALE.gap ? '' : this.resize(this.scale + SCALE.up) ? 'scale' : '';
+    }
+    if (this.scale >= 1 && this.fastT >= RULE.fastFor && !this.upUsed && !this.locked && this.probeT < 0) {
       this.fastT = 0;
       const up = this.above();
-      if (up === this.tier) return false;
+      if (up === this.tier) return '';
       this.upUsed = true;
       this.from = this.tier;
       this.set(up);
       this.probeT = this.probeBad = 0;
-      return true;
+      return 'tier';
     }
-    return false;
+    return '';
+  }
+
+  /** The buffer at `s` of the tier's pixel ratio, rounded to a notch and kept in range; true when it moved. */
+  private resize(s: number): boolean {
+    const v = Math.min(1, Math.max(SCALE.min, Math.round(s * 100) / 100));
+    if (Math.abs(v - this.scale) < 1e-6) return false;
+    this.scale = v;
+    this.sinceScale = 0;
+    this.settle = true;
+    this.clear();
+    return true;
   }
 
   private below(): number {

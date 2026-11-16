@@ -397,7 +397,7 @@ async function boot(): Promise<void> {
     const el = blocker(app, 'glLost');
     canvas.addEventListener('webglcontextrestored', () => { glLost = false; el.remove(); }, { once: true });
   });
-  if (params.has('stats')) showStats = statsOverlay(stage.renderer, () => `${launch ? 'launch' : chase && state === 'race' ? 'shift' : state} d${save?.div ?? 0} q${stage.tier}`);
+  if (params.has('stats')) showStats = statsOverlay(stage.renderer, () => `${launch ? 'launch' : chase && state === 'race' ? 'shift' : state} d${save?.div ?? 0} q${stage.tier}×${stage.resScale.toFixed(2)}`);
   preloadAudio(); // after the Bridge is up (its required step 2), small and in the background
   const read = await platform.loadData();
   save = parseSave(read.data);

@@ -65,6 +65,11 @@ export class Stage {
     return this.mode;
   }
 
+  /** What the tier's pixel ratio is being multiplied by right now (1 whole): the governor's fast lever. */
+  get resScale(): number {
+    return this.gov.scale;
+  }
+
   /** Share of spark and dust particles thrown at this tier. */
   get fxScale(): number {
     return TIERS[this.gov.tier].fx;
@@ -99,7 +104,8 @@ export class Stage {
     this.camera.updateProjectionMatrix();
   }
 
-  /** One frame of `ms`; `active` false when not racing (a menu, paused). Moves the tier in auto mode. */
+  /** One frame of `ms`; `active` false when not racing (a menu, paused). Moves the tier and the
+   *  drawing buffer's size in auto mode; `applyTier` picks up both. */
   frame(ms: number, active: boolean): void {
     if (this.mode !== 'auto' || this.forced !== null) return;
     if (this.gov.frame(ms, active)) this.applyTier();
@@ -138,7 +144,7 @@ export class Stage {
   }
 
   private ratio(): number {
-    return Math.min(TIERS[this.gov.tier].dpr, window.devicePixelRatio || 1);
+    return Math.min(TIERS[this.gov.tier].dpr, window.devicePixelRatio || 1) * this.gov.scale;
   }
 
   private applyTier(): void {
