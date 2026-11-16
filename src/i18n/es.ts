@@ -188,6 +188,7 @@ export const ES: Table = {
   boardTitle: "Más derribos",
   boardEmpty: "Aún no hay puntuaciones. ¡Sé el primero!",
   boardFail: "La clasificación no cargó. Inténtalo más tarde.",
+  boardSignIn: "Inicia sesión para mostrar tu nombre",
   streakDay: "Día {n} seguido",
   streakX2: "×2 (anuncio)",
   achievements: "Logros {n}/{m}",

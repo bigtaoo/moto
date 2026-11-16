@@ -188,6 +188,7 @@ export const ZH: Table = {
   boardTitle: '击倒最多',
   boardEmpty: '还没有成绩，来当第一个！',
   boardFail: '排行榜没加载出来，待会儿再试。',
+  boardSignIn: "登录后显示你的名字",
   streakDay: '连续第 {n} 天',
   streakX2: '×2（广告）',
   achievements: '成就 {n}/{m}',

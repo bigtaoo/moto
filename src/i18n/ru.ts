@@ -188,6 +188,7 @@ export const RU: Table = {
   boardTitle: "Больше всех сбитых",
   boardEmpty: "Пока пусто. Будь первым!",
   boardFail: "Таблица не загрузилась. Попробуй позже.",
+  boardSignIn: "Войди, чтобы показать своё имя",
   streakDay: "День {n} подряд",
   streakX2: "×2 (реклама)",
   achievements: "Достижения {n}/{m}",

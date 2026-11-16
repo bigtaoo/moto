@@ -188,6 +188,7 @@ export const FR: Table = {
   boardTitle: "Le plus de K.-O.",
   boardEmpty: "Pas encore de scores. Sois le premier !",
   boardFail: "Le classement n'a pas chargé. Réessaie plus tard.",
+  boardSignIn: "Se connecter pour afficher ton nom",
   streakDay: "Jour {n} d'affilée",
   streakX2: "×2 (pub)",
   achievements: "Succès {n}/{m}",

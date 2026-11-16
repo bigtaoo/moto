@@ -28,5 +28,14 @@
       "id": "takedowns",
       "isMain": true
     }
-  ]
+  ],
+  "saas": {
+    "publicToken": "cmwj3iwly4ehtlz0hhbrbq6dx",
+    "leaderboards": {
+      "platforms": [
+        "playgama",
+        "qa_tool"
+      ]
+    }
+  }
 }

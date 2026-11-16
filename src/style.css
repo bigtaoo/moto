@@ -429,7 +429,7 @@ button.primary:disabled:active { transform: none; box-shadow: 0 5px 0 var(--ink)
 .achs { background: #f3efe2; border-radius: 10px; padding: 6px 8px; font-size: 13px; margin: 6px 0; text-align: left; }
 .achs summary { font-weight: 900; cursor: pointer; min-height: 28px; line-height: 28px; }
 .achs[open] { max-height: 40vh; overflow-y: auto; }
-.title-card .board, .card .board { margin: 4px auto 0; }
+.title-card .board, .card .board, .boardview .signin { margin: 4px auto 0; } /* the sign-in wears .x2 for its look */
 .boardview .rows { max-height: 50vh; overflow-y: auto; margin: 8px 0; text-align: left; }
 .boardview .br { display: grid; grid-template-columns: 2.4em 1fr auto; gap: 6px; padding: 4px 6px; border-radius: 6px; font-size: 14px; }
 .boardview .br:nth-child(odd) { background: #f3efe2; }

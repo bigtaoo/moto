@@ -188,6 +188,7 @@ export const IT: Table = {
   boardTitle: 'Più cadute inflitte',
   boardEmpty: 'Ancora nessun punteggio. Sii il primo!',
   boardFail: 'La classifica non si è caricata. Riprova più tardi.',
+  boardSignIn: "Accedi per mostrare il tuo nome",
   streakDay: 'Giorno {n} di fila',
   streakX2: '×2 (annuncio)',
   achievements: 'Obiettivi {n}/{m}',

@@ -188,6 +188,7 @@ export const DE: Table = {
   boardTitle: "Meiste Takedowns",
   boardEmpty: "Noch keine Einträge. Sei der Erste!",
   boardFail: "Die Bestenliste lädt gerade nicht. Versuch es später.",
+  boardSignIn: "Anmelden, um deinen Namen zu zeigen",
   streakDay: "Tag {n} in Folge",
   streakX2: "×2 (Werbung)",
   achievements: "Erfolge {n}/{m}",

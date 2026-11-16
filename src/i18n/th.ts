@@ -188,6 +188,7 @@ export const TH: Table = {
   boardTitle: 'เขวี้ยงลงมากที่สุด',
   boardEmpty: 'ยังไม่มีสถิติ มาเป็นคนแรกสิ!',
   boardFail: 'โหลดตารางอันดับไม่ได้ ลองใหม่ภายหลัง',
+  boardSignIn: "เข้าสู่ระบบเพื่อแสดงชื่อของคุณ",
   streakDay: 'วันที่ {n} ติดกัน',
   streakX2: '×2 (โฆษณา)',
   achievements: 'ความสำเร็จ {n}/{m}',

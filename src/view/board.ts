@@ -26,6 +26,34 @@ function row(e: platform.BoardEntry): HTMLElement {
   return r;
 }
 
+const line = (text: string): HTMLElement => Object.assign(document.createElement('p'), { textContent: text });
+
+function load(rows: HTMLElement): void {
+  rows.replaceChildren(line('…'));
+  platform.boardEntries().then((list) => {
+    rows.replaceChildren(...(list.length ? list.map(row) : [line(t('boardEmpty'))]));
+  }).catch(() => rows.replaceChildren(line(t('boardFail'))));
+}
+
+/** The optional sign-in, inside the board and nowhere else: a guest's score lands with no name, and this
+ *  puts one on it. Only where the platform can sign them in and they haven't — never at launch (1.2.2). */
+function signInButton(card: HTMLElement, rows: HTMLElement): void {
+  if (!platform.canSignIn()) return;
+  const b = document.createElement('button');
+  b.className = 'x2 signin';
+  b.textContent = t('boardSignIn');
+  b.onclick = async () => {
+    b.disabled = true;
+    funnel.event('board_signin');
+    const ok = await platform.signIn();
+    if (!ok) { b.disabled = false; return; } // closed or refused: the board stays as it was
+    b.remove();
+    platform.resendScore(); // the same score again, under the name they now have
+    load(rows);
+  };
+  card.insertBefore(b, rows.nextSibling);
+}
+
 /** Wire the title card's board button, if it has one. */
 export function wireBoard(root: HTMLElement, app: HTMLElement): void {
   const btn = root.querySelector<HTMLButtonElement>('.board');
@@ -36,12 +64,11 @@ export function wireBoard(root: HTMLElement, app: HTMLElement): void {
     if (ty === 'native_popup') return platform.showBoardPopup();
     const el = document.createElement('div');
     el.className = 'overlay boardview';
-    el.innerHTML = `<div class="card small"><h2>${icon('star')} ${t('boardTitle')}</h2><div class="rows"><p>…</p></div><button class="primary">${t('back')}</button></div>`;
+    el.innerHTML = `<div class="card small"><h2>${icon('star')} ${t('boardTitle')}</h2><div class="rows"></div><button class="primary">${t('back')}</button></div>`;
     el.querySelector('button')!.onclick = () => el.remove();
     app.appendChild(el);
     const rows = el.querySelector<HTMLElement>('.rows')!;
-    platform.boardEntries().then((list) => {
-      rows.replaceChildren(...(list.length ? list.map(row) : [Object.assign(document.createElement('p'), { textContent: t('boardEmpty') })]));
-    }).catch(() => rows.replaceChildren(Object.assign(document.createElement('p'), { textContent: t('boardFail') })));
+    load(rows);
+    signInButton(el.querySelector<HTMLElement>('.card')!, rows);
   };
 }

@@ -188,6 +188,7 @@ export const ID: Table = {
   boardTitle: 'Paling banyak menjatuhkan',
   boardEmpty: 'Belum ada skor. Jadilah yang pertama!',
   boardFail: 'Papan skor gagal dimuat. Coba lagi nanti.',
+  boardSignIn: "Masuk untuk menampilkan namamu",
   streakDay: 'Hari ke-{n} berturut-turut',
   streakX2: '×2 (iklan)',
   achievements: 'Pencapaian {n}/{m}',

@@ -26,6 +26,7 @@ export const host = {
 
 const INIT_MS = 8000;
 const READ_MS = 5000;
+const AUTH_MS = 60000; // the platform's own sign-in window: the player types in it, so give them a minute
 
 /** `p`, or a rejection after `ms`. */
 function within<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
@@ -255,4 +256,29 @@ export async function boardEntries(): Promise<BoardEntry[]> {
 /** The platform's own board overlay (a `native_popup` board). */
 export function showBoardPopup(): void {
   try { bridge.leaderboards.showNativePopup(BOARD).catch(() => { /* closed or none */ }); } catch { /* none */ }
+}
+
+/** The last score sent again, under the name the player now has. */
+export function resendScore(): void {
+  const s = sent;
+  sent = -1;
+  if (s >= 0) submitScore(s);
+}
+
+// ---- the player's name on the board --------------------------------------------------------------
+
+/** The platform can sign the player in, and they are not signed in yet. The board offers it there and
+ *  nowhere else: the game never asks for a sign-in by itself (Playgama 1.2.2). */
+export const canSignIn = (): boolean => !!bridge?.player?.isAuthorizationSupported && !bridge.player.isAuthorized;
+
+/** Sign in through the platform, from a tap the player made. True when they are authorized afterwards.
+ *  A sign-in that fails or is closed changes nothing: the board stays open and playable (1.2.3). */
+export async function signIn(): Promise<boolean> {
+  if (!bridge?.player) return false;
+  try {
+    await within(bridge.player.authorize(), AUTH_MS, 'authorize');
+  } catch (e) {
+    console.warn('Authorization failed or was closed', e);
+  }
+  return !!bridge.player.isAuthorized;
 }

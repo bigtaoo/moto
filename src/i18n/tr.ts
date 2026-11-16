@@ -188,6 +188,7 @@ export const TR: Table = {
   boardTitle: "En çok düşüren",
   boardEmpty: "Henüz skor yok. İlk sen ol!",
   boardFail: "Sıralama yüklenemedi. Sonra tekrar dene.",
+  boardSignIn: "Adını göstermek için giriş yap",
   streakDay: "Üst üste {n}. gün",
   streakX2: "×2 (reklam)",
   achievements: "Başarımlar {n}/{m}",

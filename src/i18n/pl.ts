@@ -188,6 +188,7 @@ export const PL: Table = {
   boardTitle: 'Najwięcej zrzuceń',
   boardEmpty: 'Jeszcze nikt tu nie wpisał wyniku. Bądź pierwszy!',
   boardFail: 'Ranking się nie wczytał. Spróbuj później.',
+  boardSignIn: "Zaloguj się, aby pokazać swoje imię",
   streakDay: 'Dzień {n} z rzędu',
   streakX2: '×2 (reklama)',
   achievements: 'Osiągnięcia {n}/{m}',

@@ -188,6 +188,7 @@ export const JA: Table = {
   boardTitle: '最多ノックダウン',
   boardEmpty: 'まだ記録がありません。一番乗りを！',
   boardFail: 'ランキングを読み込めませんでした。後でお試しください。',
+  boardSignIn: "ログインして名前を表示",
   streakDay: '{n}日連続',
   streakX2: '×2（広告）',
   achievements: '実績 {n}/{m}',

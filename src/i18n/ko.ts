@@ -188,6 +188,7 @@ export const KO: Table = {
   boardTitle: '최다 넉다운',
   boardEmpty: '아직 기록이 없습니다. 첫 주자가 되세요!',
   boardFail: '순위표를 불러오지 못했습니다. 나중에 다시 시도하세요.',
+  boardSignIn: "로그인하면 이름이 표시돼요",
   streakDay: '{n}일 연속',
   streakX2: '×2 (광고)',
   achievements: '업적 {n}/{m}',

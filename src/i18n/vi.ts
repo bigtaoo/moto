@@ -188,6 +188,7 @@ export const VI: Table = {
   boardTitle: 'Hạ gục nhiều nhất',
   boardEmpty: 'Chưa có điểm nào. Làm người đầu tiên đi!',
   boardFail: 'Không tải được bảng xếp hạng. Thử lại sau nhé.',
+  boardSignIn: "Đăng nhập để hiện tên của bạn",
   streakDay: 'Ngày thứ {n} liên tiếp',
   streakX2: '×2 (quảng cáo)',
   achievements: 'Thành tích {n}/{m}',

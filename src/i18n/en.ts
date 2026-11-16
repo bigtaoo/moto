@@ -193,6 +193,7 @@ export const EN = {
   boardTitle: "Most takedowns",
   boardEmpty: "No scores yet. Be the first!",
   boardFail: "The leaderboard didn't load. Try again later.",
+  boardSignIn: "Sign in to show your name",
   streakDay: "Day {n} in a row",
   streakX2: "×2 (ad)",
   achievements: "Achievements {n}/{m}",
