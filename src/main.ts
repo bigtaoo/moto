@@ -432,11 +432,16 @@ async function boot(): Promise<void> {
   titleEl.querySelector('button')!.removeAttribute('disabled'); // a race is ready: the card's button works now
   showTitle();
   requestAnimationFrame(frame);
+  // The first real draw costs a frame of its own - the uploads and pipeline validation the prewarm's compile
+  // doesn't settle - and the sandbox's telemetry caught it in every machine's first race: one frame of 1.0 to
+  // 4.2 s, one or two seconds in, i.e. inside the starting countdown, and never again that session. A new
+  // player goes straight into that race, so the session's first drawn frame was the race's. Spend it here
+  // instead, behind the title card where nothing is moving, and start the race on a warm pipeline.
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
   // a new player is straight into their first race, no menu tap; the countdown is the tutorial's start
   if (BOT || save.races === 0) startRace();
   if (!BOT && save.races === 0) funnel.startTutorial();
   // ready once the shaders are built and a frame of it is on the screen (3.4: game_ready at the first playable frame)
-  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
   platform.gameReady();
   tele.bootDone();
 }
