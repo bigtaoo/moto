@@ -4,7 +4,7 @@
  * Bump on any change to the race rules that alters what a seed plus inputs produce, and record the new
  * golden hash in world.test.ts. Replays and (later) online rooms only mix the same version.
  */
-export const SIM_VERSION = 26;
+export const SIM_VERSION = 27;
 
 export const TICK_HZ = 30;
 export const DT = 1 / TICK_HZ;
@@ -120,7 +120,13 @@ export const INVULN_TICKS = 45;
 export const RECOVER_SPEED = 0.35;
 
 export const CAR = { halfW: 0.95, halfL: 2.2, riderHalfW: 0.4, minSpeed: 9, maxSpeed: 16, oncoming: -14 };
-export const TRAFFIC = { ahead: 260, behind: 50, spawnFrom: 170, base: 9, extra: 6, gap: 14, wall: 34 };
+/**
+ * Traffic. `sway` is how far a car wanders either side of its lane and `swayS` how many seconds one wander
+ * takes, each car out of step with the next: a car's half-width plus a rider's leaves 0.4 m of air on a lane
+ * boundary, so without the wander the painted lines would be rails no car could ever touch you on. Half a
+ * metre of it closes that gap now and then, which makes riding the line a gamble rather than a free ride.
+ */
+export const TRAFFIC = { ahead: 260, behind: 50, spawnFrom: 170, base: 9, extra: 6, gap: 14, wall: 34, sway: 0.5, swayS: 7 };
 
 /**
  * The test-site security buggies want the player to pull over. None ever rams anyone, and none sticks

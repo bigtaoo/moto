@@ -1,7 +1,8 @@
-// Road traffic: cars spawning ahead, keeping their lane (or merging round a closure) and running riders down.
+// Road traffic: cars spawning ahead, keeping their lane - give or take the sway that keeps the painted
+// lines from being safe - or merging round a closure, and running riders down.
 
 import * as C from './config';
-import { clamp } from './types';
+import { clamp, type Car } from './types';
 import type { World } from './world';
 import { crash } from './combat';
 
@@ -39,6 +40,17 @@ export function spawnCar(w: World, z: number): void {
   w.cars.push({ id: w.nextId++, x, z, pz: z, speed, cruise: speed, lane, color: w.traffic.pick(CAR_COLORS), brushed: false });
 }
 
+/**
+ * How far off its lane's middle a car is driving this tick: one slow wander either way, each car on its own
+ * phase, so no two drift together and no line on the road is a lane the traffic can never reach. A folded
+ * triangle, not a sine: the sim keeps to + - * / so every machine gets the same race (determinism lint).
+ */
+function sway(w: World, c: Car): number {
+  const t = (w.tick * C.DT) / C.TRAFFIC.swayS + c.id * 0.37;
+  const tri = 4 * Math.abs(t - Math.floor(t) - 0.5) - 1; // -1 .. 1, with a corner at either end
+  return C.TRAFFIC.sway * tri * (2 - Math.abs(tri)); // ...rounded off, so the car turns rather than jerks
+}
+
 export function updateTraffic(w: World): void {
   const p = w.player;
   const progress = clamp(p.z / w.length, 0, 1);
@@ -65,7 +77,12 @@ export function updateTraffic(w: World): void {
       if (pt.active && Math.abs(pt.x - c.x) < C.CAR.halfW + C.PATROL.halfW + 0.15 &&
         pt.z > c.z && pt.z - c.z < 10 && pt.speed < cap) cap = pt.speed;
       c.speed = c.speed < cap ? Math.min(cap, c.speed + 3 * C.DT) : cap;
-      c.x += clamp(C.LANE_X[c.lane] - c.x, -3 * C.DT, 3 * C.DT);
+      // the wander gives way to the security buggy: that one has its own way round traffic, and nothing
+      // in it expects a car to drift onto it
+      const mid = C.LANE_X[c.lane];
+      const reach = C.CAR.halfL + C.PATROL.halfL + 4 + Math.abs(c.speed - pt.speed) * 0.6;
+      const near = pt.active && Math.abs(pt.z - c.z) < reach;
+      c.x += clamp((near ? mid : mid + sway(w, c)) - c.x, -3 * C.DT, 3 * C.DT);
     }
     c.z += c.speed * C.DT;
   }
