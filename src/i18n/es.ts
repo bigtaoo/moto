@@ -48,6 +48,7 @@ export const ES: Table = {
   thug: '¡MATÓN DELANTE!',
   holdsGrudge: '¡{name} te la tiene jurada!',
   finished: '¡{o} puesto!',
+  sweep: 'Todos han llegado: quedan {n}s!',
   air: '¡AL AIRE!',
   stomped: '¡APLASTASTE A {name}! +${n}',
   landedOn: '¡{name} TE CAYÓ ENCIMA!',

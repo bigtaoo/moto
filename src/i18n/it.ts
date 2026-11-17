@@ -48,6 +48,7 @@ export const IT: Table = {
   thug: 'TEPPISTA IN VISTA!',
   holdsGrudge: '{name} porta rancore!',
   finished: '{o} posto!',
+  sweep: 'Tutti al traguardo: restano {n}s!',
   air: 'IN ARIA!',
   stomped: 'CALPESTATO {name}! +${n}',
   landedOn: '{name} TI È CADUTO ADDOSSO!',

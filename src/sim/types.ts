@@ -256,6 +256,7 @@ export type SimEvent =
   | { type: 'weed'; hazard: number; rider: number }
   | { type: 'taunt'; pay: number }
   | { type: 'boss'; rider: number; pay: number }
+  | { type: 'sweep'; secs: number }
   | { type: 'over' };
 
 export interface Upgrades {

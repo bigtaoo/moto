@@ -48,6 +48,7 @@ export const VI: Table = {
   thug: 'CÔN ĐỒ PHÍA TRƯỚC!',
   holdsGrudge: '{name} để bụng rồi!',
   finished: 'Hạng {o}!',
+  sweep: 'Mọi người đã về đích — còn {n}s!',
   air: 'BAY LÊN!',
   stomped: 'GIẪM TRÚNG {name}! +${n}',
   landedOn: '{name} RƠI TRÚNG BẠN!',

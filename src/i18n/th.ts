@@ -48,6 +48,7 @@ export const TH: Table = {
   thug: 'มีนักเลงข้างหน้า!',
   holdsGrudge: '{name} ผูกใจเจ็บ!',
   finished: 'อันดับ {o}!',
+  sweep: 'ทุกคนเข้าเส้นชัยแล้ว — เหลือ {n} วิ!',
   air: 'ลอยแล้ว!',
   stomped: 'เหยียบ {name}! +${n}',
   landedOn: '{name} ตกใส่คุณ!',

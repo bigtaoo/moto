@@ -48,6 +48,7 @@ export const DE: Table = {
   thug: 'SCHLÄGER VORAUS!',
   holdsGrudge: '{name} hat es auf dich abgesehen!',
   finished: '{o} Platz!',
+  sweep: 'Alle im Ziel — noch {n}s!',
   air: 'AIR!',
   stomped: '{name} ZERQUETSCHT! +${n}',
   landedOn: '{name} LANDET AUF DIR!',

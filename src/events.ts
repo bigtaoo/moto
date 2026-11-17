@@ -181,6 +181,10 @@ export function react(e: SimEvent, w: World, view: RaceView, hud: Hud, feel: Fee
         if (w.riders.some((r) => r.id !== 0 && !r.finished && w.player.z - r.z < 5)) feel.slow = 0.6;
       }
       break;
+    case 'sweep':
+      hud.flash(t('sweep', { n: e.secs }), 'warn');
+      buzz(20);
+      break;
     case 'rub':
       view.fx.scrape(e.x, e.z, Math.random);
       if (e.player || Math.abs(e.z - w.player.z) < 20) sfx.scrape(e.player);

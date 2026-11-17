@@ -48,6 +48,7 @@ export const JA: Table = {
   thug: '前方にチンピラ！',
   holdsGrudge: '{name}が根に持っている！',
   finished: '{o}！',
+  sweep: '全員ゴール — 残り{n}秒！',
   air: '大ジャンプ！',
   stomped: '{name}を踏んだ！+${n}',
   landedOn: '{name}に落ちてこられた！',

@@ -48,6 +48,7 @@ export const ZH: Table = {
   thug: '前方有打手！',
   holdsGrudge: '{name} 记仇了！',
   finished: '{o}！',
+  sweep: '其他人都到终点了——还剩 {n} 秒！',
   air: '腾空！',
   stomped: '踩中 {name}！+${n}',
   landedOn: '{name} 砸到你了！',

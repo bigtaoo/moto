@@ -48,6 +48,7 @@ export const PT: Table = {
   thug: 'CAPANGA À FRENTE!',
   holdsGrudge: '{name} guardou rancor!',
   finished: '{o} lugar!',
+  sweep: 'Todos chegaram — faltam {n}s!',
   air: 'NO AR!',
   stomped: 'ESMAGOU {name}! +${n}',
   landedOn: '{name} CAIU EM CIMA DE VOCÊ!',

@@ -48,6 +48,7 @@ export const RU: Table = {
   thug: 'ВПЕРЕДИ ГОПНИК!',
   holdsGrudge: '{name} затаил обиду!',
   finished: '{o} место!',
+  sweep: 'Все финишировали — осталось {n} с!',
   air: 'ПОЛЁТ!',
   stomped: 'ПРИЗЕМЛИЛСЯ НА {name}! +${n}',
   landedOn: '{name} ПРЫГНУЛ НА ТЕБЯ!',

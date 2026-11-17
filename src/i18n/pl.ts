@@ -48,6 +48,7 @@ export const PL: Table = {
   thug: 'ZBIR PRZED TOBĄ!',
   holdsGrudge: '{name} ma do ciebie żal!',
   finished: '{o} miejsce!',
+  sweep: 'Wszyscy na mecie — zostało {n}s!',
   air: 'LOT!',
   stomped: 'PRZEJECHAŁEŚ PO {name}! +${n}',
   landedOn: '{name} SPADŁ CI NA GŁOWĘ!',

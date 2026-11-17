@@ -48,6 +48,7 @@ export const ID: Table = {
   thug: 'ADA PREMAN DI DEPAN!',
   holdsGrudge: '{name} menyimpan dendam!',
   finished: 'Peringkat {o}!',
+  sweep: 'Semua sudah finis — sisa {n}d!',
   air: 'MELAYANG!',
   stomped: 'MENGINJAK {name}! +${n}',
   landedOn: '{name} JATUH MENIMPAMU!',

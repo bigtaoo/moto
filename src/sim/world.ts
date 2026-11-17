@@ -400,6 +400,12 @@ export class World {
       if (r.isPlayer) this.overT = this.tick + Math.round(1.6 * C.TICK_HZ);
     }
     if (this.chase) chaseEnd(this);
+    // Every rival is home and the player is still out there: give them a short run at the flag
+    // instead of a lap of an empty road until the time cap.
+    if (this.overT < 0 && this.finished > 0 && this.riders.every((r) => r.thug || r.isPlayer || r.finished)) {
+      this.overT = this.tick + Math.round(C.SWEEP_S * C.TICK_HZ);
+      this.events.push({ type: 'sweep', secs: C.SWEEP_S });
+    }
     const timeUp = this.time >= C.TIME_CAP_S;
     if (!this.over && ((this.overT > 0 && this.tick >= this.overT) || timeUp)) {
       // Riders still on the road get places by distance.

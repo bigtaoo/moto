@@ -4,7 +4,7 @@
  * Bump on any change to the race rules that alters what a seed plus inputs produce, and record the new
  * golden hash in world.test.ts. Replays and (later) online rooms only mix the same version.
  */
-export const SIM_VERSION = 28;
+export const SIM_VERSION = 29;
 
 export const TICK_HZ = 30;
 export const DT = 1 / TICK_HZ;
@@ -18,6 +18,8 @@ export const EDGE = ROAD_HALF - 0.55;
 /** Two and a half minutes of racing, measured: see docs 3.3.21, held there through 3.3.31's faster bikes. */
 export const RACE_LEN = 3400;
 export const TIME_CAP_S = 240;
+/** Once every rival is home, the stragglers get this long at the flag before the race is called. */
+export const SWEEP_S = 12;
 /** Weapon pickups, as fractions of the race. */
 export const PICKUP_AT = [0.08, 0.22, 0.36, 0.5, 0.64, 0.78, 0.9];
 export const COUNTDOWN_S = 2;

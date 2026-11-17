@@ -48,6 +48,7 @@ export const KO: Table = {
   thug: '앞에 깡패!',
   holdsGrudge: '{name}이(가) 앙심을 품었다!',
   finished: '{o}!',
+  sweep: '모두 골인 — {n}초 남음!',
   air: '점프!',
   stomped: '{name} 밟았다! +${n}',
   landedOn: '{name}이(가) 네 위로 떨어졌다!',

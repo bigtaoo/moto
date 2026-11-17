@@ -9,7 +9,7 @@ import { World, type WorldOpts } from './world';
 // The golden hashes pin what a seed plus inputs produce. If one changes, either the change was meant
 // to alter the race (bump SIM_VERSION in config.ts and paste the new hashes here) or the sim lost
 // its determinism (find out why before touching anything).
-const GOLDEN = { version: 28, mid: 'a4658f78', end: 'c64b71eb', endTick: 4624 };
+const GOLDEN = { version: 29, mid: 'a4658f78', end: 'c64b71eb', endTick: 4624 };
 
 const OPTS: WorldOpts = { seed: 1, upgrades: { top: 2, steer: 2, hp: 2 }, div: 2, nemesis: 3, tier: 1, vehicle: 2 };
 const MID = 60 * TICK_HZ;
@@ -71,6 +71,38 @@ describe('sim determinism', () => {
 
   it('refuses a replay from another sim version', () => {
     expect(() => playReplay({ ...a.replay, v: SIM_VERSION + 1 })).toThrow(/sim v/);
+  });
+});
+
+describe('the sweep', () => {
+  it('calls the race a few seconds after the last rival is home, not at the time cap', () => {
+    // a player who never touches the controls: they fall behind, everyone else finishes
+    const w = new World({ seed: 7, div: 1 });
+    let lastRival = 0;
+    let swept = 0;
+    while (!w.over && w.tick < 400 * TICK_HZ) {
+      w.input.steer = 0;
+      w.input.brake = false;
+      w.input.attack = false;
+      w.step();
+      for (const e of w.events) {
+        if (e.type === 'finish' && e.rider !== 0) lastRival = w.time;
+        if (e.type === 'sweep') swept = w.time;
+      }
+      w.events.length = 0;
+    }
+    expect(w.player.finished).toBe(false);
+    expect(w.time).toBeLessThan(C.TIME_CAP_S - 10);
+    expect(swept).toBeCloseTo(lastRival, 1);
+    expect(w.time - swept).toBeCloseTo(C.SWEEP_S, 0);
+    // and everyone still has a place
+    expect(new Set(w.riders.filter((r) => !r.thug).map((r) => r.place)).size).toBe(w.riders.filter((r) => !r.thug).length);
+  });
+
+  it('leaves a normal race alone: the player finishing still ends it', () => {
+    const w = race(OPTS).world;
+    expect(w.player.finished).toBe(true);
+    expect(w.time).toBeLessThan(C.TIME_CAP_S);
   });
 });
 

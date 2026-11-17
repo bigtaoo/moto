@@ -51,6 +51,7 @@ export const EN = {
   thug: 'THUG AHEAD!',
   holdsGrudge: '{name} holds a grudge!',
   finished: '{o} place!',
+  sweep: 'All home — {n}s left!',
   air: 'AIR!',
   stomped: 'STOMPED {name}! +${n}',
   landedOn: '{name} LANDED ON YOU!',

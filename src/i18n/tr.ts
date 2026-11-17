@@ -48,6 +48,7 @@ export const TR: Table = {
   thug: 'İLERİDE HAYDUT!',
   holdsGrudge: '{name} sana kin tuttu!',
   finished: '{o} sıra!',
+  sweep: 'Herkes bitirdi — {n}sn kaldı!',
   air: 'HAVADA!',
   stomped: '{name} EZİLDİ! +${n}',
   landedOn: '{name} ÜSTÜNE İNDİ!',

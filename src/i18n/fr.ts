@@ -48,6 +48,7 @@ export const FR: Table = {
   thug: 'VOYOU DEVANT !',
   holdsGrudge: '{name} t’en veut !',
   finished: '{o} place !',
+  sweep: 'Tout le monde a fini — plus que {n}s !',
   air: 'EN L’AIR !',
   stomped: '{name} ÉCRASÉ ! +${n}',
   landedOn: '{name} T’ATTERRIT DESSUS !',
