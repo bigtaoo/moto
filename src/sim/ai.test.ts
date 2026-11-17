@@ -174,10 +174,14 @@ describe('a chaser on the shortcut trail (3.3.51)', () => {
 
   it('does not ride the player own line out on the dirt', () => {
     let level = 0, stacked = 0;
-    // 120 seeds, not 40: a rival keeping pace on the trail is one long episode, so a handful of races
-    // counts it in the tens and swings by 5x on any change to the riders (3.3.53)
-    for (let seed = 1; seed <= 120; seed++) {
-      const w = new World({ seed, div: 3, upgrades: { top: 4, steer: 4, hp: 2 } });
+    // Three divisions, 60 seeds each, not 120 seeds of one: a rival keeping pace on the trail is one long
+    // episode, so a handful of races counts it in the tens and swings by 5x on any change to the riders
+    // (3.3.53). One division's worth of them is thin on its own -- the same 120 seeds count 145 of these
+    // in division 1 and 41 in division 3 -- and the gear is the career's own at each rung (3.3.55), so
+    // retuning the ladder cannot quietly drop the player out of the pack and take the episodes with it.
+    for (const div of [1, 2, 3]) for (let seed = 1; seed <= 60; seed++) {
+      const gear = C.careerGear(div, 0);
+      const w = new World({ seed, div, upgrades: gear.up, vehicle: gear.vehicle });
       while (!w.over && w.tick < 400 * C.TICK_HZ) {
         botInput(w);
         w.step();
@@ -195,7 +199,7 @@ describe('a chaser on the shortcut trail (3.3.51)', () => {
     }
     expect(level).toBeGreaterThan(60);
     expect(stacked / level).toBeLessThan(0.25);
-  }, 30_000);
+  }, 90_000);
 });
 
 describe('traffic', () => {

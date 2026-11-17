@@ -4,6 +4,7 @@ import { botInput } from './sim/ai';
 import { World } from './sim/world';
 import { CUP_RACES } from './career';
 import { parseSave, type Save } from './meta';
+import { CHAIN_LINKS } from './daily';
 
 /** The host: a race must settle the same whether or not there is a Bridge, a board or an ad to offer. */
 const host = vi.hoisted(() => ({ scores: [] as number[], saved: [] as string[], ad: false }));
@@ -89,8 +90,14 @@ describe('a cup race settles into the save', () => {
     expect(res.daily.rows.length).toBeGreaterThan(0);
     expect(res.daily.cash).toBeGreaterThanOrEqual(0);
     expect(res.daily.done.every((k) => res.daily.rows.some((r) => r.kind === k && r.done))).toBe(true);
-    // the race's own numbers went in: a challenge that counts KOs has seen them
-    expect(save.daily.prog.some((p) => p > 0) || w.kos + w.shoves === 0).toBe(true);
+    // the race's own numbers went in -- each of the day's three, by what the race actually did. (It used
+    // to be `some(p > 0)` whenever the player landed a hit, which only held while a day happened to draw a
+    // challenge the race fed: seed 7 lands 18 knockdowns on a day asking for grudges, shoves and near misses.)
+    const got: Record<string, number> = {
+      kos: w.kos, shoves: w.shoves, podium: w.player.place <= 3 ? 1 : 0, near: w.flair.near,
+      races: 1, chain: w.flair.best >= CHAIN_LINKS ? 1 : 0, grudge: w.grudgeKos + w.revenge,
+    };
+    for (const r of res.daily.rows) expect(r.prog).toBe(Math.min(r.goal, got[r.kind]));
   });
 
   it('settles two races in a row without losing the first', () => {
