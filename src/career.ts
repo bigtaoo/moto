@@ -210,16 +210,22 @@ export function chooseRide(save: Save, v: number): boolean {
 
 // ---- the nemesis -------------------------------------------------------------------------------
 // Every rival keeps a tally of bad blood with the player: knocking the player off counts double, beating
-// them home or being knocked off by them counts one. The bad blood is mutual, so nothing takes it down --
-// until 3.3.33 the player's own knockdowns cancelled it out, so a player who fought well never earned a
-// nemesis at all (scripts/career.ts: the first appeared at race 62-76 of an 80-96 race career, and most
-// players quit long before that). The first to reach NEMESIS_AT becomes the player's nemesis
+// them home or being knocked off by them counts one. The bad blood is mutual -- until 3.3.33 the player's
+// own knockdowns cancelled it out, so a player who fought well never earned a nemesis at all (the first
+// appeared at race 62-76 of an 80-96 race career). That fix overshot: with nothing taking the tally down
+// the whole field crossed the line in the first two races, so 3.3.46 made it fade (BEEF_FADE), raised the
+// line and put a cooling-off on the rest of the field when one is broken (COOL). The first to reach
+// NEMESIS_AT becomes the player's nemesis
 // (one at a time): faster and keener in every race (C.NEMESIS), and worth a bounty each time the
 // player knocks them off. Beating them outright in a race (knocking them off and finishing ahead) BREAK_AT
 // times breaks them for good.
 
-export const NEMESIS_AT = 14;
-export const BREAK_AT = 3;
+export const NEMESIS_AT = 24;
+/** Bad blood fades by this much each race: a rivalry is who you have been tangling with lately. */
+export const BEEF_FADE = 0.95;
+export const BREAK_AT = 4;
+/** Breaking one settles the score with the whole field: everyone else's bad blood is cut to this share. */
+export const COOL = 0.5;
 /** Cash, times the division's prize multiplier: per revenge KO, for beating them home, for breaking them. */
 export const REVENGE_PAY = 60;
 export const AHEAD_PAY = 50;
@@ -282,10 +288,12 @@ export function settleFeud(f: Feud, r: RaceFeud, prizeMul: number): FeudOutcome 
       f.broken++;
       f.beef[n.id] = 0;
       f.nemesis = null;
+      for (let id = 1; id < f.beef.length; id++) f.beef[id] = Math.floor(f.beef[id] * COOL);
     }
   }
   for (let id = 1; id < f.beef.length; id++) {
     if (n && id === n.id) continue;
+    f.beef[id] = Math.floor(f.beef[id] * BEEF_FADE);
     const place = r.places[id] ?? 0;
     if (!place && !r.koPlayer[id] && !r.koByPlayer[id]) continue;
     const beat = place > 0 && place < me ? 1 : 0;
@@ -293,7 +301,7 @@ export function settleFeud(f: Feud, r: RaceFeud, prizeMul: number): FeudOutcome 
   }
   if (!f.nemesis && !out.broken) {
     let best = 0;
-    for (let id = 1; id < f.beef.length; id++) if (f.beef[id] >= NEMESIS_AT && f.beef[id] > (f.beef[best] ?? 0)) best = id;
+    for (let id = 1; id < f.beef.length; id++) if (f.beef[id] >= NEMESIS_AT && f.beef[id] > f.beef[best]) best = id;
     if (best) {
       f.nemesis = { id: best, hurt: 0, paid: 0 };
       f.beef[best] = 0;
