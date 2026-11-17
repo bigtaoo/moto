@@ -294,6 +294,8 @@ export interface WorldOpts {
   vehicle?: number;
   /** A weapon the player brings to the start (bought in the shop). */
   weapon?: C.WeaponKind;
+  /** Races the player has behind them: the first few are eased (C.ROOKIE). -1 or absent: not a career race. */
+  rookie?: number;
   /** A security shift instead of a race (src/sim/chase.ts). */
   chase?: boolean;
   /** The cup's last race: one rival is the boss. */

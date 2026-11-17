@@ -80,6 +80,15 @@ export class Controls {
     window.addEventListener('blur', () => { this.keys.clear(); this.syncKeys(); });
   }
 
+  /**
+   * Ask the portal's iframe for the keyboard back. An interstitial takes the focus and hands it to the ad's
+   * own frame, not back to the game, so without this every race after the first opened with the HUD asking
+   * for a click (3.7.2: `keys_wait` 1-6 s, 37 times over 12 sessions).
+   */
+  grab(): void {
+    window.focus();
+  }
+
   reset(): void {
     this.targetX = null;
     this.drag = null;

@@ -35,7 +35,7 @@ describe('achievements', () => {
   it('pays each once, from the race and from the save', () => {
     const save = parseSave(null);
     const got = afterRace(save, race);
-    expect(got.map((a) => a.id).sort()).toEqual(['clean', 'win']);
+    expect(got.map((a) => a.id).sort()).toEqual(['clean', 'firstKo', 'win']);
     expect(save.cash).toBe(got.reduce((n, a) => n + a.pay, 0));
     expect(afterRace(save, race)).toEqual([]);
     expect(save.life).toEqual({ kos: 6, wins: 2 });

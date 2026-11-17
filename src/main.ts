@@ -85,6 +85,8 @@ let hostPaused = false;
 let glLost = false;
 /** Seconds this race's countdown has stood waiting for the keys to reach the game. */
 let keysWait = 0;
+/** Seconds the countdown waits for a keyboard player's click before starting anyway. */
+const KEYS_HOLD_S = 3;
 let acc = 0;
 /** Hitstop, slow motion and the grudge call-outs, which the events set (src/events.ts). */
 let feel = newFeel();
@@ -116,7 +118,7 @@ function newRace(): void {
   const seed = ((save.races * 7919 + 17) % 99991) + 1;
   // a shift has no feuds, and the weapon bought for the next race waits for it
   const nem = chase ? null : save.feud.nemesis;
-  const opts = { seed: chase ? seed + 5003 * ++shifts : seed, chase, upgrades: save.up, grudges: chase ? [] : save.grudges, length: LEN, div: save.div, tier: save.tier, endless: save.endless,
+  const opts = { seed: chase ? seed + 5003 * ++shifts : seed, chase, upgrades: save.up, grudges: chase ? [] : save.grudges, length: LEN, div: save.div, tier: save.tier, endless: save.endless, rookie: chase ? -1 : save.races,
     vehicle: save.garage.cur, nemesis: nem?.id, weapon: chase ? undefined : save.carry ?? undefined,
     boss: !chase && save.cup.race === CUP_RACES - 1, mutator: !chase && save.cup.race === MUTATOR.race ? weeklyMutator(Date.now()) : undefined };
   world = new World(opts);
@@ -129,7 +131,7 @@ function newRace(): void {
   intro();
   controls.reset();
   acc = 0;
-  feel = newFeel();
+  feel = newFeel(save.life.kos === 0);
   atkBuffer = 0;
   lastCount = -1;
   falls = 0;
@@ -146,6 +148,7 @@ function intro(): void {
 function startRace(): void {
   if (!world || state !== 'title') return; // still booting, or already gone
   intro(); // the first race's ran behind the title
+  controls.grab();
   stage.raceStart();
   unlockAudio();
   titleEl.classList.add('hidden');
@@ -160,6 +163,7 @@ function nextRace(placement: string, shift = false): void {
   platform.interstitial(placement);
   chase = shift;
   newRace();
+  controls.grab(); // the ad just took the keyboard away from the iframe
   stage.raceStart();
   setState('race');
   if (chase) return;
@@ -334,12 +338,16 @@ function frame(now: number): void {
   // and a countdown waits for it so the race doesn't start without them
   const askKeys = state === 'race' && !BOT && !paused && DESKTOP && !keysReach();
   hud.showHint(askKeys ? 'click' : state === 'race' && save.races < 2 && world.time < 6 ? 'controls' : 'off');
-  const waiting = askKeys && world.countdown > 0;
-  if (waiting) keysWait += dt;
+  // held only so long: a player whose keys never arrive is better off racing with the ask still on screen
+  // than staring at a frozen countdown (any click in the game fixes it). keysWait keeps counting past the
+  // hold so the telemetry still reports the whole wait.
+  const asking = askKeys && world.countdown > 0;
+  if (asking) keysWait += dt;
   else if (keysWait > 0) {
     funnel.event('keys_wait', { seconds: Math.round(keysWait) });
     keysWait = 0;
   }
+  const waiting = asking && keysWait < KEYS_HOLD_S;
   const stopped = paused || hostPaused || glLost;
   tele.frame(ms, state === 'race' && !BOT, !stopped && !waiting);
   stage.frame(ms, state === 'race' && !stopped && !waiting && !document.hidden);

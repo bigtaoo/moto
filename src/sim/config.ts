@@ -4,7 +4,7 @@
  * Bump on any change to the race rules that alters what a seed plus inputs produce, and record the new
  * golden hash in world.test.ts. Replays and (later) online rooms only mix the same version.
  */
-export const SIM_VERSION = 27;
+export const SIM_VERSION = 28;
 
 export const TICK_HZ = 30;
 export const DT = 1 / TICK_HZ;
@@ -109,13 +109,36 @@ export const DOWN = {
   lie: { ko: 30, car: 40, wall: 36, cones: 36, oil: 36, cow: 40 }, // ticks on the ground at least before getting up
   stand: 1.7, // seconds getting up and on their feet before the run (the view: a slow climb up, then a gag)
   body: 20, // m/s² the body slows at ...
-  bike: 11, // ... and the scooter
+  /**
+   * ... and the scooter. 3.7.2: the sandbox had a losing player on the ground 33 s of a 120 s race, and
+   * the climb up is deliberately slow (it is the joke), so the time came off the *run back* instead: the
+   * scooter stops sooner and they scurry faster, about 2.5 s a fall. The fall still hurts; it stops being
+   * the whole race.
+   */
+  bike: 15,
   bikeSide: 0.6, // share of the sideways shove the scooter takes
-  run: 5, // m/s running back to it (a slow, panicky scurry; the view makes the legs go faster) ...
+  run: 7, // m/s running back to it (a panicky scurry; the view makes the legs go faster) ...
   runUp: 0.4, // ... reached after this many seconds
   reach: 1.0, // metres from the scooter at which they're back on it
-  maxRun: 6, // seconds of running before they're put back on regardless
+  maxRun: 4.5, // seconds of running before they're put back on regardless
 };
+/**
+ * The opening of a career, eased. Measured on the sandbox (docs 3.7.2): the first race took 145-185 s
+ * while half the sessions ended inside 152 s, so nobody saw a result; of the falls that ate that time,
+ * 71% were traffic. So the first races are shorter and emptier and the rivals a little slower, back to
+ * the full race by the third. Indexed by races finished (`save.races`); past the lists, nothing is eased.
+ */
+export const ROOKIE = {
+  len: [0.5, 0.75], // times the stage's race length
+  traffic: [0.5, 0.75], // times the division's density
+  rivalTop: [-2.5, -1.2], // m/s off every rival's top speed, so the first race can actually be won
+};
+/** `ROOKIE[key]` for a player with `races` races behind them: 1 (or 0 m/s) once they are past the opening. */
+export const rookieEase = (races: number, key: 'len' | 'traffic'): number =>
+  races >= 0 && races < ROOKIE[key].length ? ROOKIE[key][races] : 1;
+export const rookieTop = (races: number): number =>
+  races >= 0 && races < ROOKIE.rivalTop.length ? ROOKIE.rivalTop[races] : 0;
+
 export const INVULN_TICKS = 45;
 export const RECOVER_SPEED = 0.35;
 

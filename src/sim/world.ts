@@ -94,6 +94,8 @@ export class World {
   readonly road: Road;
   readonly trafficBase: number;
   readonly trafficExtra: number;
+  /** Races the player had behind them (C.ROOKIE eases the first few); -1 outside a career. */
+  readonly rookie: number;
   /** A security shift (src/sim/chase.ts): the player hunts the field down; runners knocked off are caught. */
   readonly chase: boolean;
   caught = 0;
@@ -114,10 +116,12 @@ export class World {
     const bats = mut === 'bats';
     this.divIndex = clamp(Math.floor(opts.div ?? 0), 0, C.DIVISIONS.length - 1);
     this.div = C.stage(this.divIndex, Math.floor(opts.tier ?? 0), opts.endless ?? 0);
-    this.length = opts.length ?? Math.round(C.RACE_LEN * this.div.len);
+    this.rookie = Math.floor(opts.rookie ?? -1);
+    const rk = this.chase ? -1 : this.rookie;
+    this.length = opts.length ?? Math.round(C.RACE_LEN * this.div.len * C.rookieEase(rk, 'len'));
     this.vehicle = clamp(Math.floor(opts.vehicle ?? 0), 0, C.VEHICLES.length - 1);
     this.road = new Road(this.length, this.div, new Prng(opts.seed * 23 + 7));
-    const busier = this.div.traffic * (mut === 'traffic' ? MUTATOR.traffic : 1);
+    const busier = this.div.traffic * C.rookieEase(rk, 'traffic') * (mut === 'traffic' ? MUTATOR.traffic : 1);
     this.trafficBase = Math.round(C.TRAFFIC.base * busier);
     this.trafficExtra = Math.round(C.TRAFFIC.extra * busier);
     this.traffic = new Prng(opts.seed * 7 + 1);
@@ -150,7 +154,7 @@ export class World {
       const d = this.div;
       const nem = i + 1 === this.nemesis;
       this.addRider({
-        name: s.name, isPlayer: false, x: g.x, z: g.z, top: s.top + d.top + (nem ? C.NEMESIS.top : 0), steer: 7, hp: C.RIVAL_HP + d.hp + (nem ? C.NEMESIS.hp : 0),
+        name: s.name, isPlayer: false, x: g.x, z: g.z, top: s.top + d.top + C.rookieTop(rk) + (nem ? C.NEMESIS.top : 0), steer: 7, hp: C.RIVAL_HP + d.hp + (nem ? C.NEMESIS.hp : 0),
         aggr: Math.min(1, s.aggr + d.mind + (nem ? C.NEMESIS.aggr : 0)), aware: Math.min(1, s.aware + d.mind), body: s.body, ride: s.ride, weapon: bats ? 'bat' : s.weapon,
       });
     });
@@ -173,7 +177,10 @@ export class World {
     }
     if (this.chase) chaseSetup(this);
     if (opts.boss && !this.chase) crownBoss(this);
-    for (let z = 70; z < 70 + C.TRAFFIC.ahead; z += 25 + this.traffic.float() * 20) spawnCar(this, z);
+    // the field of traffic the race opens with, spaced out by the same easing (else the rookie race starts
+    // in the wall of cars its lower density was meant to take away)
+    const fill = Math.max(0.2, C.rookieEase(rk, 'traffic'));
+    for (let z = 70; z < 70 + C.TRAFFIC.ahead; z += (25 + this.traffic.float() * 20) / fill) spawnCar(this, z);
     for (const f of C.PICKUP_AT) {
       let x: number = C.LANE_X[1 + this.traffic.int(3)];
       let z = this.length * f;

@@ -14,6 +14,7 @@ import type { Hud } from './view/hud';
 import { sfx } from './view/audio';
 import * as tele from './telemetry';
 import { REVENGE_PAY } from './career';
+import { FIRST_KO_PAY } from './rewards';
 import { t, ord } from './i18n';
 import { buzz } from './haptics';
 import { BOWL } from './sim/fun';
@@ -26,6 +27,11 @@ export interface Feel {
   slow: number;
   /** Grudge KOs already called out this race. */
   lastGrudgeKos: number;
+  /**
+   * The player has never knocked anyone off: the first one is called out on the road with what it pays
+   * (3.7.2 -- a new player needs something to show for the race well before the finish line).
+   */
+  firstKo: boolean;
 }
 
 const WEAPON = { pan: ['stolePan', 'tookPan', 'fryingPan'], bat: ['stoleBat', 'tookBat', 'baseballBat'], oil: ['stoleOil', 'tookOil', 'oilCan'] } as const;
@@ -35,7 +41,7 @@ const FELL = { ko: 'knockedOff', car: 'wipeout', wall: 'slammed', cones: 'cones'
 /** Falls this session the bowling tip was shown on (it stops at 2, or once the player has bowled someone). */
 let bowlTips = 0;
 
-export const newFeel = (): Feel => ({ hitstop: 0, slow: 0, lastGrudgeKos: 0 });
+export const newFeel = (firstKo = false): Feel => ({ hitstop: 0, slow: 0, lastGrudgeKos: 0, firstKo });
 
 export function react(e: SimEvent, w: World, view: RaceView, hud: Hud, feel: Feel): void {
   const near = (id: number) => id === 0 || Math.abs(w.riders[id].z - w.player.z) < 28;
@@ -98,7 +104,10 @@ export function react(e: SimEvent, w: World, view: RaceView, hud: Hud, feel: Fee
       if (e.from === 0 && e.ko && e.to === w.nemesis) feel.slow = 0.5;
       if (near(e.to)) sfx.thunk(e.ko);
       if (e.from === 0 && e.counter && !e.ko) hud.flash(t('counter'), 'ko');
-      if (e.from === 0 && e.ko) {
+      if (e.from === 0 && e.ko && feel.firstKo && !w.chase) {
+        feel.firstKo = false;
+        hud.flash(t('firstKo', { n: FIRST_KO_PAY + C.KO_BONUS }), 'ko');
+      } else if (e.from === 0 && e.ko) {
         if (e.to === w.nemesis) hud.flash(t('revenge', { n: Math.round(REVENGE_PAY * w.div.prize) + C.KO_BONUS }), 'ko');
         else if (w.grudgeKos > feel.lastGrudgeKos) {
           feel.lastGrudgeKos = w.grudgeKos;

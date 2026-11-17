@@ -59,7 +59,18 @@ interface Achievement {
   got: (s: Save, r?: RaceFacts) => boolean;
 }
 
+/**
+ * What the first race and the first takedown pay (src/events.ts calls the takedown out on the road as it
+ * happens). 3.7.2: a new player's first race ended 8th of 8 with nothing earned and nothing opened, and
+ * most of them never came back for a second. These two pay whatever place they finish in -- the first one
+ * buys the cheapest upgrade outright.
+ */
+export const DEBUT_PAY = 400;
+export const FIRST_KO_PAY = 250;
+
 export const ACHIEVEMENTS: readonly Achievement[] = [
+  { id: 'debut', pay: DEBUT_PAY, got: (s) => s.races >= 1 },
+  { id: 'firstKo', pay: FIRST_KO_PAY, got: (s) => s.life.kos >= 1 },
   { id: 'win', pay: 300, got: (s) => s.life.wins >= 1 },
   { id: 'promo', pay: 400, got: (s) => s.div >= 1 || s.tier >= 1 },
   { id: 'kos100', pay: 500, got: (s) => s.life.kos >= 100 },
