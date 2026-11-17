@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { upgradePrice } from './career';
 import { parseSave, type Save } from './meta';
-import { carryPrice } from './shop';
+import { carryPrice, CARRY } from './shop';
 import * as C from './sim/config';
 
 const host = vi.hoisted(() => ({
@@ -106,6 +106,32 @@ describe('the results screen does the shopping', () => {
 
     act.hat(0); // back to the free one, already owned
     expect(named('hat_chosen')[1].data).toMatchObject({ hat: 0, bought: false, price: 0 });
+  });
+
+  it('prices a weapon off what a race pays, not off the purse', () => {
+    const at = (div: number, tier: number) => {
+      const save = parseSave(null);
+      save.div = div;
+      save.tier = tier;
+      return carryPrice(save, 'bat');
+    };
+    const first = at(0, 0);
+    const last = at(C.DIVISIONS.length - 1, C.TIERS.length - 1);
+    expect(first).toBe(CARRY.bat);
+    // the purse multiplies about elevenfold across the ladder; what a race pays the player barely doubles,
+    // and the weapon follows the pay (3.3.45)
+    expect(C.stage(C.DIVISIONS.length - 1, C.TIERS.length - 1).prize).toBeGreaterThan(10);
+    expect(last).toBeGreaterThan(first);
+    expect(last).toBeLessThan(first * 2.5);
+    // never cheaper further up a season (a new season restarts at the first division, purse and all)
+    for (const tier of [0, 1, 2]) {
+      let prev = 0;
+      for (let div = 0; div < C.DIVISIONS.length; div++) {
+        const now = at(div, tier);
+        expect(now).toBeGreaterThanOrEqual(prev);
+        prev = now;
+      }
+    }
   });
 
   it('a weapon is carried one at a time', () => {

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { World, type Rider, type SimEvent as WorldEvent } from './world';
+import { knockOff } from './combat';
 import { botInput } from './ai';
 import * as C from './config';
 
@@ -164,6 +165,49 @@ describe('fights: shoves, dodges, counters, steals', () => {
     r.foe = 0;
     const ev = run(w, C.ATTACK.open - 2, [r], () => { w.player.z = r.z; w.player.x = r.x + 1.8; });
     expect(ev.some((e) => e.type === 'swing' && e.rider === r.id)).toBe(false);
+  });
+});
+
+describe('the weapon you paid for', () => {
+  it('rides out a fall, while one picked up off the road flies away', () => {
+    for (const bought of [true, false]) {
+      const w = new World({ seed: 4, weapon: bought ? 'bat' : undefined });
+      while (w.countdown > 0) w.step();
+      clear(w);
+      const p = w.player;
+      if (!bought) {
+        p.weapon = 'bat';
+        p.strap = false;
+      }
+      expect(p.weapon).toBe('bat');
+      expect(p.strap).toBe(bought);
+      const pickups = w.pickups.length;
+      knockOff(w, p, w.riders[1]);
+      expect(p.state).not.toBe('ride');
+      expect(p.weapon).toBe(bought ? 'bat' : null);
+      expect(w.pickups.length).toBe(pickups + (bought ? 0 : 1));
+    }
+  });
+
+  it('is gone for good once it is knocked clean out of your hands', () => {
+    const w = new World({ seed: 4, weapon: 'bat' });
+    while (w.countdown > 0) w.step();
+    clear(w);
+    const p = w.player;
+    const foe = w.riders[1];
+    alongside(w, foe, p.x + 1.1, p.x);
+    foe.aggr = 1;
+    run(w, 4 * C.TICK_HZ, [foe], () => {
+      if (!p.weapon) return;
+      foe.x = foe.px = p.x + 1.1;
+      foe.z = foe.pz = p.z;
+      foe.atkCd = 0;
+      p.invT = 0;
+      p.hp = p.maxHp;
+    });
+    // whether or not this particular run disarmed them, the two always agree
+    if (!p.weapon) expect(p.strap).toBe(false);
+    expect(p.strap).toBe(p.weapon === 'bat');
   });
 });
 

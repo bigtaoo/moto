@@ -71,11 +71,20 @@ export function wear(save: Save, k: Wardrobe, i: number): boolean {
 export const choosePaint = (save: Save, i: number) => wear(save, 'paint', i);
 export const chooseHat = (save: Save, i: number) => wear(save, 'hat', i);
 
-/** A weapon to start the next race with, priced at the stage's purse (it is worth more where the pay is). */
+/** A weapon to start the next race with: bought per race, gone when the race is. Price at the first rung. */
 export const CARRY: Record<C.WeaponKind, number> = { pan: 60, bat: 100, oil: 80 };
 
+/**
+ * 3.3.45: the price used to be the full purse multiplier, so a bat went from $100 to $1080 across the
+ * career. What a race actually pays does not follow the purse -- the field gets harder at the same rate it
+ * gets richer, so a capped player takes $1292 at the first rung and $2471 at the last, x1.9 against the
+ * purse's x10.8. A top-rung bat was 44% of a race for one extra knockdown. `purse ** CARRY_CURVE` tracks
+ * that x1.9 instead, holding the weapon at about 8% of a race's take all career.
+ */
+export const CARRY_CURVE = 0.3;
+
 export const carryPrice = (save: Save, k: C.WeaponKind): number =>
-  Math.round(CARRY[k] * C.stage(save.div, save.tier, save.endless).prize);
+  Math.round((CARRY[k] * C.stage(save.div, save.tier, save.endless).prize ** CARRY_CURVE) / 10) * 10;
 
 /** Buy a weapon for the next race: one at a time, so not while one is already bought. */
 export function buyCarry(save: Save, k: C.WeaponKind): boolean {

@@ -46,6 +46,8 @@ export interface Rider {
   power: number;
   hitT: number;
   weapon: C.WeaponKind | null;
+  /** The weapon in hand was brought from the shop: it is strapped on and rides out a fall. */
+  strap: boolean;
   finished: boolean;
   place: number;
   aggr: number;

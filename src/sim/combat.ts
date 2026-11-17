@@ -116,6 +116,7 @@ export function resolveAttack(w: World, r: Rider): void {
   if (victim.weapon && w.combatRng.float() < (counter ? 1 : r.isPlayer ? C.STEAL.player : C.STEAL.ai)) {
     const kind = victim.weapon;
     victim.weapon = null;
+    victim.strap = false; // knocked clean out of their hands, strapped on or not
     const took = r.weapon === null && !r.thug;
     if (took) r.weapon = kind;
     else w.pickups.push({ id: w.nextId++, x: w.road.clampX(victim.x + r.atkSide * 1.2, victim.z + 6), z: victim.z + 6, kind });
@@ -190,7 +191,9 @@ export function crash(w: World, r: Rider, c: CrashCause, vx: number): void {
     w.events.push({ type: 'shove', from: by.id, to: r.id, into: c });
   }
   r.shoveT = r.stagT = r.openT = 0;
-  if (r.weapon) {
+  // What they bought is strapped to the scooter and goes down with them; anything picked up off the road
+  // flies out of their hands.
+  if (r.weapon && !r.strap) {
     const p: Pickup = { id: w.nextId++, x: w.road.clampX(r.x + Math.sign(vx || 1) * 1.2, r.z + 6), z: r.z + 6, kind: r.weapon };
     w.pickups.push(p);
     r.weapon = null;
@@ -205,6 +208,7 @@ export function updatePickups(w: World): void {
       if (r.state !== 'ride' || r.finished || r.thug) continue;
       if (Math.abs(r.x - k.x) < 1.2 && Math.abs(r.z - k.z) < 1.6) {
         r.weapon = k.kind;
+        r.strap = false; // picked up off the road: held in a hand, not strapped on
         w.pickups.splice(i, 1);
         w.events.push({ type: 'pickup', rider: r.id, kind: k.kind });
         w.events.push({ type: 'drop', pickup: k.id });

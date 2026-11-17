@@ -95,6 +95,7 @@ export function pour(w: World, r: Rider): boolean {
   const z = r.z - OIL.back;
   w.slicks.push({ id: w.nextId++, x: w.road.clampX(r.x, z), z, by: r.id, t: OIL.life });
   r.weapon = null;
+  r.strap = false; // the can is empty now
   r.atkCd = C.ATTACK.cooldown;
   w.events.push({ type: 'oil', rider: r.id, x: r.x, z });
   return true;

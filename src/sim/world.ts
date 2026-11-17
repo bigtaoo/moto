@@ -147,7 +147,7 @@ export class World {
       top: C.PLAYER_BASE.top + v.top + up.top * C.UPGRADE_STEP.top,
       steer: C.PLAYER_BASE.steer + v.steer + up.steer * C.UPGRADE_STEP.steer,
       hp: C.PLAYER_BASE.hp + v.hp + up.hp * C.UPGRADE_STEP.hp, accel: C.PLAYER_BASE.accel + v.accel,
-      aggr: 0, aware: 1, body: C.PLAYER_BODY, ride: C.PLAYER_RIDE, weapon: opts.weapon ?? (bats ? 'bat' : undefined),
+      aggr: 0, aware: 1, body: C.PLAYER_BODY, ride: C.PLAYER_RIDE, weapon: opts.weapon ?? (bats ? 'bat' : undefined), strap: opts.weapon !== undefined,
     });
     C.ROSTER.forEach((s, i) => {
       const g = grid(i);
@@ -202,11 +202,11 @@ export class World {
     return id === this.nemesis || this.grudges.has(id);
   }
 
-  private addRider(o: { name: string; isPlayer: boolean; x: number; z: number; top: number; steer: number; hp: number; accel?: number; aggr: number; aware: number; body: number; ride: number; weapon?: C.WeaponKind }): void {
+  private addRider(o: { name: string; isPlayer: boolean; x: number; z: number; top: number; steer: number; hp: number; accel?: number; aggr: number; aware: number; body: number; ride: number; weapon?: C.WeaponKind; strap?: boolean }): void {
     this.riders.push({
       id: this.riders.length, name: o.name, isPlayer: o.isPlayer, x: o.x, z: o.z, px: o.x, pz: o.z, vx: 0, speed: 0,
       top: o.top, accel: o.accel ?? C.PLAYER_BASE.accel, steer: o.steer, hp: o.hp, maxHp: o.hp, wantX: o.x, braking: false,
-      state: 'ride', downT: 0, runT: 0, bikeX: o.x, bikeZ: o.z, bikePX: o.x, bikePZ: o.z, bikeV: 0, bikeVx: 0, invT: 0, atkT: 0, atkSide: 1, atkCd: 0, charge: 0, power: 0, hitT: 0, weapon: o.weapon ?? null,
+      state: 'ride', downT: 0, runT: 0, bikeX: o.x, bikeZ: o.z, bikePX: o.x, bikePZ: o.z, bikeV: 0, bikeVx: 0, invT: 0, atkT: 0, atkSide: 1, atkCd: 0, charge: 0, power: 0, hitT: 0, weapon: o.weapon ?? null, strap: o.strap ?? false,
       finished: false, place: 0, aggr: o.aggr, aware: o.aware, body: o.body, ride: o.ride, koPlayer: 0, koByPlayer: 0, rubT: 0, rubSide: 1,
       thug: false, huntT: 0, gang: 'lurk', gangT: 0, role: 'strike', pace: 0,
       react: 10, latV: 0, latAcc: 16, intent: 'race', intentT: 0, lane: nearestLane(o.x), escX: o.x, escT: 0,
