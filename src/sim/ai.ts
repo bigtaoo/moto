@@ -69,23 +69,59 @@ export function cutLine(w: World, r: Rider, want: number, plan: CutPlan = r, alw
   return s * C.EDGE;
 }
 
+/**
+ * Seconds of room on the way to `x`, as against at it (3.3.53). Most of what a rider hits is traffic in a
+ * lane it was only passing through: at the moment of the bang it is 2.5-4 m from the line it asked for, and
+ * the car had been on its line for a quarter of a second. `lanes[i]` is each lane's own clearance, worked
+ * out once a tick; a lane counts here only if the rider would still be alongside it when the car arrives.
+ */
+function crossing(r: Rider, x: number, lanes: readonly number[]): number {
+  let best = Infinity;
+  const steer = Math.max(r.steer, 1);
+  const d = x - r.x;
+  const wide = C.CAR.halfW + C.CAR.riderHalfW;
+  for (let i = 0; i < C.LANE_X.length; i++) {
+    const off = C.LANE_X[i] - r.x;
+    if (off * d <= 0 || Math.abs(off) >= Math.abs(d)) continue; // not on the way there
+    const exit = (Math.abs(off) + wide) / steer; // when the rider is past that lane
+    if (lanes[i] < exit && lanes[i] < best) best = lanes[i];
+  }
+  return best;
+}
+
+/** Each lane's clearance for `r` this tick, so a decision can weigh all four without re-walking the cars. */
+function laneTimes(w: World, r: Rider): number[] {
+  return C.LANE_X.map((x) => laneClearance(w, r, x));
+}
+
 /** The lane (C.LANE_X index) with the most room ahead, starting from where `r` would like to be. */
-function bestLane(w: World, r: Rider, want: number): number {
+function bestLane(w: World, r: Rider, want: number, lanes: readonly number[] = laneTimes(w, r)): number {
   let pick = nearestLane(want, false);
   let score = -Infinity;
   for (let i = 0; i < C.LANE_X.length; i++) {
     const x = C.LANE_X[i];
-    const t = Math.min(laneClearance(w, r, x), 6);
+    const t = Math.min(lanes[i], crossing(r, x, lanes), 6);
     const s = t - Math.abs(x - r.x) * 0.12 - (i === C.ONCOMING_LANE ? 1.5 : 0);
     if (s > score) { score = s; pick = i; }
   }
   return pick;
 }
 
+/**
+ * Where `want` is clear but the way to it is not: wait on this side of the traffic for the gap (3.3.53)
+ * instead of giving up on it. Riders that mean to cross -- to fight, to take a line, to chase someone onto
+ * the shortcut -- still cross, a beat later; it is only the cars in between they no longer ride into.
+ */
+function hold(w: World, r: Rider, want: number, lanes: readonly number[], horizon: number): number {
+  return laneClearance(w, r, r.x) >= horizon ? r.x : C.LANE_X[bestLane(w, r, want, lanes)];
+}
+
 /** Lateral position that keeps the headless bot out of traffic (it decides afresh every tick). */
 function dodge(w: World, r: Rider, want: number, horizon: number): number {
-  if (laneClearance(w, r, want) >= horizon) return want;
-  return C.LANE_X[bestLane(w, r, want)];
+  const lanes = laneTimes(w, r);
+  if (laneClearance(w, r, want) < horizon) return C.LANE_X[bestLane(w, r, want, lanes)];
+  if (crossing(r, want, lanes) >= horizon) return want;
+  return hold(w, r, want, lanes, horizon);
 }
 
 /**
@@ -95,12 +131,19 @@ function dodge(w: World, r: Rider, want: number, horizon: number): number {
  */
 function avoid(w: World, r: Rider, want: number): number {
   const look = C.AI.lookBase + C.AI.lookAware * r.aware;
+  const lanes = laneTimes(w, r);
   if (r.escT > 0) {
     r.escT--;
-    if (laneClearance(w, r, r.escX) > look * 0.5) return r.escX;
+    if (laneClearance(w, r, r.escX) > look * 0.5) {
+      if (crossing(r, r.escX, lanes) > look * 0.5) return r.escX;
+      return hold(w, r, r.escX, lanes, look * 0.5);
+    }
   }
-  if (laneClearance(w, r, want) >= look) return want;
-  const lane = bestLane(w, r, want);
+  if (laneClearance(w, r, want) >= look) {
+    if (crossing(r, want, lanes) >= look) return want;
+    return hold(w, r, want, lanes, look);
+  }
+  const lane = bestLane(w, r, want, lanes);
   r.escX = C.LANE_X[lane];
   r.escT = Math.round(C.AI.escHold * C.TICK_HZ);
   if (r.intent === 'race' && !r.thug && lane !== C.ONCOMING_LANE) r.lane = lane;

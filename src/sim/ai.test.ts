@@ -172,7 +172,9 @@ describe('a chaser on the shortcut trail (3.3.51)', () => {
 
   it('does not ride the player own line out on the dirt', () => {
     let level = 0, stacked = 0;
-    for (let seed = 1; seed <= 40; seed++) {
+    // 120 seeds, not 40: a rival keeping pace on the trail is one long episode, so a handful of races
+    // counts it in the tens and swings by 5x on any change to the riders (3.3.53)
+    for (let seed = 1; seed <= 120; seed++) {
       const w = new World({ seed, div: 3, upgrades: { top: 4, steer: 4, hp: 2 } });
       while (!w.over && w.tick < 400 * C.TICK_HZ) {
         botInput(w);
@@ -189,7 +191,28 @@ describe('a chaser on the shortcut trail (3.3.51)', () => {
         }
       }
     }
-    expect(level).toBeGreaterThan(20);
+    expect(level).toBeGreaterThan(60);
     expect(stacked / level).toBeLessThan(0.25);
+  }, 30_000);
+});
+
+describe('traffic', () => {
+  it('does not ride through a lane a car is already in (3.3.53)', () => {
+    const N = 16;
+    let crashes = 0;
+    for (let seed = 1; seed <= N; seed++) {
+      const w = new World({ seed, div: 2, upgrades: { top: 3, steer: 3, hp: 2 } });
+      while (!w.over && w.tick < 400 * C.TICK_HZ) {
+        botInput(w);
+        w.step();
+        for (const e of w.events) {
+          if (e.type === 'crash' && e.rider === w.player.id && e.cause === 'car') crashes++;
+        }
+        w.events.length = 0;
+      }
+    }
+    // 3.3 a race before the lanes on the way were counted, and dodging better did not help
+    expect(crashes / N).toBeLessThan(2);
+    expect(crashes).toBeGreaterThan(0); // but traffic still bites
   }, 30_000);
 });
