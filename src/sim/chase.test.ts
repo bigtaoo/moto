@@ -3,7 +3,8 @@ import * as C from './config';
 import { botInput } from './ai';
 import { World } from './world';
 import { knockOff } from './combat';
-import { nabbed, runners, shiftPay } from './chase';
+import { nabbed, runners } from './chase';
+import { shiftPay, shiftMult } from '../shift';
 
 describe('security shift', () => {
   it('holds the player, catches runners for good and ends when nobody is left', () => {
@@ -40,6 +41,6 @@ describe('security shift', () => {
     expect(race.caught).toBe(0);
     expect(nabbed(race, race.riders[1])).toBe(false);
     expect(shiftPay(2, 7, 1)).toBe(2 * C.CHASE.bounty);
-    expect(shiftPay(7, 7, 1.5)).toBe(Math.round((7 * C.CHASE.bounty + C.CHASE.sweep) * 1.5));
+    expect(shiftPay(7, 7, 1.5)).toBe(Math.round((7 * C.CHASE.bounty + C.CHASE.sweep) * shiftMult(1.5)));
   });
 });

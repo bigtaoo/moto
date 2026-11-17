@@ -18,6 +18,7 @@ import { FIRST_KO_PAY } from './rewards';
 import { t, ord } from './i18n';
 import { buzz } from './haptics';
 import { BOWL } from './sim/fun';
+import { bountyPay } from './shift';
 
 /** The game-feel state the events set and the frame loop runs down. */
 export interface Feel {
@@ -172,7 +173,7 @@ export function react(e: SimEvent, w: World, view: RaceView, hud: Hud, feel: Fee
       sfx.alarm();
       break;
     case 'caught':
-      hud.flash(t('caught', { name: w.riders[e.rider].name, n: Math.round(C.CHASE.bounty * w.div.prize) }), 'ko');
+      hud.flash(t('caught', { name: w.riders[e.rider].name, n: bountyPay(w.div.prize) }), 'ko');
       buzz(25);
       break;
     case 'grudge':

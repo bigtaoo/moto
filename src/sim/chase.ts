@@ -7,9 +7,20 @@ import * as C from './config';
 import type { Rider } from './types';
 import type { World } from './world';
 
-/** The field, slowed a touch so the player can catch up after the hold. */
+/**
+ * The runners ride at CHASE.slow of their own top speed -- but a field that cannot keep up makes the hunt a
+ * matter of gear, not of riding: at the bottom of the ladder a capped scooter (37 m/s against a field of 26)
+ * rode away from the runners and crossed the line with four of seven never caught. So the handicap is taken
+ * against the player's own pace when that is the faster of the two, scaling the field and keeping its own
+ * spread. The scale only ever goes up from the flat handicap -- a field that already
+ * rides with the player keeps its usual handicap, and is never slowed further (3.3.47).
+ */
 export function chaseSetup(w: World): void {
-  for (const r of w.riders) if (!r.isPlayer && !r.thug) r.top *= C.CHASE.slow;
+  const field = runners(w);
+  if (!field.length) return;
+  const mean = field.reduce((a, r) => a + r.top, 0) / field.length;
+  const k = Math.max(C.CHASE.slow, (w.player.top * C.CHASE.slow) / mean);
+  for (const r of field) r.top *= k;
 }
 
 /** A runner the player knocked off: caught, off the road for good. */
@@ -30,9 +41,4 @@ export function chaseEnd(w: World): void {
   if (w.overT > 0) return;
   const open = runners(w).some((r) => !r.finished && !(nabbed(w, r) && r.state === 'away'));
   if (!open) w.overT = w.tick + Math.round(1.6 * C.TICK_HZ);
-}
-
-/** What a shift pays: a bounty per runner caught, a bonus for catching the lot. */
-export function shiftPay(caught: number, of: number, mult: number): number {
-  return Math.round((caught * C.CHASE.bounty + (caught >= of && of > 0 ? C.CHASE.sweep : 0)) * mult);
 }

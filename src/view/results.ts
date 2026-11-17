@@ -4,7 +4,8 @@
 // doesn't skip it.
 
 import { icon } from './icons';
-import { CHASE, GRUDGE_BONUS, stage } from '../sim/config';
+import { GRUDGE_BONUS, stage } from '../sim/config';
+import { bountyPay } from '../shift';
 import type { Save } from '../meta';
 import { BREAK_AT, type CupEnd, type FeudOutcome, type Nemesis } from '../career';
 import type { DailyOutcome, DailyRow, Kind } from '../daily';
@@ -80,7 +81,7 @@ export interface ShiftActions {
 
 /** The secondary button that starts a security shift. */
 export const shiftButton = (save: Save, cls = 'shift'): string =>
-  `<button class="${cls}"><span>${icon('target')} ${t('shiftGo')}</span><small>${t('shiftTip', { n: Math.round(CHASE.bounty * stage(save.div, save.tier, save.endless).prize) })}</small></button>`;
+  `<button class="${cls}"><span>${icon('target')} ${t('shiftGo')}</span><small>${t('shiftTip', { n: bountyPay(stage(save.div, save.tier, save.endless).prize) })}</small></button>`;
 
 const DAILY_NAMES: Record<Kind, Key> = { kos: 'dKos', shoves: 'dShoves', podium: 'dPodium', win: 'dWin', races: 'dRaces', clean: 'dClean', grudge: 'dGrudge' };
 /** How long the screen is up before a tap or key on it counts. */
