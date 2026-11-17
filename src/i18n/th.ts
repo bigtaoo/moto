@@ -124,6 +124,7 @@ export const TH: Table = {
   through: 'อันดับ {o} อีกแล้ว · ผ่าน! +${n}',
   cupHead: 'ถ้วย {div}',
   final: 'นัดชิง',
+  x2pts: 'คะแนนคูณสอง',
   raceN: 'สนามที่ {n}/{m}',
   you: 'คุณ',
   blurb0: 'รุ่นมาตรฐาน ถีบแล้วไป',

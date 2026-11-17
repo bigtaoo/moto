@@ -124,6 +124,7 @@ export const KO: Table = {
   through: '또 {o} · 통과! +${n}',
   cupHead: '{div} 컵',
   final: '결승',
+  x2pts: '포인트 2배',
   raceN: '{n}/{m}번째 경기',
   you: '나',
   blurb0: '기본 지급품. 발로 차서 출발.',

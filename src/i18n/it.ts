@@ -124,6 +124,7 @@ export const IT: Table = {
   through: 'DI NUOVO {o} · DENTRO! +${n}',
   cupHead: 'Coppa {div}',
   final: 'finale',
+  x2pts: 'punti doppi',
   raceN: 'gara {n}/{m}',
   you: 'Tu',
   blurb0: 'Modello base. Spingi e vai.',

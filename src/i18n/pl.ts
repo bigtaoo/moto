@@ -124,6 +124,7 @@ export const PL: Table = {
   through: 'ZNÓW {o} · AWANS! +${n}',
   cupHead: 'Puchar {div}',
   final: 'finał',
+  x2pts: 'podwójne punkty',
   raceN: 'wyścig {n}/{m}',
   you: 'Ty',
   blurb0: 'Model podstawowy. Odepchnij się i jedź.',

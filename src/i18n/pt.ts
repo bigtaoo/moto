@@ -124,6 +124,7 @@ export const PT: Table = {
   through: '{o} DE NOVO · PASSOU! +${n}',
   cupHead: 'Copa {div}',
   final: 'final',
+  x2pts: 'pontos em dobro',
   raceN: 'corrida {n}/{m}',
   you: 'Você',
   blurb0: 'Modelo padrão. Dê impulso e vá.',

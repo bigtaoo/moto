@@ -124,6 +124,7 @@ export const ZH: Table = {
   through: '又是{o} · 过关！+${n}',
   cupHead: '{div} 杯赛',
   final: '决赛',
+  x2pts: '积分翻倍',
   raceN: '第 {n}/{m} 场',
   you: '你',
   blurb0: '标配款。蹬一脚就走。',

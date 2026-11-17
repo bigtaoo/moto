@@ -23,11 +23,22 @@ export const newCup = (): Cup => ({ race: 0, pts: Array.from({ length: C.ROSTER.
 
 export const riderName = (id: number) => (id === 0 ? t('you') : C.ROSTER[id - 1]?.name ?? '?');
 
+/**
+ * The cup's last race -- the boss race, the one the game dresses up as the finale -- scores double. On
+ * flat points 3.3.49 measured the finale as a dead rubber: the player went into it already promoted in
+ * 58% of cups and already out in another 5%, so only 37% of finales were still worth riding.
+ */
+export const FINALE_PTS = 2;
+
+/** Is this race (0-based within the cup) the double-points finale? */
+export const isFinale = (race: number) => race === CUP_RACES - 1;
+
 /** Add one race's finishing places (per rider id; 0 or missing: did not race) to the cup. */
 export function scoreRace(cup: Cup, places: number[]): void {
+  const mult = isFinale(cup.race) ? FINALE_PTS : 1;
   for (let id = 0; id < cup.pts.length; id++) {
     const p = places[id] ?? 0;
-    if (p > 0) cup.pts[id] += POINTS[p - 1] ?? 0;
+    if (p > 0) cup.pts[id] += (POINTS[p - 1] ?? 0) * mult;
   }
   cup.race++;
 }

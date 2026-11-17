@@ -124,6 +124,7 @@ export const ID: Table = {
   through: 'PERINGKAT {o} LAGI · LOLOS! +${n}',
   cupHead: 'Piala {div}',
   final: 'final',
+  x2pts: 'poin ganda',
   raceN: 'balapan {n}/{m}',
   you: 'Kamu',
   blurb0: 'Model standar. Dorong lalu melaju.',

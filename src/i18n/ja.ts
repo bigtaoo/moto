@@ -124,6 +124,7 @@ export const JA: Table = {
   through: 'また{o} · 突破！+${n}',
   cupHead: '{div}カップ',
   final: '最終戦',
+  x2pts: 'ポイント2倍',
   raceN: '第{n}/{m}戦',
   you: 'あなた',
   blurb0: '標準装備。蹴って発進。',

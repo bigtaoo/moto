@@ -124,6 +124,7 @@ export const VI: Table = {
   through: 'LẠI HẠNG {o} · QUA RỒI! +${n}',
   cupHead: 'Cúp {div}',
   final: 'chung kết',
+  x2pts: 'điểm nhân đôi',
   raceN: 'chặng {n}/{m}',
   you: 'Bạn',
   blurb0: 'Bản tiêu chuẩn. Đạp một cái là đi.',

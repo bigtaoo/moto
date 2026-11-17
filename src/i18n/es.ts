@@ -124,6 +124,7 @@ export const ES: Table = {
   through: '{o} OTRA VEZ · ¡PASAS! +${n}',
   cupHead: 'Copa {div}',
   final: 'final',
+  x2pts: 'puntos dobles',
   raceN: 'carrera {n}/{m}',
   you: 'Tú',
   blurb0: 'De serie. Empuja y arranca.',

@@ -124,6 +124,7 @@ export const RU: Table = {
   through: 'СНОВА {o} · ПРОХОД! +${n}',
   cupHead: 'Кубок {div}',
   final: 'итог',
+  x2pts: 'двойные очки',
   raceN: 'гонка {n}/{m}',
   you: 'Ты',
   blurb0: 'Стандартный. Оттолкнись и вперёд.',

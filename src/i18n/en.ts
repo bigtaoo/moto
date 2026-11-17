@@ -128,6 +128,7 @@ export const EN = {
   through: '{o} AGAIN · THROUGH! +${n}',
   cupHead: '{div} cup',
   final: 'final',
+  x2pts: 'double points',
   raceN: 'race {n}/{m}',
   you: 'You',
   blurb0: 'Standard issue. Kick to start.',

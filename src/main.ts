@@ -146,7 +146,7 @@ function newRace(): void {
 /** The division pill and the nemesis card, over the countdown. */
 function intro(): void {
   const nem = world.chase ? null : save.feud.nemesis;
-  const extra = world.mutator ? t('mutPill', { name: t(`mut_${world.mutator}`) }) : world.boss >= 0 ? t('bossPill', { n: Math.round(BOSS.pay * world.div.prize) }) : '';
+  const extra = world.mutator ? t('mutPill', { name: t(`mut_${world.mutator}`) }) : world.boss >= 0 ? `${t('bossPill', { n: Math.round(BOSS.pay * world.div.prize) })} · ${t('x2pts')}` : '';
   hud.setLeague(world.chase ? t('shiftPill') : t('pill', { div: world.div.name, n: save.cup.race + 1, m: CUP_RACES }), extra);
   hud.setNemesis(nem, nem ? riderName(nem.id) : '', Math.round(REVENGE_PAY * world.div.prize));
 }

@@ -124,6 +124,7 @@ export const TR: Table = {
   through: 'YİNE {o} · GEÇTİN! +${n}',
   cupHead: '{div} kupası',
   final: 'sonuç',
+  x2pts: 'çift puan',
   raceN: 'yarış {n}/{m}',
   you: 'Sen',
   blurb0: 'Standart model. Tekmele ve git.',

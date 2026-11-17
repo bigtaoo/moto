@@ -124,6 +124,7 @@ export const DE: Table = {
   through: '{o} ERNEUT · DURCH! +${n}',
   cupHead: '{div}-Pokal',
   final: 'Ende',
+  x2pts: 'doppelte Punkte',
   raceN: 'Rennen {n}/{m}',
   you: 'Du',
   blurb0: 'Serienmodell. Anschieben und los.',

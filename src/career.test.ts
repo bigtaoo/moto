@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { newCup, scoreRace, standings, cupOver, endCup, GATE_AT, CUP_RACES, POINTS, CUP_BONUS, newFeud, settleFeud, REVENGE_PAY, AHEAD_PAY, BREAK_PAY, BREAK_AT, COOL, settleRace, buyUpgrade, upgradePrice, upgradeLock, rideState, chooseRide, type RaceSummary } from './career';
+import { newCup, scoreRace, standings, cupOver, endCup, GATE_AT, CUP_RACES, POINTS, FINALE_PTS, isFinale, CUP_BONUS, newFeud, settleFeud, REVENGE_PAY, AHEAD_PAY, BREAK_PAY, BREAK_AT, COOL, settleRace, buyUpgrade, upgradePrice, upgradeLock, rideState, chooseRide, type RaceSummary } from './career';
 import { parseSave } from './meta';
 import { PAINTS, HATS, HAT_PRICE, PAINT_TIER, HAT_TIER, choosePaint, chooseHat, wearState, buyCarry, carryPrice } from './shop';
 import { World } from './sim/world';
@@ -30,6 +30,29 @@ describe('career cup', () => {
     expect(cup.pts[1]).toBe(POINTS[0]);
     expect(cup.race).toBe(1);
     expect(cupOver(cup)).toBe(false);
+  });
+
+  it('scores the last race of a cup double, and only that one', () => {
+    const cup = newCup();
+    for (let i = 0; i < CUP_RACES - 1; i++) {
+      expect(isFinale(cup.race)).toBe(false);
+      scoreRace(cup, places(2));
+    }
+    const before = cup.pts[0];
+    expect(before).toBe(POINTS[1] * (CUP_RACES - 1));
+    expect(isFinale(cup.race)).toBe(true);
+    scoreRace(cup, places(2));
+    expect(cup.pts[0] - before).toBe(POINTS[1] * FINALE_PTS);
+    expect(cupOver(cup)).toBe(true);
+  });
+
+  it('lets the finale still swing a cup the player was out of', () => {
+    // 4th going into the last race, then wins it: double points carry them over the line
+    const cup = newCup();
+    for (let i = 0; i < CUP_RACES - 1; i++) scoreRace(cup, places(4));
+    expect(standings(cup).find((r) => r.id === 0)!.rank).toBeGreaterThan(C.PROMOTE);
+    scoreRace(cup, places(1));
+    expect(endCup(cup, 1).promoted).toBe(true);
   });
 
   it('promotes a top-3 finisher with a bonus, and holds back the rest', () => {

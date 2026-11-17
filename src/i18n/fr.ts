@@ -124,6 +124,7 @@ export const FR: Table = {
   through: '{o} ENCORE · QUALIFIÉ ! +${n}',
   cupHead: 'Coupe {div}',
   final: 'fin',
+  x2pts: 'points doubles',
   raceN: 'course {n}/{m}',
   you: 'Toi',
   blurb0: 'Modèle de série. Pousse et pars.',

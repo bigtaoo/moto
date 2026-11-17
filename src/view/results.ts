@@ -251,5 +251,7 @@ function leagueHtml(l: League): string {
       : e.promoted ? `<div class="cupend win">${t('promoted', { o: ord(e.rank) })}${bonus}</div>`
       : `<div class="cupend">${t('cupRank', { o: ord(e.rank) })}${bonus} · ${t(e.last ? (e.gateNext ? 'topAgain' : 'topWin') : 'top3')}</div>`
     : '';
-  return `<div class="cup"><div class="cuphead">${t('cupHead', { div: l.div })} · ${e ? t('final') : t('raceN', { n: l.race, m: l.races })}</div>${head}${rows}</div>`;
+  // after the second-to-last race, say what is coming: the finale scores double (career.ts FINALE_PTS)
+  const next = !e && l.race === l.races - 1 ? `<div class="cupend">${t('final')} · ${t('x2pts')}</div>` : '';
+  return `<div class="cup"><div class="cuphead">${t('cupHead', { div: l.div })} · ${e ? t('final') : t('raceN', { n: l.race, m: l.races })}</div>${head}${rows}${next}</div>`;
 }
