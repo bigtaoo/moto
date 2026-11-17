@@ -133,3 +133,63 @@ describe('riders and buggies react like drivers, not mirrors', () => {
     expect(flips).toBe(0);
   });
 });
+
+describe('a chaser on the shortcut trail (3.3.51)', () => {
+  /** Duck-ins where a rival was on the player, and how many of those rivals came across the barrier. */
+  function follows(n: number): { opps: number; followed: number } {
+    let opps = 0, followed = 0;
+    for (const div of [1, 2, 3, 4]) for (let seed = 1; seed <= n; seed++) {
+      const w = new World({ seed, div, upgrades: { top: 4, steer: 4, hp: 2 } });
+      let was = false;
+      let live: { ids: number[]; left: number; cross: boolean } | null = null;
+      while (!w.over && w.tick < 400 * C.TICK_HZ) {
+        botInput(w);
+        w.step();
+        w.events.length = 0;
+        const p = w.player;
+        if (p.state !== 'ride') { live = null; was = false; continue; }
+        const side = w.road.trailAt(p.x, p.z);
+        const on = side !== 0;
+        const foes = w.riders.filter((r) => !r.isPlayer && r.state === 'ride' && !r.thug && Math.abs(r.z - p.z) < 30 &&
+          (r.huntT > 0 || ((r.intent === 'harass' || r.intent === 'back') && r.foe === 0)));
+        if (on && !was && foes.length) { opps++; live = { ids: foes.map((r) => r.id), left: 2 * C.TICK_HZ, cross: false }; }
+        if (live) {
+          if (on && live.ids.some((id) => w.road.trailAt(w.riders[id].x, w.riders[id].z) === side)) live.cross = true;
+          if (--live.left <= 0) { if (live.cross) followed++; live = null; }
+        }
+        was = on;
+      }
+    }
+    return { opps, followed };
+  }
+
+  it('comes across the barrier after the player often enough to matter', () => {
+    const { opps, followed } = follows(40);
+    // the barrier used to end the fight outright: 1 crossing in 98 duck-ins before 3.3.51
+    expect(opps).toBeGreaterThan(20);
+    expect(followed / opps).toBeGreaterThan(0.1);
+  }, 30_000);
+
+  it('does not ride the player own line out on the dirt', () => {
+    let level = 0, stacked = 0;
+    for (let seed = 1; seed <= 40; seed++) {
+      const w = new World({ seed, div: 3, upgrades: { top: 4, steer: 4, hp: 2 } });
+      while (!w.over && w.tick < 400 * C.TICK_HZ) {
+        botInput(w);
+        w.step();
+        w.events.length = 0;
+        const p = w.player;
+        const side = w.road.trailAt(p.x, p.z);
+        if (p.state !== 'ride' || side === 0) continue;
+        for (const r of w.riders) {
+          if (r.isPlayer || r.state !== 'ride' || w.road.trailAt(r.x, r.z) !== side) continue;
+          if (Math.abs(r.z - p.z) > C.ATTACK.reachZ) continue;
+          level++;
+          if (Math.abs(r.x - p.x) < C.ATTACK.minX) stacked++;
+        }
+      }
+    }
+    expect(level).toBeGreaterThan(20);
+    expect(stacked / level).toBeLessThan(0.25);
+  }, 30_000);
+});

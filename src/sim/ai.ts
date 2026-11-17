@@ -203,6 +203,20 @@ function pickFoe(w: World, r: Rider): Rider | null {
   return w.aiRng.float() < chance ? best : null;
 }
 
+/**
+ * Has the player shown their hand for the trail coming up -- out past the barrier line on its side, or
+ * already on it? Whoever is on them goes with them (3.3.51). Waiting until they are actually on the trail
+ * is too late: the opening is only C.CUT.gap long, and a chaser on their shoulder is past it by then.
+ */
+function playerCutting(w: World): boolean {
+  const p = w.player;
+  if (w.road.trailAt(p.x, p.z) !== 0) return true;
+  const i = w.road.nextCut(p.z);
+  if (i < 0) return false;
+  const c = w.road.cuts[i];
+  return p.z > c.z0 - C.CUT.lineUp && p.z < c.z0 + C.CUT.gap && p.x * c.side > C.EDGE - 0.6;
+}
+
 export function rivalThink(w: World, r: Rider): void {
   if (r.state !== 'ride') return;
   if (r.thug) return thugThink(w, r);
@@ -260,7 +274,24 @@ export function rivalThink(w: World, r: Rider): void {
       }
     }
   }
-  if ((r.intent === 'race' && r.huntT === 0) || w.road.trailAt(r.x, r.z) !== 0) want = cutLine(w, r, want);
+  // 3.3.51: the player ducked out onto the trail -- whoever is on them goes after them there. The barrier
+  // used to end the fight, so the trail was a free hiding place as well as a shortcut.
+  const side = w.road.trailAt(r.x, r.z);
+  const onPlayer = r.huntT > 0 || ((r.intent === 'harass' || r.intent === 'back') && r.foe === 0);
+  const cut = w.road.cutAt(r.z);
+  if (side !== 0 && w.road.trailAt(p.x, p.z) === side && Math.abs(p.z - r.z) < 14 && cut && r.z < cut.z1 - C.CUT.merge) {
+    // Both out on the dirt. The trail used to be ridden single file down its middle, which put every rider
+    // on the player's own line -- too close together for a blow to land, so nobody could be touched out here.
+    const K = C.CUT;
+    const x = w.seen(p, r.react).x + r.foeSide * (onPlayer ? r.foeOff : 1.4);
+    want = side * Math.max(K.inner + 0.4, Math.min(K.outer - 0.4, x * side));
+  } else if (onPlayer && side === 0 && playerCutting(w)) {
+    // A chaser goes where the player goes. What used to stop it: whether to take this opening at all was
+    // rolled once, back when the opening first came into view -- long before the player showed their hand,
+    // and never looked at again. Re-roll it now that they have.
+    r.cutId = -1;
+    want = cutLine(w, r, want, r, true);
+  } else if ((r.intent === 'race' && r.huntT === 0) || side !== 0) want = cutLine(w, r, want);
   r.wantX = w.road.clampWant(Math.abs(want) > C.EDGE ? want : avoid(w, r, want), r.z, r.speed * 0.5);
   if (!calm(w)) maybeSwing(w, r, keen);
 }
