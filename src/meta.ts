@@ -2,7 +2,7 @@
 // platform (src/platform.ts) as one JSON string.
 
 import type { Upgrades } from './sim/world';
-import { DIVISIONS, TIERS, VEHICLES, UPGRADE_MAX, ROSTER, WEAPON, type WeaponKind } from './sim/config';
+import { DIVISIONS, TIERS, VEHICLES, UPGRADE_MAX, upgradeCost, ROSTER, WEAPON, type WeaponKind } from './sim/config';
 import { PAINTS, HATS } from './shop';
 import { newCup, newFeud, GATE_AT, type Cup, type Feud } from './career';
 import { saveData } from './platform';
@@ -94,6 +94,16 @@ const fresh: Save = {
       s.cup.pts.forEach((p, i) => { if (i < cup.pts.length) cup.pts[i] = Number(p) || 0; });
     }
     const lvl = (v: unknown, max: number) => Math.max(0, Math.min(max, Math.floor(num(v))));
+    /**
+     * A level that no longer exists is paid back. 3.3.42 cut toughness from six levels to three, and a
+     * save from before that has up to three levels the garage will not sell any more: taking them away
+     * without the money back would be a silent $4,000 fine on the players who had got furthest.
+     */
+    const refund = (v: unknown, max: number) => {
+      let back = 0;
+      for (let k = max; k < Math.min(99, Math.floor(num(v))); k++) back += upgradeCost(k);
+      return back;
+    };
     const owned = [0];
     if (Array.isArray(s.garage?.owned)) for (const v of s.garage.owned) if (Number.isInteger(v) && v > 0 && v < VEHICLES.length && !owned.includes(v)) owned.push(v);
     const cur = Number(s.garage?.cur);
@@ -109,7 +119,7 @@ const fresh: Save = {
     // a rival id the race can look up: anything else would throw at the finish, after the race had paid out
     const grudges = Array.isArray(s.grudges) ? s.grudges.filter((n, i, a) => Number.isInteger(n) && n >= 1 && n <= ROSTER.length && a.indexOf(n) === i) : [];
     return {
-      cash: count(s.cash),
+      cash: count(s.cash) + refund(s.up?.top, UPGRADE_MAX.top) + refund(s.up?.steer, UPGRADE_MAX.steer) + refund(s.up?.hp, UPGRADE_MAX.hp),
       up: { top: lvl(s.up?.top, UPGRADE_MAX.top), steer: lvl(s.up?.steer, UPGRADE_MAX.steer), hp: lvl(s.up?.hp, UPGRADE_MAX.hp) },
       grudges,
       races: count(s.races),

@@ -32,13 +32,18 @@ export const PLAYER_BASE = { top: 28.6, accel: 7, steer: 8.5, hp: 3 };
  */
 export const PULL = { knee: 0.55, tail: 0.07 };
 export const UPGRADE_STEP = { top: 1.4, steer: 0.9, hp: 1 };
-/** Levels per upgrade. Toughness stops early: past that the player could not be knocked off at all. */
-export const UPGRADE_MAX = { top: 10, steer: 8, hp: 6 };
+/**
+ * Levels per upgrade. Toughness stops early and stops hard: six levels put the dummy on eleven hit points
+ * against rivals who land about nine damage a race, so from the first cup on nothing they did could knock
+ * it off (doc 3.3.42 measured 0.05 falls a race). Three levels keep a blow worth dodging all career.
+ */
+export const UPGRADE_MAX = { top: 10, steer: 8, hp: 3 };
 /**
  * Levels open in each season (TIERS index); the rest open with the next one. Without this the cash of
- * the first season maxes everything and the rivals of the later ones never catch up.
+ * the first season maxes everything and the rivals of the later ones never catch up. Toughness is one
+ * level a season for the same reason: bought outright it ends the fight for the rest of the career.
  */
-export const UPGRADE_CAP: readonly { top: number; steer: number; hp: number }[] = [{ top: 6, steer: 6, hp: 6 }, { top: 8, steer: 7, hp: 6 }, UPGRADE_MAX];
+export const UPGRADE_CAP: readonly { top: number; steer: number; hp: number }[] = [{ top: 6, steer: 6, hp: 1 }, { top: 8, steer: 7, hp: 2 }, UPGRADE_MAX];
 export const upgradeCost = (level: number) => Math.round(250 * 1.6 ** level);
 
 /** Rider-to-rider contact (see World.press). */
