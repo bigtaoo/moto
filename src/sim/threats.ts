@@ -74,7 +74,7 @@ export function startAmbush(w: World, prog: number): boolean {
     r.vx = r.latV = 0;
     r.speed = r.pace = p.speed * G.lurk;
     r.hp = r.maxHp;
-    r.invT = r.atkT = r.atkCd = r.hitT = r.downT = r.runT = r.rubT = r.gangT = r.intentT = r.escT = 0;
+    r.invT = r.atkT = r.atkCd = r.hitT = r.downT = r.runT = r.rubT = r.gangT = r.intentT = r.escT = r.bandT = 0;
     r.gang = 'lurk';
     r.role = n === 1 ? 'strike' : pincer ? 'pincer' : k === 0 ? 'strike' : 'block';
     r.weapon = k === 0 && prog >= G.batFrom ? 'bat' : 'pan';

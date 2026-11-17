@@ -27,6 +27,8 @@ export interface Rider {
   braking: boolean;
   /** 'away': a thug not on the road right now. */
   state: 'ride' | 'down' | 'away';
+  /** Ticks left riding with no rubber-band catch-up, set when they come off (C.AI.band). */
+  bandT: number;
   /** Down: ticks left lying on the road; then runT counts ticks since getting up (DOWN.stand on their feet, then running back to the scooter). */
   downT: number;
   runT: number;

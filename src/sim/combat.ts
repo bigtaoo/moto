@@ -162,6 +162,7 @@ export function crash(w: World, r: Rider, c: CrashCause, vx: number): void {
   if (r.state !== 'ride') return;
   r.state = 'down';
   r.downT = C.DOWN.lie[c];
+  r.bandT = Math.round(C.AI.band.downSecs * C.TICK_HZ);
   r.runT = 0;
   r.vx = vx;
   r.bikeX = r.bikePX = r.x;

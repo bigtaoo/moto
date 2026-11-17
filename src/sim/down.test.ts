@@ -40,3 +40,43 @@ describe('knocked off', () => {
     expect(longest).toBeLessThanOrEqual((C.DOWN.maxRun + C.DOWN.stand + 1) * C.TICK_HZ);
   });
 });
+
+describe('the rubber band after a knockdown', () => {
+  it('a rival who came off rides no faster than its own top speed, so the ground it lost stays lost', () => {
+    let falls = 0;
+    let banded = 0;
+    let over = 0;
+    let gained = 0;
+    let back = 0;
+    for (const seed of [1, 2, 3, 4, 5, 6]) {
+      const w = new World({ seed, div: 2, upgrades: { top: 2, steer: 2, hp: 2 } });
+      const lost = new Map<number, { gap: number; tick: number }>();
+      while (!w.over && w.tick < 300 * C.TICK_HZ) {
+        botInput(w);
+        w.step();
+        for (const e of w.events) {
+          if (e.type !== 'crash' || e.rider === 0 || e.cause !== 'ko') continue;
+          falls++;
+          // set on the tick they came off (the same step may already have ticked one off it)
+          if (w.riders[e.rider].bandT >= Math.round(C.AI.band.downSecs * C.TICK_HZ) - 1) banded++;
+          lost.set(e.rider, { gap: w.player.z - w.riders[e.rider].z, tick: w.tick });
+        }
+        w.events.length = 0;
+        // the band comes back on its own: nothing leaves a rider banded for longer than it was set
+        for (const r of w.riders) if (r.bandT > Math.round(C.AI.band.downSecs * C.TICK_HZ)) over++;
+        for (const [id, f] of lost) {
+          if (w.tick - f.tick < C.AI.band.downSecs * C.TICK_HZ) continue;
+          // on average they are well behind where they were when the band comes back (the player
+          // falls too, so plenty of single cases go the other way)
+          gained += w.player.z - w.riders[id].z - f.gap;
+          back++;
+          lost.delete(id);
+        }
+      }
+    }
+    expect(falls).toBeGreaterThan(20);
+    expect(banded).toBe(falls);
+    expect(over).toBe(0);
+    expect(gained / back).toBeGreaterThan(10);
+  });
+});

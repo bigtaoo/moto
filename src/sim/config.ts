@@ -4,7 +4,7 @@
  * Bump on any change to the race rules that alters what a seed plus inputs produce, and record the new
  * golden hash in world.test.ts. Replays and (later) online rooms only mix the same version.
  */
-export const SIM_VERSION = 32;
+export const SIM_VERSION = 33;
 
 export const TICK_HZ = 30;
 export const DT = 1 / TICK_HZ;
@@ -361,6 +361,15 @@ export const RIVAL_HP = 3;
  * feint or a hard brake can fool them.
  */
 export const AI = {
+  /**
+   * Rivals rubber-band around the player so fights keep happening: one behind rides up to `catchUp` over its
+   * top speed, one ahead up to `dropBack` under it, reaching full strength `per` metres away.
+   * 3.3.50: the band also paid back every knockdown. A rival the player put on the tarmac lost 65 m and had
+   * half of it back in 10 s and all of it in 30-45 s, so on a 160 s race the brawling bought no places at
+   * all -- a bot that fought finished no better than the same bot that only drove. A rider who comes off now
+   * rides `downSecs` with no catch-up: the ground they lost is theirs to make up.
+   */
+  band: { catchUp: 0.2, dropBack: 0.22, per: 100, downSecs: 20 },
   calmStart: 3, // seconds after the start with no picking fights
   /** Ticks of the others' past positions each rider remembers (longest reaction it can have). */
   memory: 24,

@@ -130,10 +130,13 @@ function clampEdge(x: number): number {
   return Math.max(-C.EDGE, Math.min(C.EDGE, x));
 }
 
-/** Rivals rubber-band around the player so fights keep happening. */
+/** Rivals rubber-band around the player so fights keep happening (C.AI.band). */
 function rubber(w: World, r: Rider): number {
   const gap = w.player.z - r.z;
-  return r.top * (1 + Math.max(-0.22, Math.min(0.2, gap / 100)));
+  const B = C.AI.band;
+  // just off the tarmac: no catch-up, so the fall actually costs them the road they lost
+  const up = r.bandT > 0 ? 0 : B.catchUp;
+  return r.top * (1 + Math.max(-B.dropBack, Math.min(up, gap / B.per)));
 }
 
 /**

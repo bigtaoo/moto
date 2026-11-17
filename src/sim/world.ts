@@ -206,7 +206,7 @@ export class World {
     this.riders.push({
       id: this.riders.length, name: o.name, isPlayer: o.isPlayer, x: o.x, z: o.z, px: o.x, pz: o.z, vx: 0, speed: 0,
       top: o.top, accel: o.accel ?? C.PLAYER_BASE.accel, steer: o.steer, hp: o.hp, maxHp: o.hp, wantX: o.x, braking: false,
-      state: 'ride', downT: 0, runT: 0, bikeX: o.x, bikeZ: o.z, bikePX: o.x, bikePZ: o.z, bikeV: 0, bikeVx: 0, invT: 0, atkT: 0, atkSide: 1, atkCd: 0, charge: 0, power: 0, hitT: 0, weapon: o.weapon ?? null, strap: o.strap ?? false,
+      state: 'ride', bandT: 0, downT: 0, runT: 0, bikeX: o.x, bikeZ: o.z, bikePX: o.x, bikePZ: o.z, bikeV: 0, bikeVx: 0, invT: 0, atkT: 0, atkSide: 1, atkCd: 0, charge: 0, power: 0, hitT: 0, weapon: o.weapon ?? null, strap: o.strap ?? false,
       finished: false, place: 0, aggr: o.aggr, aware: o.aware, body: o.body, ride: o.ride, koPlayer: 0, koByPlayer: 0, rubT: 0, rubSide: 1,
       thug: false, huntT: 0, gang: 'lurk', gangT: 0, role: 'strike', pace: 0,
       react: 10, latV: 0, latAcc: 16, intent: 'race', intentT: 0, lane: nearestLane(o.x), escX: o.x, escT: 0,
@@ -311,6 +311,7 @@ export class World {
     if (r.hitT > 0) r.hitT--;
     if (r.atkCd > 0) r.atkCd--;
     if (r.rubT > 0) r.rubT--;
+    if (r.bandT > 0) r.bandT--;
     if (r.stagT > 0) r.stagT--;
     if (r.shoveT > 0) r.shoveT--;
     if (r.openT > 0) r.openT--;
