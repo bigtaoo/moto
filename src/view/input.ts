@@ -67,10 +67,13 @@ export class Controls {
    *   against the barrier (to slip into a trail's opening when it comes) doesn't leave the next drag offset
    * @param gain screen px the bike moves per metre across the road (0 before a race has a view)
    */
-  constructor(el: HTMLElement, private readonly playerX: () => number, private readonly reach: () => [number, number], private readonly gain: () => number = () => 0) {
+  constructor(private readonly el: HTMLElement, private readonly playerX: () => number, private readonly reach: () => [number, number], private readonly gain: () => number = () => 0) {
+    // focusable without a tab stop, so grab() has something inside the document to put the focus on
+    el.tabIndex = -1;
+    el.style.outline = 'none';
     // ask for the keys from the start (a portal's iframe may still keep them until a click), and on every press
-    window.focus();
-    window.addEventListener('pointerdown', () => window.focus(), true);
+    this.grab();
+    window.addEventListener('pointerdown', () => this.grab(), true);
     el.addEventListener('pointerdown', this.down);
     window.addEventListener('pointermove', this.move);
     window.addEventListener('pointerup', this.up);
@@ -82,11 +85,16 @@ export class Controls {
 
   /**
    * Ask the portal's iframe for the keyboard back. An interstitial takes the focus and hands it to the ad's
-   * own frame, not back to the game, so without this every race after the first opened with the HUD asking
-   * for a click (3.7.2: `keys_wait` 1-6 s, 37 times over 12 sessions).
+   * own frame, not back to the game, so without this every race after an ad opened with the HUD asking for a
+   * click (3.7.2: `keys_wait` 1-6 s, 37 times over 12 sessions).
+   *
+   * `window.focus()` on one's own cross-origin iframe is ignored without a user gesture, and `keysReach()`
+   * asks `document.hasFocus()`, so the focus has to land on an element *inside* the document: focusing the
+   * canvas is what makes the embedder focus the frame. Both, in that order, costs nothing.
    */
   grab(): void {
     window.focus();
+    try { this.el.focus({ preventScroll: true }); } catch { /* not focusable yet */ }
   }
 
   reset(): void {

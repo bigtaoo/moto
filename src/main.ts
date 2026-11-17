@@ -85,8 +85,14 @@ let hostPaused = false;
 let glLost = false;
 /** Seconds this race's countdown has stood waiting for the keys to reach the game. */
 let keysWait = 0;
-/** Seconds the countdown waits for a keyboard player's click before starting anyway. */
+/**
+ * Seconds the countdown waits for a keyboard player's click before starting anyway -- but only once the keys
+ * have reached the game at least once this session (`keysEver`). A player who has never had the focus has
+ * never played a tick, and is better held on the countdown with the ask on screen than dropped into a race
+ * they cannot steer; one who had it and lost it to an ad only needs the race to go on while `grab()` works.
+ */
 const KEYS_HOLD_S = 3;
+let keysEver = false;
 let acc = 0;
 /** Hitstop, slow motion and the grudge call-outs, which the events set (src/events.ts). */
 let feel = newFeel();
@@ -163,7 +169,6 @@ function nextRace(placement: string, shift = false): void {
   platform.interstitial(placement);
   chase = shift;
   newRace();
-  controls.grab(); // the ad just took the keyboard away from the iframe
   stage.raceStart();
   setState('race');
   if (chase) return;
@@ -294,6 +299,9 @@ function setPaused(on: boolean): void {
 platform.host.onPause = (on) => {
   hostPaused = on;
   hold('host', on);
+  // the ad is closing: this, not the showInterstitial() call, is the moment the keyboard can be asked back
+  // (the ad frame holds the focus for as long as it is open)
+  if (!on) controls.grab();
 };
 platform.host.onAudio = (on) => setMuted('host', !on);
 
@@ -336,6 +344,7 @@ function frame(now: number): void {
   // a keyboard player in a portal's iframe has no keys until a click in it (they scroll the portal page, and
   // the Bridge holds the game paused while it lacks the focus): the HUD asks for that click, paused or not,
   // and a countdown waits for it so the race doesn't start without them
+  if (!keysEver && keysReach()) keysEver = true;
   const askKeys = state === 'race' && !BOT && !paused && DESKTOP && !keysReach();
   hud.showHint(askKeys ? 'click' : state === 'race' && save.races < 2 && world.time < 6 ? 'controls' : 'off');
   // held only so long: a player whose keys never arrive is better off racing with the ask still on screen
@@ -344,10 +353,10 @@ function frame(now: number): void {
   const asking = askKeys && world.countdown > 0;
   if (asking) keysWait += dt;
   else if (keysWait > 0) {
-    funnel.event('keys_wait', { seconds: Math.round(keysWait) });
+    funnel.event('keys_wait', { seconds: Math.round(keysWait), held: keysEver ? 1 : 0 });
     keysWait = 0;
   }
-  const waiting = asking && keysWait < KEYS_HOLD_S;
+  const waiting = asking && (!keysEver || keysWait < KEYS_HOLD_S);
   const stopped = paused || hostPaused || glLost;
   tele.frame(ms, state === 'race' && !BOT, !stopped && !waiting);
   stage.frame(ms, state === 'race' && !stopped && !waiting && !document.hidden);
