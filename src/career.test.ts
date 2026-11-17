@@ -3,6 +3,7 @@ import { newCup, scoreRace, standings, cupOver, endCup, GATE_AT, CUP_RACES, POIN
 import { parseSave } from './meta';
 import { PAINTS, HATS, HAT_PRICE, PAINT_TIER, HAT_TIER, choosePaint, chooseHat, wearState, buyCarry, carryPrice } from './shop';
 import { World } from './sim/world';
+import { botInput } from './sim/ai';
 import * as C from './sim/config';
 
 /** One race as the career settles it: the player in `place`, nothing else going on. */
@@ -363,4 +364,35 @@ describe('the ladder', () => {
       expect(lead).toBeLessThan(Math.max(...C.LEAD) + 0.4); // but never cruising away from them
     }
   });
+
+  /** Knockdowns the field lands on the player in a season's worth of races, on the career's own gear. */
+  function downs(tier: number, n: number): number {
+    let ko = 0;
+    let races = 0;
+    for (let div = 0; div < C.DIVISIONS.length; div++) {
+      const gear = C.careerGear(div, tier);
+      for (let seed = 1; seed <= n; seed++) {
+        const w = new World({ seed, div, tier, upgrades: gear.up, vehicle: gear.vehicle });
+        races++;
+        while (!w.over && w.tick < 400 * C.TICK_HZ) {
+          botInput(w, 1, true);
+          w.step();
+          for (const e of w.events) if (e.type === 'hit' && e.to === 0 && e.ko) ko++;
+          w.events.length = 0;
+        }
+      }
+    }
+    return ko / races;
+  }
+
+  it('leaves a rival blow worth dodging later in the career, not earlier (3.3.56)', () => {
+    // The seasons buy their rivals hit points, the player buys its own faster: before the `dmg` term the
+    // field landed 0.7 knockdowns a race in Amateur and 0.4 in Legend, so climbing the ladder made the
+    // player safer. Five seeds a division is thin -- these are counted in ones -- so the floor is loose.
+    const amateur = downs(0, 5);
+    const legend = downs(C.TIERS.length - 1, 5);
+    expect(C.stage(0, C.TIERS.length - 1).dmg).toBeGreaterThan(C.stage(0, 0).dmg);
+    expect(legend).toBeGreaterThan(amateur);
+    expect(legend).toBeLessThan(4); // but the last season is still a race, not a beating
+  }, 90_000);
 });

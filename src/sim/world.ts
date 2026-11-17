@@ -154,7 +154,7 @@ export class World {
       const d = this.div;
       const nem = i + 1 === this.nemesis;
       this.addRider({
-        name: s.name, isPlayer: false, x: g.x, z: g.z, top: s.top + d.top + C.rookieTop(rk) + (nem ? C.NEMESIS.top : 0), steer: 7, hp: C.RIVAL_HP + d.hp + (nem ? C.NEMESIS.hp : 0),
+        name: s.name, isPlayer: false, x: g.x, z: g.z, top: s.top + d.top + C.rookieTop(rk) + (nem ? C.NEMESIS.top : 0), steer: 7, hp: C.RIVAL_HP + d.hp + (nem ? C.NEMESIS.hp : 0), hit: d.dmg,
         aggr: Math.min(1, s.aggr + d.mind + (nem ? C.NEMESIS.aggr : 0)), aware: Math.min(1, s.aware + d.mind), body: s.body, ride: s.ride, weapon: bats ? 'bat' : s.weapon,
       });
     });
@@ -202,10 +202,10 @@ export class World {
     return id === this.nemesis || this.grudges.has(id);
   }
 
-  private addRider(o: { name: string; isPlayer: boolean; x: number; z: number; top: number; steer: number; hp: number; accel?: number; aggr: number; aware: number; body: number; ride: number; weapon?: C.WeaponKind; strap?: boolean }): void {
+  private addRider(o: { name: string; isPlayer: boolean; x: number; z: number; top: number; steer: number; hp: number; hit?: number; accel?: number; aggr: number; aware: number; body: number; ride: number; weapon?: C.WeaponKind; strap?: boolean }): void {
     this.riders.push({
       id: this.riders.length, name: o.name, isPlayer: o.isPlayer, x: o.x, z: o.z, px: o.x, pz: o.z, vx: 0, speed: 0,
-      top: o.top, accel: o.accel ?? C.PLAYER_BASE.accel, steer: o.steer, hp: o.hp, maxHp: o.hp, wantX: o.x, braking: false,
+      top: o.top, accel: o.accel ?? C.PLAYER_BASE.accel, steer: o.steer, hp: o.hp, maxHp: o.hp, hit: o.hit ?? 0, wantX: o.x, braking: false,
       state: 'ride', bandT: 0, downT: 0, runT: 0, bikeX: o.x, bikeZ: o.z, bikePX: o.x, bikePZ: o.z, bikeV: 0, bikeVx: 0, invT: 0, atkT: 0, atkSide: 1, atkCd: 0, charge: 0, power: 0, hitT: 0, weapon: o.weapon ?? null, strap: o.strap ?? false,
       finished: false, place: 0, aggr: o.aggr, aware: o.aware, body: o.body, ride: o.ride, koPlayer: 0, koByPlayer: 0, rubT: 0, rubSide: 1,
       thug: false, huntT: 0, gang: 'lurk', gangT: 0, role: 'strike', pace: 0,

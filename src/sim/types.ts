@@ -23,6 +23,8 @@ export interface Rider {
   steer: number;
   hp: number;
   maxHp: number;
+  /** Extra damage every blow of theirs does, on top of the weapon's: the season's `dmg` (3.3.56). */
+  hit: number;
   wantX: number;
   braking: boolean;
   /** 'away': a thug not on the road right now. */

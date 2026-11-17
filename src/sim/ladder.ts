@@ -6,7 +6,8 @@ export const UPGRADE_STEP = { top: 1.4, steer: 0.9, hp: 1 };
 /**
  * Levels per upgrade. Toughness stops early and stops hard: six levels put the dummy on eleven hit points
  * against rivals who land about nine damage a race, so from the first cup on nothing they did could knock
- * it off (doc 3.3.42 measured 0.05 falls a race). Three levels keep a blow worth dodging all career.
+ * it off (doc 3.3.42 measured 0.05 falls a race). Three levels, against the seasons' `dmg` (3.3.56), keep
+ * a blow worth dodging all career.
  */
 export const UPGRADE_MAX = { top: 10, steer: 8, hp: 3 };
 /**
@@ -57,6 +58,12 @@ export interface Tier {
   top: readonly number[];
   mind: number;
   hp: number;
+  /**
+   * Extra damage every rival's blow does. The seasons used to buy their rivals toughness and nothing else,
+   * so as the career climbed and the player's own hit points grew the field became less able to knock it
+   * off, not more: 3.3.56 measured 0.7 / 0.4 / 0.4 knockdowns a race by the whole field of seven.
+   */
+  dmg: number;
   traffic: number;
   patrol: number;
   prize: number;
@@ -67,9 +74,9 @@ export interface Tier {
 export const LEAD = [2, 0.6] as const;
 
 export const TIERS: readonly Tier[] = [
-  { name: 'Amateur', top: [-2.5, 4.6, 7.0, 7.0, 8.3], mind: 0, hp: 0, traffic: 1, patrol: 0, prize: 1, len: 1 },
-  { name: 'Pro', top: [11.1, 12.5, 12.6, 12.7, 14.6], mind: 0.12, hp: 1, traffic: 1.15, patrol: 1, prize: 2, len: 1.12 },
-  { name: 'Legend', top: [17.5, 17.6, 19.4, 19.5, 19.6], mind: 0.24, hp: 2, traffic: 1.3, patrol: 1, prize: 3, len: 1.18 },
+  { name: 'Amateur', top: [-2.5, 4.6, 7.0, 7.0, 8.3], mind: 0, hp: 0, dmg: 0, traffic: 1, patrol: 0, prize: 1, len: 1 },
+  { name: 'Pro', top: [11.1, 12.5, 12.6, 12.7, 14.6], mind: 0.12, hp: 1, dmg: 0.8, traffic: 1.15, patrol: 1, prize: 2, len: 1.12 },
+  { name: 'Legend', top: [17.5, 17.6, 19.4, 19.5, 19.6], mind: 0.24, hp: 2, dmg: 1.6, traffic: 1.3, patrol: 1, prize: 3, len: 1.18 },
 ];
 
 /** A division as raced in a tier. */
@@ -79,6 +86,8 @@ export interface Stage extends Division {
   top: number;
   /** Extra hit points for every rival. */
   hp: number;
+  /** Extra damage every rival's blow does. */
+  dmg: number;
   /** Race length, times RACE_LEN. */
   len: number;
 }
@@ -98,7 +107,7 @@ export function stage(div: number, tier: number, plus = 0): Stage {
   const E = ENDLESS;
   return {
     ...d, name: (ti ? `${t.name} ${d.name}` : d.name) + (n ? ` +${n}` : ''), tier: ti, top: t.top[DIVISIONS.indexOf(d)] + n * E.top,
-    mind: d.mind + t.mind + Math.min(E.mindMax, n * E.mind), hp: t.hp + Math.floor(n / E.hpEvery),
+    mind: d.mind + t.mind + Math.min(E.mindMax, n * E.mind), hp: t.hp + Math.floor(n / E.hpEvery), dmg: t.dmg,
     traffic: d.traffic * t.traffic * (1 + Math.min(n, E.trafficMax) * E.traffic), patrol: d.patrol + t.patrol, prize: d.prize * t.prize * (1 + n * E.prize), len: t.len,
   };
 }

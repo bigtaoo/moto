@@ -98,7 +98,7 @@ export function resolveAttack(w: World, r: Rider): void {
   }
   const counter = r.isPlayer && victim.openT > 0;
   // the boss is armoured: a blow does one damage (a full haymaker two) and barely moves it
-  const dmg = victim.boss ? (r.power >= 1 ? 2 : 1) : (r.weapon ? C.WEAPON[r.weapon].dmg : 1) + (counter ? A.counterDmg : 0) + (r.power >= 1 ? C.CHARGE.dmg : 0);
+  const dmg = victim.boss ? (r.power >= 1 ? 2 : 1) : (r.weapon ? C.WEAPON[r.weapon].dmg : 1) + r.hit + (counter ? A.counterDmg : 0) + (r.power >= 1 ? C.CHARGE.dmg : 0);
   victim.hp -= dmg;
   victim.vx += r.atkSide * (A.push + (r.weapon ? C.WEAPON[r.weapon].push : 0) + r.power * C.CHARGE.push) * (victim.boss ? BOSS.push : 1);
   victim.latV = 0;
