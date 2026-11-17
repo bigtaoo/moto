@@ -43,6 +43,7 @@ export const ID: Table = {
   baseballBat: 'PEMUKUL BISBOL!',
   security: 'SATPAM!',
   fined: 'DENDA ${n} · JALAN TERUS',
+  ticket: 'DENDA ${n} · KABUR',
   hunting: '{name} sedang memburumu!',
   thugs: 'ADA PREMAN DI DEPAN!',
   thug: 'ADA PREMAN DI DEPAN!',

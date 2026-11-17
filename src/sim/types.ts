@@ -240,6 +240,7 @@ export type SimEvent =
   | { type: 'drop'; pickup: number }
   | { type: 'patrolWarn' }
   | { type: 'patrolLetGo'; fine: number }
+  | { type: 'patrolTicket'; fine: number }
   | { type: 'finish'; rider: number; place: number }
   | { type: 'grudge'; rider: number }
   | { type: 'rub'; x: number; z: number; side: Side; player: boolean }

@@ -43,6 +43,7 @@ export const DE: Table = {
   baseballBat: 'BASEBALLSCHLÄGER!',
   security: 'SECURITY!',
   fined: 'BUSSGELD ${n} · WEITERFAHREN',
+  ticket: 'STRAFE ${n} · GEFLOHEN',
   hunting: '{name} jagt dich!',
   thugs: 'SCHLÄGER VORAUS!',
   thug: 'SCHLÄGER VORAUS!',

@@ -43,6 +43,7 @@ export const TH: Table = {
   baseballBat: 'ไม้เบสบอล!',
   security: 'รปภ.!',
   fined: 'ปรับ ${n} · ไปได้แล้ว',
+  ticket: 'ค่าปรับ ${n} · หนี',
   hunting: '{name} กำลังล่าคุณ!',
   thugs: 'มีนักเลงข้างหน้า!',
   thug: 'มีนักเลงข้างหน้า!',

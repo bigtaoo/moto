@@ -43,6 +43,7 @@ export const VI: Table = {
   baseballBat: 'GẬY BÓNG CHÀY!',
   security: 'BẢO VỆ!',
   fined: 'PHẠT ${n} · ĐI TIẾP ĐI',
+  ticket: 'PHAT ${n} · BO CHAY',
   hunting: '{name} đang săn bạn!',
   thugs: 'CÔN ĐỒ PHÍA TRƯỚC!',
   thug: 'CÔN ĐỒ PHÍA TRƯỚC!',

@@ -43,6 +43,7 @@ export const TR: Table = {
   baseballBat: 'BEYZBOL SOPASI!',
   security: 'GÜVENLİK!',
   fined: 'CEZA ${n} · DEVAM ET',
+  ticket: 'CEZA ${n} · KACTIN',
   hunting: '{name} seni avlıyor!',
   thugs: 'İLERİDE HAYDUTLAR!',
   thug: 'İLERİDE HAYDUT!',

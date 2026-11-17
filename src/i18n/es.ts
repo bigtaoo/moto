@@ -43,6 +43,7 @@ export const ES: Table = {
   baseballBat: '¡BATE!',
   security: '¡SEGURIDAD!',
   fined: 'MULTA ${n} · CIRCULE',
+  ticket: 'MULTA ${n} · HUISTE',
   hunting: '¡{name} va a por ti!',
   thugs: '¡MATONES DELANTE!',
   thug: '¡MATÓN DELANTE!',

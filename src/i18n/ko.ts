@@ -43,6 +43,7 @@ export const KO: Table = {
   baseballBat: '야구 배트!',
   security: '경비원이다!',
   fined: '벌금 ${n} · 그만 가라',
+  ticket: '벌금 ${n} · 도주',
   hunting: '{name}이(가) 노리고 있다!',
   thugs: '앞에 깡패들!',
   thug: '앞에 깡패!',

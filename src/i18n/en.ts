@@ -46,6 +46,7 @@ export const EN = {
   baseballBat: 'BASEBALL BAT!',
   security: 'SECURITY!',
   fined: 'FINED ${n} · MOVE ALONG',
+  ticket: 'TICKET ${n} · YOU RAN',
   hunting: '{name} is hunting you!',
   thugs: 'THUGS AHEAD!',
   thug: 'THUG AHEAD!',

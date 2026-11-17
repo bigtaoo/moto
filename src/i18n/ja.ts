@@ -43,6 +43,7 @@ export const JA: Table = {
   baseballBat: 'バット！',
   security: '警備員だ！',
   fined: '罰金${n} · さっさと行け',
+  ticket: '違反金 ${n} · 逃げた',
   hunting: '{name}が狙っている！',
   thugs: '前方にチンピラ！',
   thug: '前方にチンピラ！',

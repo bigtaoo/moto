@@ -158,6 +158,11 @@ export function react(e: SimEvent, w: World, view: RaceView, hud: Hud, feel: Fee
     case 'patrolLetGo':
       hud.flash(t('fined', { n: e.fine }), 'warn');
       break;
+    case 'patrolTicket':
+      hud.flash(t('ticket', { n: e.fine }), 'warn');
+      sfx.siren();
+      buzz(30);
+      break;
     case 'hunt':
       hud.flash(t('hunting', { name: w.riders[e.rider].name }), 'warn');
       sfx.alarm();

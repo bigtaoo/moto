@@ -74,6 +74,37 @@ describe('security buggy', () => {
     expect(longest / C.TICK_HZ).toBeLessThan(40); // seconds any one buggy spends on the road
   });
 
+  it('tickets a player who runs, and charges less to one who pulls over', () => {
+    const run = { tickets: 0, letGo: 0, fines: 0 };
+    const stop = { tickets: 0, letGo: 0, fines: 0 };
+    for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+      for (const [comply, acc] of [[false, run], [true, stop]] as const) {
+        const w = new World({ seed, upgrades: { top: 3, steer: 3, hp: 1 } });
+        while (!w.over && w.tick < 300 * C.TICK_HZ) {
+          botInput(w, 0.6, true, comply);
+          w.step();
+          for (const e of w.events) {
+            if (e.type === 'patrolTicket') {
+              acc.tickets++;
+              expect(e.fine).toBeGreaterThanOrEqual(C.PATROL.ticket);
+            }
+            if (e.type === 'patrolLetGo') acc.letGo++;
+          }
+          w.events.length = 0;
+        }
+        acc.fines += w.fines;
+      }
+    }
+    // running from a buggy that had you is not free any more ...
+    expect(run.tickets).toBeGreaterThan(0);
+    expect(run.letGo).toBe(0);
+    // ... and it costs more than stopping for one does
+    expect(stop.letGo).toBeGreaterThan(0);
+    expect(run.fines).toBeGreaterThan(stop.fines * 2);
+    // every ticket is on the bill
+    expect(run.fines).toBeGreaterThanOrEqual(run.tickets * C.PATROL.ticket);
+  });
+
   it('slows you while it squeezes you', () => {
     let squeezed = 0;
     let lost = 0;

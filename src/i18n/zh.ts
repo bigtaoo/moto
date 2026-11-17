@@ -43,6 +43,7 @@ export const ZH: Table = {
   baseballBat: '棒球棒！',
   security: '保安来了！',
   fined: '罚款 ${n} · 别闹了',
+  ticket: '罚单 ${n} · 你跑了',
   hunting: '{name} 在找你算账！',
   thugs: '前方有打手！',
   thug: '前方有打手！',

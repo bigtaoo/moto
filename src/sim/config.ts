@@ -4,7 +4,7 @@
  * Bump on any change to the race rules that alters what a seed plus inputs produce, and record the new
  * golden hash in world.test.ts. Replays and (later) online rooms only mix the same version.
  */
-export const SIM_VERSION = 29;
+export const SIM_VERSION = 30;
 
 export const TICK_HZ = 30;
 export const DT = 1 / TICK_HZ;
@@ -228,6 +228,9 @@ export const PATROL = {
   /** Pulling over costs a fine: this much, plus `fineStar` for each full star of heat. */
   fine: 30,
   fineStar: 20,
+  /** Running from one that had you costs more than pulling over did: this much, plus `ticketStar` a star. */
+  ticket: 150,
+  ticketStar: 100,
   /** Blocking: it only follows a lane change it is sure of, the player this far past the lane line, ... */
   laneCommit: 0.3,
   /** ... sticks with a lane at least this long, ... */

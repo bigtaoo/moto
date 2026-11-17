@@ -33,7 +33,13 @@ export function updatePatrol(w: World): void {
   };
   const leave = () => {
     // it had them and they never pulled over: word gets round
-    if ((pt.mode === 'squeeze' || pt.mode === 'block') && pt.hold > C.TICK_HZ / 2 && riding && !p.finished) addHeat(w, C.HEAT.flee);
+    if ((pt.mode === 'squeeze' || pt.mode === 'block') && pt.hold > C.TICK_HZ / 2 && riding && !p.finished) {
+      // it had them and they never pulled over: the ticket comes anyway, and it is dearer than stopping was
+      const fine = P.ticket + Math.floor(w.heat) * P.ticketStar;
+      w.fines += fine;
+      w.events.push({ type: 'patrolTicket', fine });
+      addHeat(w, C.HEAT.flee);
+    }
     pt.mode = 'leave';
     pt.t = 0;
   };

@@ -43,6 +43,7 @@ export const PL: Table = {
   baseballBat: 'KIJ BEJSBOLOWY!',
   security: 'OCHRONA!',
   fined: 'MANDAT ${n} · ROZEJŚĆ SIĘ',
+  ticket: 'MANDAT ${n} · UCIEKLES',
   hunting: '{name} poluje na ciebie!',
   thugs: 'ZBIRY PRZED TOBĄ!',
   thug: 'ZBIR PRZED TOBĄ!',
