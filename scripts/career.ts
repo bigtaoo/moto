@@ -83,7 +83,7 @@ for (let run = 0; run < careers; run++) {
     add('taunt', w.flair.tauntPay);
     add('boss', w.flair.bossPay);
     save.daily = dailyFor(save.daily, day);
-    const daily = scoreDaily(save.daily, { place: w.player.place, kos: w.kos, shoves: w.shoves, falls, grudge: w.grudgeKos + w.revenge }, dayMult(w.div.prize));
+    const daily = scoreDaily(save.daily, { place: w.player.place, kos: w.kos, shoves: w.shoves, near: w.flair.near, chain: w.flair.best, grudge: w.grudgeKos + w.revenge }, dayMult(w.div.prize));
     save.cash += daily.cash + daily.firstWin;
     add('daily', daily.cash);
     add('first win', daily.firstWin);

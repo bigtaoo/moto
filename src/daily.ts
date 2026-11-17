@@ -3,9 +3,16 @@
 
 import { dayOf } from './metrics';
 
-export type Kind = 'kos' | 'shoves' | 'podium' | 'win' | 'races' | 'clean' | 'grudge';
-/** Each kind and how much of it a day asks for. */
-export const GOALS: Record<Kind, number> = { kos: 6, shoves: 3, podium: 2, win: 2, races: 3, clean: 1, grudge: 2 };
+export type Kind = 'kos' | 'shoves' | 'podium' | 'near' | 'races' | 'chain' | 'grudge';
+/**
+ * Each kind and how much of it a day asks for. Every goal is meant to take two to four races at any rung of
+ * the ladder; 3.3.48 measured the old ones and found `kos` and `grudge` ticked themselves inside the first
+ * race while `clean` (come home without falling off once) was never ticked at all in 300 races -- this game
+ * puts the player on the tarmac four to eight times a race by design.
+ */
+export const GOALS: Record<Kind, number> = { kos: 24, shoves: 5, podium: 2, near: 7, races: 3, chain: 2, grudge: 4 };
+/** How many knockdowns in a row make a chain the `chain` challenge counts. The challenge's text says 3. */
+export const CHAIN_LINKS = 3;
 const KINDS = Object.keys(GOALS) as Kind[];
 export const PER_DAY = 3;
 /** Cash for a challenge and for the day's first win, times the division's prize multiplier. */
@@ -46,8 +53,10 @@ export interface RaceStats {
   place: number;
   kos: number;
   shoves: number;
-  /** Times the player came off in the race. */
-  falls: number;
+  /** Cars slipped past close without touching one. */
+  near: number;
+  /** The longest run of knockdowns the player chained this race. */
+  chain: number;
   /** Grudges settled and knockdowns of the nemesis. */
   grudge: number;
 }
@@ -57,9 +66,9 @@ function amount(k: Kind, r: RaceStats): number {
     case 'kos': return r.kos;
     case 'shoves': return r.shoves;
     case 'podium': return r.place <= 3 ? 1 : 0;
-    case 'win': return r.place === 1 ? 1 : 0;
+    case 'near': return r.near;
     case 'races': return 1;
-    case 'clean': return r.falls === 0 ? 1 : 0;
+    case 'chain': return r.chain >= CHAIN_LINKS ? 1 : 0;
     case 'grudge': return r.grudge;
   }
 }

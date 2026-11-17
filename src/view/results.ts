@@ -83,7 +83,7 @@ export interface ShiftActions {
 export const shiftButton = (save: Save, cls = 'shift'): string =>
   `<button class="${cls}"><span>${icon('target')} ${t('shiftGo')}</span><small>${t('shiftTip', { n: bountyPay(stage(save.div, save.tier, save.endless).prize) })}</small></button>`;
 
-const DAILY_NAMES: Record<Kind, Key> = { kos: 'dKos', shoves: 'dShoves', podium: 'dPodium', win: 'dWin', races: 'dRaces', clean: 'dClean', grudge: 'dGrudge' };
+const DAILY_NAMES: Record<Kind, Key> = { kos: 'dKos', shoves: 'dShoves', podium: 'dPodium', near: 'dNear', races: 'dRaces', chain: 'dChain', grudge: 'dGrudge' };
 /** How long the screen is up before a tap or key on it counts. */
 const ARM_MS = 600;
 

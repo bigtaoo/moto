@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { challengesFor, dailyFor, newDaily, readDaily, rows, scoreDaily, GOALS, PER_DAY, CHALLENGE_PAY, FIRST_WIN_PAY, type RaceStats } from './daily';
+import { challengesFor, dailyFor, newDaily, readDaily, rows, scoreDaily, GOALS, PER_DAY, CHALLENGE_PAY, FIRST_WIN_PAY, CHAIN_LINKS, type RaceStats } from './daily';
 
-const race = (o: Partial<RaceStats> = {}): RaceStats => ({ place: 5, kos: 0, shoves: 0, falls: 1, grudge: 0, ...o });
+const race = (o: Partial<RaceStats> = {}): RaceStats => ({ place: 5, kos: 0, shoves: 0, near: 0, chain: 0, grudge: 0, ...o });
 
 describe('daily challenges', () => {
   it('picks three different kinds a day, the same for the same day, varied over days', () => {
@@ -38,9 +38,27 @@ describe('daily challenges', () => {
   it('pays by the division', () => {
     let day = 20000;
     while (!challengesFor(day).includes('kos')) day++;
-    const o = scoreDaily(newDaily(day), race({ kos: 10 }), 1.5);
+    const o = scoreDaily(newDaily(day), race({ kos: GOALS.kos }), 1.5);
     expect(o.done).toContain('kos');
     expect(o.cash).toBeGreaterThanOrEqual(Math.round(CHALLENGE_PAY * 1.5));
+  });
+
+  it('counts near misses one by one and a chain only when it is long enough', () => {
+    let day = 20000;
+    while (!challengesFor(day).includes('near')) day++;
+    const d = newDaily(day);
+    const i = challengesFor(day).indexOf('near');
+    scoreDaily(d, race({ near: 3 }), 1);
+    expect(d.prog[i]).toBe(3);
+
+    day = 20000;
+    while (!challengesFor(day).includes('chain')) day++;
+    const c = newDaily(day);
+    const j = challengesFor(day).indexOf('chain');
+    scoreDaily(c, race({ chain: CHAIN_LINKS - 1 }), 1);
+    expect(c.prog[j]).toBe(0);
+    scoreDaily(c, race({ chain: CHAIN_LINKS + 2 }), 1);
+    expect(c.prog[j]).toBe(1);
   });
 
   it('starts a new day afresh and reads junk as a fresh day', () => {

@@ -26,7 +26,7 @@ export function settleWorld(save: Save, w: World, falls: number): RaceResult {
   });
   // the day's challenges and first win, paid at the division the race was run in
   save.daily = dailyFor(save.daily, today());
-  const daily = scoreDaily(save.daily, { place, kos: w.kos, shoves: w.shoves, falls, grudge: w.grudgeKos + w.revenge }, dayMult(w.div.prize));
+  const daily = scoreDaily(save.daily, { place, kos: w.kos, shoves: w.shoves, near: w.flair.near, chain: w.flair.best, grudge: w.grudgeKos + w.revenge }, dayMult(w.div.prize));
   save.cash += daily.cash + daily.firstWin;
   const ach = afterRace(save, { place, falls, kos: w.kos, near: w.flair.near, chain: w.flair.best });
   platform.submitScore(save.life.kos);
