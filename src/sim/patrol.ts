@@ -7,6 +7,15 @@ import type { World } from './world';
 import { nearestLane } from './ai';
 import { addHeat } from './combat';
 
+/**
+ * What a fine comes to here (3.3.52). The purse multiplies ~11x up the ladder; the fines used to be flat
+ * money, so the same ticket was most of a first prize in Rookie Meadow and petty cash in Legend Neon Coast.
+ * They are quoted in the first division's money and charged in the stage's.
+ */
+function bill(w: World, base: number, star: number): number {
+  return Math.round((base + Math.floor(w.heat) * star) * w.div.prize);
+}
+
 export function updatePatrol(w: World): void {
   const pt = w.patrol;
   const p = w.player;
@@ -35,7 +44,7 @@ export function updatePatrol(w: World): void {
     // it had them and they never pulled over: word gets round
     if ((pt.mode === 'squeeze' || pt.mode === 'block') && pt.hold > C.TICK_HZ / 2 && riding && !p.finished) {
       // it had them and they never pulled over: the ticket comes anyway, and it is dearer than stopping was
-      const fine = P.ticket + Math.floor(w.heat) * P.ticketStar;
+      const fine = bill(w, P.ticket, P.ticketStar);
       w.fines += fine;
       w.events.push({ type: 'patrolTicket', fine });
       addHeat(w, C.HEAT.flee);
@@ -159,7 +168,7 @@ export function updatePatrol(w: World): void {
       speed = clamp(s.speed + (s.z + P.halfL + 3 - pt.z) * 1.2, 0, pt.top);
       if (!riding) leave();
       else if (pt.haltT > P.letHold * C.TICK_HZ) {
-        const fine = P.fine + Math.floor(w.heat) * P.fineStar;
+        const fine = bill(w, P.fine, P.fineStar);
         w.fines += fine;
         addHeat(w, -C.HEAT.comply);
         w.events.push({ type: 'patrolLetGo', fine });

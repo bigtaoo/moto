@@ -125,4 +125,37 @@ describe('security buggy', () => {
     expect(squeezed).toBeGreaterThan(60);
     expect(lost / squeezed).toBeGreaterThan(0.05); // m/s per tick, net of the scooter's own acceleration
   });
+  it('charges a ticket in the money of the division it was written in (3.3.52)', () => {
+    // Flat fines meant a ticket was most of a first prize in Rookie Meadow and petty cash in
+    // Legend Neon Coast. Each one is now the stage's prize multiplier times the base.
+    const bill = (div: number, tier: number) => {
+      let total = 0;
+      let tickets = 0;
+      for (const seed of [1, 2, 3, 4, 5, 6]) {
+        const w = new World({ seed, div, tier, upgrades: { top: 3, steer: 3, hp: 1 } });
+        while (!w.over && w.tick < 300 * C.TICK_HZ) {
+          botInput(w, 0.6, true, false);
+          w.step();
+          for (const e of w.events) {
+            if (e.type === 'patrolTicket') {
+              tickets++;
+              total += e.fine;
+              // never less than the base, never more than the base with every star, times the purse
+              expect(e.fine).toBeGreaterThanOrEqual(Math.round(C.PATROL.ticket * w.div.prize));
+              expect(e.fine).toBeLessThanOrEqual(Math.round((C.PATROL.ticket + C.HEAT.max * C.PATROL.ticketStar) * w.div.prize));
+            }
+          }
+          w.events.length = 0;
+        }
+      }
+      expect(tickets).toBeGreaterThan(0);
+      return total / tickets;
+    };
+    const rookie = bill(0, 0);
+    const legend = bill(4, 2);
+    // the top of the ladder pays 10.8x the purse of the first race, so its tickets cost about that much more
+    const mul = C.stage(4, 2).prize;
+    expect(legend / rookie).toBeGreaterThan(mul * 0.7);
+    expect(legend / rookie).toBeLessThan(mul * 1.4);
+  }, 30_000);
 });
