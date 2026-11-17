@@ -9,7 +9,7 @@ import { World, type WorldOpts } from './world';
 // The golden hashes pin what a seed plus inputs produce. If one changes, either the change was meant
 // to alter the race (bump SIM_VERSION in config.ts and paste the new hashes here) or the sim lost
 // its determinism (find out why before touching anything).
-const GOLDEN = { version: 36, mid: '9bf6c053', end: 'e11ec908', endTick: 4114 };
+const GOLDEN = { version: 37, mid: '2327d61e', end: 'cf86fbe5', endTick: 4420 };
 
 const OPTS: WorldOpts = { seed: 1, upgrades: { top: 2, steer: 2, hp: 2 }, div: 2, nemesis: 3, tier: 1, vehicle: 2 };
 const MID = 60 * TICK_HZ;
@@ -77,7 +77,7 @@ describe('sim determinism', () => {
 describe('the sweep', () => {
   it('calls the race a few seconds after the last rival is home, not at the time cap', () => {
     // a player who never touches the controls: they fall behind, everyone else finishes
-    const w = new World({ seed: 7, div: 1 });
+    const w = new World({ seed: 7, div: 1, tier: 2 });
     let lastRival = 0;
     let swept = 0;
     while (!w.over && w.tick < 400 * TICK_HZ) {

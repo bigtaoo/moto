@@ -9,7 +9,7 @@ describe('knocked off', () => {
     let ran = 0;
     let longest = 0;
     let away = 0;
-    for (const seed of [1, 2, 3, 4, 5, 6]) {
+    for (const seed of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) {
       const w = new World({ seed, upgrades: { top: 3, steer: 3, hp: 0 } });
       let down = 0;
       let bike = { x: 0, z: 0 };
@@ -48,7 +48,7 @@ describe('the rubber band after a knockdown', () => {
     let over = 0;
     let gained = 0;
     let back = 0;
-    for (const seed of [1, 2, 3, 4, 5, 6]) {
+    for (const seed of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) {
       const w = new World({ seed, div: 2, upgrades: { top: 2, steer: 2, hp: 2 } });
       const lost = new Map<number, { gap: number; tick: number }>();
       while (!w.over && w.tick < 300 * C.TICK_HZ) {

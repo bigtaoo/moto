@@ -2,6 +2,20 @@
 // Split out of config.ts, which was near the 500-line cap; config.ts re-exports all of it, so the rest
 // of the game still reads these through `import * as C from './config'`.
 
+export const UPGRADE_STEP = { top: 1.4, steer: 0.9, hp: 1 };
+/**
+ * Levels per upgrade. Toughness stops early and stops hard: six levels put the dummy on eleven hit points
+ * against rivals who land about nine damage a race, so from the first cup on nothing they did could knock
+ * it off (doc 3.3.42 measured 0.05 falls a race). Three levels keep a blow worth dodging all career.
+ */
+export const UPGRADE_MAX = { top: 10, steer: 8, hp: 3 };
+/**
+ * Levels open in each season (TIERS index); the rest open with the next one. Without this the cash of
+ * the first season maxes everything and the rivals of the later ones never catch up. Toughness is one
+ * level a season for the same reason: bought outright it ends the fight for the rest of the career.
+ */
+export const UPGRADE_CAP: readonly { top: number; steer: number; hp: number }[] = [{ top: 6, steer: 6, hp: 1 }, { top: 8, steer: 7, hp: 2 }, UPGRADE_MAX];
+
 /**
  * The ladder: finish in the top PROMOTE places to move up a division. Each is somewhere else and harder:
  * rivals faster (`top` m/s) and keener and sharper (`mind` on aggression and awareness), more traffic,
@@ -36,9 +50,9 @@ export const PROMOTE = 3;
 export interface Tier {
   name: string;
   /**
-   * Rivals' extra top speed in each division (m/s). Set from what the player can have there (the
-   * season's upgrade cap and the rides open by then) less a lead that shrinks up the ladder, so the
-   * player stays a little faster but the top divisions are close.
+   * Rivals' extra top speed in each division (m/s). Set from what `careerGear` says the player is
+   * riding there, less a lead that shrinks from `LEAD[0]` m/s at the first race to `LEAD[1]` at the
+   * last, so the player stays a little faster but the last season is close.
    */
   top: readonly number[];
   mind: number;
@@ -49,10 +63,13 @@ export interface Tier {
   len: number;
 }
 
+/** The speed lead the table below leaves the player at the first rung and at the last (3.3.54). */
+export const LEAD = [2, 0.6] as const;
+
 export const TIERS: readonly Tier[] = [
-  { name: 'Amateur', top: [0, 1.8, 3.6, 5, 6.4], mind: 0, hp: 0, traffic: 1, patrol: 0, prize: 1, len: 1 },
-  { name: 'Pro', top: [7.5, 8.5, 10, 11, 12.5], mind: 0.12, hp: 1, traffic: 1.15, patrol: 1, prize: 2, len: 1.12 },
-  { name: 'Legend', top: [13.5, 14.5, 15.5, 16.5, 17.5], mind: 0.24, hp: 2, traffic: 1.3, patrol: 1, prize: 3, len: 1.18 },
+  { name: 'Amateur', top: [-1.1, 0.4, 4.2, 5.6, 8.3], mind: 0, hp: 0, traffic: 1, patrol: 0, prize: 1, len: 1 },
+  { name: 'Pro', top: [8.4, 11.1, 11.3, 12.7, 14.6], mind: 0.12, hp: 1, traffic: 1.15, patrol: 1, prize: 2, len: 1.12 },
+  { name: 'Legend', top: [14.7, 16.2, 18.0, 19.5, 19.6], mind: 0.24, hp: 2, traffic: 1.3, patrol: 1, prize: 3, len: 1.18 },
 ];
 
 /** A division as raced in a tier. */
@@ -114,3 +131,22 @@ export const VEHICLES: readonly Vehicle[] = [
   { name: 'Toilet Rocket', price: 45000, rung: 9, top: 5, steer: 0, hp: 1, accel: 2.5, blurb: 'Do not ask how it works.' },
   { name: 'Jet Bathtub', price: 200000, rung: 12, top: 6.7, steer: 1, hp: 2, accel: 3, blurb: 'Bubbles not included. Top of the line.' },
 ];
+
+/**
+ * What the career is riding by the time it reaches a rung: the newest ride open to it, and upgrades
+ * walked from the last season's cap up to this one's across the five divisions. The rivals' `top` table
+ * is set from this (3.3.54), and a test checks the lead it actually leaves.
+ */
+export function careerGear(div: number, tier: number): { vehicle: number; up: { top: number; steer: number; hp: number } } {
+  const rg = rung(div, tier);
+  let vehicle = 0;
+  for (let i = 0; i < VEHICLES.length; i++) if (VEHICLES[i].rung <= rg) vehicle = i;
+  const cap = UPGRADE_CAP[Math.min(tier, UPGRADE_CAP.length - 1)];
+  const prev = tier > 0 ? UPGRADE_CAP[Math.min(tier - 1, UPGRADE_CAP.length - 1)] : { top: 0, steer: 0, hp: 0 };
+  const f = (div + 1) / DIVISIONS.length;
+  const walk = (a: number, b: number) => Math.round(a + (b - a) * f);
+  return {
+    vehicle,
+    up: { top: walk(prev.top, cap.top), steer: walk(prev.steer, cap.steer), hp: Math.max(1, walk(prev.hp, cap.hp)) },
+  };
+}

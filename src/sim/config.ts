@@ -4,7 +4,7 @@
  * Bump on any change to the race rules that alters what a seed plus inputs produce, and record the new
  * golden hash in world.test.ts. Replays and (later) online rooms only mix the same version.
  */
-export const SIM_VERSION = 36;
+export const SIM_VERSION = 37;
 
 export const TICK_HZ = 30;
 export const DT = 1 / TICK_HZ;
@@ -33,19 +33,6 @@ export const PLAYER_BASE = { top: 28.6, accel: 7, steer: 8.5, hp: 3 };
  * half on the ground (doc 3.3.31).
  */
 export const PULL = { knee: 0.55, tail: 0.07 };
-export const UPGRADE_STEP = { top: 1.4, steer: 0.9, hp: 1 };
-/**
- * Levels per upgrade. Toughness stops early and stops hard: six levels put the dummy on eleven hit points
- * against rivals who land about nine damage a race, so from the first cup on nothing they did could knock
- * it off (doc 3.3.42 measured 0.05 falls a race). Three levels keep a blow worth dodging all career.
- */
-export const UPGRADE_MAX = { top: 10, steer: 8, hp: 3 };
-/**
- * Levels open in each season (TIERS index); the rest open with the next one. Without this the cash of
- * the first season maxes everything and the rivals of the later ones never catch up. Toughness is one
- * level a season for the same reason: bought outright it ends the fight for the rest of the career.
- */
-export const UPGRADE_CAP: readonly { top: number; steer: number; hp: number }[] = [{ top: 6, steer: 6, hp: 1 }, { top: 8, steer: 7, hp: 2 }, UPGRADE_MAX];
 export const upgradeCost = (level: number) => Math.round(250 * 1.6 ** level);
 
 /** Rider-to-rider contact (see World.press). */
@@ -443,7 +430,7 @@ export const CUT = {
  */
 export const RAMP = { halfW: 1.2, trailHalfW: 1.7, air: 0.035, minSpeed: 10, boost: 1.08, stompX: 1.1, stompZ: 1.6, before: 10, after: 3 };
 
-// The career ladder (divisions, seasons, rides) lives in ladder.ts; it reads as part of config.
+// The career ladder (divisions, seasons, rides, upgrade levels) lives in ladder.ts; it reads as part of config.
 export * from './ladder';
 
 export const PLAYER_BODY = 0xf2c230;

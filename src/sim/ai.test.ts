@@ -164,11 +164,13 @@ describe('a chaser on the shortcut trail (3.3.51)', () => {
   }
 
   it('comes across the barrier after the player often enough to matter', () => {
-    const { opps, followed } = follows(40);
+    // 60 seeds a division: the duck-ins are counted in the tens, so 40 left the floor below on the
+    // edge of the noise any change to the riders makes (3.3.54)
+    const { opps, followed } = follows(60);
     // the barrier used to end the fight outright: 1 crossing in 98 duck-ins before 3.3.51
     expect(opps).toBeGreaterThan(20);
     expect(followed / opps).toBeGreaterThan(0.1);
-  }, 30_000);
+  }, 90_000);
 
   it('does not ride the player own line out on the dirt', () => {
     let level = 0, stacked = 0;

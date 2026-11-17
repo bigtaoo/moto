@@ -335,3 +335,32 @@ describe('career settlement, seasons and the garage', () => {
     expect(choosePaint(save, last)).toBe(true);
   });
 });
+
+describe('the ladder', () => {
+  /** The player's top speed on what the career owns at a rung, and the fastest rival's there. */
+  function tops(div: number, tier: number): { player: number; rival: number } {
+    const gear = C.careerGear(div, tier);
+    const v = C.VEHICLES[gear.vehicle];
+    const s = C.stage(div, tier);
+    return {
+      player: C.PLAYER_BASE.top + v.top + gear.up.top * C.UPGRADE_STEP.top,
+      rival: s.top + Math.max(...C.ROSTER.map((r) => r.top)),
+    };
+  }
+
+  it('leaves the player a lead that shrinks up the ladder (3.3.54)', () => {
+    const leads: number[] = [];
+    for (let tier = 0; tier < C.TIERS.length; tier++) {
+      for (let div = 0; div < C.DIVISIONS.length; div++) {
+        const t = tops(div, tier);
+        leads[C.rung(div, tier)] = t.player - t.rival;
+      }
+    }
+    // the table used to be the other way up: 0.9 m/s at the first race, 2.7 at the last
+    expect(leads[0]).toBeGreaterThan(leads[leads.length - 1]);
+    for (const lead of leads) {
+      expect(lead).toBeGreaterThan(Math.min(...C.LEAD) - 0.4); // always a little faster than the rivals
+      expect(lead).toBeLessThan(Math.max(...C.LEAD) + 0.4); // but never cruising away from them
+    }
+  });
+});

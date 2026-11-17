@@ -88,7 +88,8 @@ describe('road features and divisions', () => {
     const hi = new World({ seed: 5, div: 4 });
     const d = C.DIVISIONS[4];
     for (let i = 1; i <= C.ROSTER.length; i++) {
-      expect(hi.riders[i].top).toBeCloseTo(lo.riders[i].top + C.TIERS[0].top[4], 6);
+      // the first season's table starts below zero, so it is the step between the two that counts
+      expect(hi.riders[i].top).toBeCloseTo(lo.riders[i].top + C.TIERS[0].top[4] - C.TIERS[0].top[0], 6);
       expect(hi.riders[i].aware).toBeGreaterThan(lo.riders[i].aware);
     }
     expect(hi.patrolCount).toBe(lo.patrolCount + d.patrol);
