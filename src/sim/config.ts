@@ -4,7 +4,7 @@
  * Bump on any change to the race rules that alters what a seed plus inputs produce, and record the new
  * golden hash in world.test.ts. Replays and (later) online rooms only mix the same version.
  */
-export const SIM_VERSION = 39;
+export const SIM_VERSION = 40;
 
 export const TICK_HZ = 30;
 export const DT = 1 / TICK_HZ;
@@ -119,13 +119,17 @@ export const DOWN = {
 /**
  * The opening of a career, eased. Measured on the sandbox (docs 3.7.2): the first race took 145-185 s
  * while half the sessions ended inside 152 s, so nobody saw a result; of the falls that ate that time,
- * 71% were traffic. So the first races are shorter and emptier and the rivals a little slower, back to
- * the full race by the third. Indexed by races finished (`save.races`); past the lists, nothing is eased.
+ * 71% were traffic. So the first races are shorter and emptier and the rivals a little slower.
+ * 3.3.58: two eased races was a ramp with one step in it - the third race arrived at twice the length
+ * and twice the traffic at once, and that is exactly where the sandbox's losing races sit (the median
+ * `progression_failed` is the player's third career race, 6.9 falls and 30 s of a 126 s race spent on
+ * the ground, finishing 7th of 8). Four eased races spread the same climb over steps of about a tenth
+ * each. Indexed by races finished (`save.races`); past the lists, nothing is eased.
  */
 export const ROOKIE = {
-  len: [0.5, 0.75], // times the stage's race length
-  traffic: [0.5, 0.75], // times the division's density
-  rivalTop: [-2.5, -1.2], // m/s off every rival's top speed, so the first race can actually be won
+  len: [0.5, 0.65, 0.8, 0.9], // times the stage's race length
+  traffic: [0.5, 0.65, 0.8, 0.9], // times the division's density
+  rivalTop: [-2.5, -1.9, -1.3, -0.6], // m/s off every rival's top speed, so the first races can actually be won
 };
 /** `ROOKIE[key]` for a player with `races` races behind them: 1 (or 0 m/s) once they are past the opening. */
 export const rookieEase = (races: number, key: 'len' | 'traffic'): number =>
