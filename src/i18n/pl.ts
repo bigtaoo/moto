@@ -285,5 +285,10 @@ export const PL: Table = {
   looks: 'Wygląd',
   garageTip: 'Ulepszenia, pojazdy, lakiery i czapki',
   canBuy: 'Stać cię na {n}',
+  goalUp: "{n} pkt do top 3",
+  goalHold: "top 3 · trzymaj się",
+  goalWin: "{n} pkt do 1. miejsca",
+  goalLead: "1. miejsce · trzymaj się",
+  firstUp: "Pierwsze ulepszenie w zasięgu!",
   nothingToBuy: 'Na razie nic cię nie stać',
 };

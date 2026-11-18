@@ -49,8 +49,11 @@ export function buyable(save: Save): number {
 /** The button into the garage, with what is affordable under it. */
 export function garageButton(save: Save, cls = 'shift garagego'): string {
   const n = buyable(save);
-  return `<button class="${cls}${n ? ' has' : ''}"><span>${icon('wrench')} ${t('garage')}</span>
-    <small>${n ? t('canBuy', { n }) : t('garageTip')}</small></button>`;
+  // 3.3.59: on the sandbox only the long sessions ever bought anything, and the players who bought stayed.
+  // So the first time an upgrade is in reach, the tile says so outright and draws the eye to itself.
+  const first = n > 0 && !save.up.top && !save.up.steer && !save.up.hp;
+  return `<button class="${cls}${n ? ' has' : ''}${first ? ' nudge' : ''}"><span>${icon('wrench')} ${t('garage')}</span>
+    <small>${first ? t('firstUp') : n ? t('canBuy', { n }) : t('garageTip')}</small></button>`;
 }
 
 /** What a vehicle adds over the scooter, in the player's words. */

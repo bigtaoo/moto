@@ -6,7 +6,7 @@ import type { World } from './sim/world';
 import { stuntPay } from './sim/flair';
 import type { Save } from './meta';
 import { storeSave } from './meta';
-import { CUP_RACES, riderName, settleRace } from './career';
+import { cupGoal, goalText, riderName, settleRace } from './career';
 import { dailyFor, scoreDaily, today } from './daily';
 import { afterRace, dayMult } from './rewards';
 import { counted } from './shopping';
@@ -40,7 +40,7 @@ export function settleWorld(save: Save, w: World, falls: number): RaceResult {
   const res: RaceResult = {
     place, total: w.racers, prize: s.prize, kos: w.kos, koBonus: s.koBonus, grudgeKos: w.grudgeKos, grudgeBonus: s.grudgeBonus,
     shoves: w.shoves, shoveBonus: s.shoveBonus, flair: { ...w.flair }, fines: s.fines, earned: s.earned, time: w.time, grudges: save.grudges.map((id) => w.riders[id].name),
-    league: { div: w.div.name, race: s.cupRace, races: CUP_RACES, table, end: s.end, next: C.stage(save.div, save.tier, save.endless).name, season: C.TIERS[save.tier].name },
+    league: { div: w.div.name, race: s.cupRace, races: s.cupOf, table, end: s.end, goal: s.end ? undefined : goalOf(save), next: C.stage(save.div, save.tier, save.endless).name, season: C.TIERS[save.tier].name },
     feud: { out: s.feud, nemesis: save.feud.nemesis, name: riderName },
     daily,
     ach,
@@ -50,4 +50,10 @@ export function settleWorld(save: Save, w: World, falls: number): RaceResult {
   };
   if (res.double) tele.adOffer('double_cash');
   return res;
+}
+
+/** The running cup's goal line, if it has one yet. */
+function goalOf(save: Save): string | undefined {
+  const g = cupGoal(save.cup, save.div);
+  return g ? goalText(g) : undefined;
 }

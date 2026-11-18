@@ -11,6 +11,10 @@
 .tiles .shift small { line-height: 1.15; }
 /* The garage with something affordable in it: the one tile that is worth a tap right now. */
 .shift.has { background: var(--yellow); box-shadow: 0 3px 0 var(--ink); }
+/* The first upgrade in reach (3.3.59): the tile bobs until the player has bought one. */
+.shift.nudge { animation: nudge 1.4s ease-in-out infinite; }
+@keyframes nudge { 0%, 70%, 100% { transform: none; } 78% { transform: scale(1.06) rotate(-2deg); } 86% { transform: scale(1.06) rotate(2deg); } }
+@media (prefers-reduced-motion: reduce) { .shift.nudge { animation: none; } }
 
 .card p.gone { display: none; }
 

@@ -285,5 +285,10 @@ export const JA: Table = {
   looks: '見た目',
   garageTip: '強化、乗り物、塗装と帽子',
   canBuy: '買えるもの {n} 件',
+  goalUp: "上位3人まであと{n}点",
+  goalHold: "上位3人 · 死守",
+  goalWin: "1位まであと{n}点",
+  goalLead: "1位 · 死守",
+  firstUp: "初めての強化が買える！",
   nothingToBuy: 'まだ買えるものはない',
 };

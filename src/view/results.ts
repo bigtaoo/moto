@@ -25,6 +25,8 @@ export interface League {
   table: { name: string; pts: number; rank: number; me: boolean }[];
   /** Set when this race closed the cup. */
   end: CupEnd | null;
+  /** The cup still running: the line the player is chasing (career.ts cupGoal). */
+  goal?: string;
   /** The division the next race is in, and the season (C.TIERS name). */
   next: string;
   season: string;
@@ -252,6 +254,9 @@ function leagueHtml(l: League): string {
       : `<div class="cupend">${t('cupRank', { o: ord(e.rank) })}${bonus} · ${t(e.last ? (e.gateNext ? 'topAgain' : 'topWin') : 'top3')}</div>`
     : '';
   // after the second-to-last race, say what is coming: the finale scores double (career.ts FINALE_PTS)
-  const next = !e && l.race === l.races - 1 ? `<div class="cupend">${t('final')} · ${t('x2pts')}</div>` : '';
+  // and, while it runs, the one thing the next race is for: the points to the places that go up (3.3.59)
+  const fin = !e && l.race === l.races - 1 ? `${t('final')} · ${t('x2pts')}` : '';
+  const goal = [fin, e ? '' : l.goal ?? ''].filter(Boolean).join(' · ');
+  const next = goal ? `<div class="cupend">${goal}</div>` : '';
   return `<div class="cup"><div class="cuphead">${t('cupHead', { div: l.div })} · ${e ? t('final') : t('raceN', { n: l.race, m: l.races })}</div>${head}${rows}${next}</div>`;
 }

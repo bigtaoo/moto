@@ -4,7 +4,7 @@
 import { titleInfo } from './title';
 import { wireBoard } from './board';
 import { streakDouble } from '../shopping';
-import { CUP_RACES } from '../career';
+import { cupGoal, cupRaces, goalText } from '../career';
 import { today } from '../daily';
 import * as C from '../sim/config';
 import * as platform from '../platform';
@@ -31,8 +31,10 @@ export interface TitleCardActions {
 export function drawTitle(save: Save, on: TitleCardActions): void {
   const best = document.getElementById('best');
   if (best && save.races > 0) {
-    best.textContent = t('best', { div: C.stage(save.div, save.tier, save.endless).name, n: save.cup.race + 1, m: CUP_RACES, cash: save.cash })
+    best.textContent = t('best', { div: C.stage(save.div, save.tier, save.endless).name, n: save.cup.race + 1, m: cupRaces(save.cup), cash: save.cash })
       + (save.titles ? t('champs', { n: save.titles }) : '');
+    const g = cupGoal(save.cup, save.div);
+    if (g) best.textContent += ` · ${goalText(g)}`;
   }
   // A returning player has read the tagline: its 52 px go to the grid of places to go instead.
   // (It is translated -- main.ts writes t('tagline') into it on boot -- so this is about room, not words.)

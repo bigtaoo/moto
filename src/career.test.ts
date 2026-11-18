@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { newCup, scoreRace, standings, cupOver, endCup, GATE_AT, CUP_RACES, POINTS, FINALE_PTS, isFinale, CUP_BONUS, newFeud, settleFeud, REVENGE_PAY, AHEAD_PAY, BREAK_PAY, BREAK_AT, COOL, settleRace, buyUpgrade, upgradePrice, upgradeLock, rideState, chooseRide, type RaceSummary } from './career';
+import { newCup, cupRaces, cupGoal, FIRST_CUP, scoreRace, standings, cupOver, endCup, GATE_AT, CUP_RACES, POINTS, FINALE_PTS, isFinale, CUP_BONUS, newFeud, settleFeud, REVENGE_PAY, AHEAD_PAY, BREAK_PAY, BREAK_AT, COOL, settleRace, buyUpgrade, upgradePrice, upgradeLock, rideState, chooseRide, type RaceSummary } from './career';
 import { parseSave } from './meta';
 import { PAINTS, HATS, HAT_PRICE, PAINT_TIER, HAT_TIER, choosePaint, chooseHat, wearState, buyCarry, carryPrice } from './shop';
 import { World } from './sim/world';
@@ -106,6 +106,7 @@ describe('career cup', () => {
   it('carries the near miss through the save, and a won cup clears it', () => {
     const save = parseSave(null);
     save.div = C.DIVISIONS.length - 1;
+    save.cup = newCup(); // past the short first cup
     expect(save.gate).toBe(0);
     for (let i = 0; i < CUP_RACES; i++) settleRace(save, raceSummary(2));
     expect(save.gate).toBe(1);
@@ -113,6 +114,43 @@ describe('career cup', () => {
     for (let i = 0; i < CUP_RACES; i++) settleRace(save, raceSummary(2));
     expect(save.gate).toBe(0);
     expect(save.tier).toBe(1); // through to the next season on the second top-three cup
+  });
+});
+
+describe('the first cup', () => {
+  it('is FIRST_CUP races long, with the finale double, and every cup after it is CUP_RACES', () => {
+    const save = parseSave(null);
+    expect(cupRaces(save.cup)).toBe(FIRST_CUP);
+    for (let i = 0; i < FIRST_CUP - 1; i++) expect(settleRace(save, raceSummary(2)).end).toBeNull();
+    expect(isFinale(save.cup.race, cupRaces(save.cup))).toBe(true);
+    const last = settleRace(save, raceSummary(2));
+    expect(last.end?.promoted).toBe(true);
+    expect(last.cupOf).toBe(FIRST_CUP);
+    expect(cupRaces(save.cup)).toBe(CUP_RACES);
+  });
+
+  it('keeps a short cup short through a reload, and an old save cup at CUP_RACES', () => {
+    const save = parseSave(null);
+    settleRace(save, raceSummary(5));
+    expect(cupRaces(parseSave(JSON.stringify(save)).cup)).toBe(FIRST_CUP);
+    expect(cupRaces(parseSave(JSON.stringify({ ...save, cup: { race: 1, pts: save.cup.pts } })).cup)).toBe(CUP_RACES);
+  });
+});
+
+describe('cup goal', () => {
+  it('is nothing before the first race, the gap to 3rd after it, and 0 inside the top 3', () => {
+    const cup = newCup();
+    expect(cupGoal(cup, 0)).toBeNull();
+    scoreRace(cup, places(6)); // the rivals took 1-5 and 7-8: 3rd has POINTS[2]
+    expect(cupGoal(cup, 0)).toEqual({ gap: POINTS[2] - POINTS[5], last: false });
+    scoreRace(cup, places(1));
+    expect(cupGoal(cup, 0)!.gap).toBe(0);
+  });
+
+  it('asks for 1st in the last division, which promotes nobody', () => {
+    const cup = newCup();
+    scoreRace(cup, places(2));
+    expect(cupGoal(cup, C.DIVISIONS.length - 1)).toEqual({ gap: POINTS[0] - POINTS[1], last: true });
   });
 });
 
@@ -212,6 +250,7 @@ describe('career settlement, seasons and the garage', () => {
   it('starts the next season at the first division after the top title, and stops at the last', () => {
     const save = parseSave(null);
     save.div = C.DIVISIONS.length - 1;
+    save.cup = newCup(); // past the short first cup
     let s;
     for (let i = 0; i < CUP_RACES; i++) s = settleRace(save, summary(1));
     expect(s!.end!.champion).toBe(true);

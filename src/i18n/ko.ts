@@ -285,5 +285,10 @@ export const KO: Table = {
   looks: '겉모습',
   garageTip: '업그레이드, 탈것, 도색과 모자',
   canBuy: '살 수 있는 것 {n}개',
+  goalUp: "상위 3위까지 {n}점",
+  goalHold: "상위 3위 · 버텨",
+  goalWin: "1위까지 {n}점",
+  goalLead: "1위 · 버텨",
+  firstUp: "첫 업그레이드를 살 수 있어!",
   nothingToBuy: '아직 살 수 있는 게 없다',
 };

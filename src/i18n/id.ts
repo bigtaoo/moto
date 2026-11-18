@@ -285,5 +285,10 @@ export const ID: Table = {
   looks: 'Tampilan',
   garageTip: 'Peningkatan, kendaraan, cat dan topi',
   canBuy: '{n} terjangkau',
+  goalUp: "{n} poin lagi ke 3 teratas",
+  goalHold: "3 teratas · bertahan",
+  goalWin: "{n} poin lagi ke peringkat 1",
+  goalLead: "peringkat 1 · bertahan",
+  firstUp: "Peningkatan pertama terjangkau!",
   nothingToBuy: 'Belum ada yang terjangkau',
 };

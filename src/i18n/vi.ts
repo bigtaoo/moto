@@ -285,5 +285,10 @@ export const VI: Table = {
   looks: 'Ngoại hình',
   garageTip: 'Nâng cấp, xe, sơn và mũ',
   canBuy: 'Mua được {n} thứ',
+  goalUp: "còn {n} điểm tới top 3",
+  goalHold: "trong top 3 · giữ vững",
+  goalWin: "còn {n} điểm tới hạng 1",
+  goalLead: "hạng 1 · giữ vững",
+  firstUp: "Mua được nâng cấp đầu tiên!",
   nothingToBuy: 'Chưa mua nổi thứ gì',
 };

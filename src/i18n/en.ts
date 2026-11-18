@@ -291,6 +291,11 @@ export const EN = {
   looks: "Looks",
   garageTip: "Upgrades, rides, paint and hats",
   canBuy: "{n} you can afford",
+  goalUp: "{n} pts off the top 3",
+  goalHold: "top 3 · hold on",
+  goalWin: "{n} pts off 1st",
+  goalLead: "1st · hold on",
+  firstUp: "First upgrade in reach!",
   nothingToBuy: "Nothing you can afford yet",
 };
 

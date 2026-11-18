@@ -285,5 +285,10 @@ export const FR: Table = {
   looks: "Allure",
   garageTip: "Améliorations, véhicules, peinture et chapeaux",
   canBuy: "{n} à ta portée",
+  goalUp: "{n} pts du top 3",
+  goalHold: "top 3 · tiens bon",
+  goalWin: "{n} pts de la 1re place",
+  goalLead: "1er · tiens bon",
+  firstUp: "1re amélioration à ta portée !",
   nothingToBuy: "Rien à ta portée pour l'instant",
 };

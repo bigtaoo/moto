@@ -285,5 +285,10 @@ export const TR: Table = {
   looks: "Görünüm",
   garageTip: "Yükseltmeler, araçlar, boya ve şapkalar",
   canBuy: "{n} tanesine paran yetiyor",
+  goalUp: "ilk 3'e {n} puan",
+  goalHold: "ilk 3'te · dayan",
+  goalWin: "1.'liğe {n} puan",
+  goalLead: "1. · dayan",
+  firstUp: "İlk yükseltmeye paran yetiyor!",
   nothingToBuy: "Henüz paran hiçbirine yetmiyor",
 };

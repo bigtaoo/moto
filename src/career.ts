@@ -7,6 +7,13 @@ import type { Save } from './meta';
 import { t } from './i18n';
 
 export const CUP_RACES = 4;
+/**
+ * 3.3.59: a new career's first cup is a race shorter. On the sandbox the first cup ended 10-16 minutes
+ * in, past the point most sessions are over, so the cup's payoff (the podium, the bonus, the promotion)
+ * landed after the player had gone. A rookie race takes about 150 s whatever its length (the player's
+ * own falls set the time, not the road), so shortening the road did not move it: dropping a race does.
+ */
+export const FIRST_CUP = 3;
 /** Cup points by finishing place. */
 export const POINTS = [10, 8, 6, 5, 4, 3, 2, 1];
 /** Cash for finishing the cup 1st/2nd/3rd, times the division's prize multiplier. */
@@ -17,9 +24,14 @@ export interface Cup {
   race: number;
   /** Points per rider id (0 the player, 1.. the roster). */
   pts: number[];
+  /** Races this cup runs to (FIRST_CUP for a new career's first one); absent in old saves: CUP_RACES. */
+  of?: number;
 }
 
-export const newCup = (): Cup => ({ race: 0, pts: Array.from({ length: C.ROSTER.length + 1 }, () => 0) });
+export const newCup = (of = CUP_RACES): Cup => ({ race: 0, pts: Array.from({ length: C.ROSTER.length + 1 }, () => 0), ...(of !== CUP_RACES ? { of } : {}) });
+
+/** How many races this cup runs to. */
+export const cupRaces = (cup: Cup) => cup.of ?? CUP_RACES;
 
 export const riderName = (id: number) => (id === 0 ? t('you') : C.ROSTER[id - 1]?.name ?? '?');
 
@@ -31,11 +43,11 @@ export const riderName = (id: number) => (id === 0 ? t('you') : C.ROSTER[id - 1]
 export const FINALE_PTS = 2;
 
 /** Is this race (0-based within the cup) the double-points finale? */
-export const isFinale = (race: number) => race === CUP_RACES - 1;
+export const isFinale = (race: number, of = CUP_RACES) => race === of - 1;
 
 /** Add one race's finishing places (per rider id; 0 or missing: did not race) to the cup. */
 export function scoreRace(cup: Cup, places: number[]): void {
-  const mult = isFinale(cup.race) ? FINALE_PTS : 1;
+  const mult = isFinale(cup.race, cupRaces(cup)) ? FINALE_PTS : 1;
   for (let id = 0; id < cup.pts.length; id++) {
     const p = places[id] ?? 0;
     if (p > 0) cup.pts[id] += (POINTS[p - 1] ?? 0) * mult;
@@ -57,7 +69,27 @@ export function standings(cup: Cup): Standing[] {
   return rows;
 }
 
-export const cupOver = (cup: Cup) => cup.race >= CUP_RACES;
+export const cupOver = (cup: Cup) => cup.race >= cupRaces(cup);
+
+/**
+ * 3.3.59: what the cup asks of the player next, in one line: the points between them and the places that
+ * move the career on (the top PROMOTE, or 1st in a season's last division, which promotes nobody). `gap`
+ * 0: they are in those places. Level on points the player is ahead (see `standings`), so the gap is the
+ * rider at the line's points minus theirs. Null before the cup's first race, when everyone has nothing.
+ */
+export function cupGoal(cup: Cup, div: number): { gap: number; last: boolean } | null {
+  if (cup.race === 0) return null;
+  const last = div >= C.DIVISIONS.length - 1;
+  const line = last ? 1 : C.PROMOTE;
+  const table = standings(cup);
+  const me = table.find((s) => s.id === 0)!;
+  if (me.rank <= line) return { gap: 0, last };
+  return { gap: table.filter((s) => s.id !== 0)[line - 1].pts - me.pts, last };
+}
+
+/** The goal as the card says it. */
+export const goalText = (g: { gap: number; last: boolean }): string =>
+  g.last ? (g.gap ? t('goalWin', { n: g.gap }) : t('goalLead')) : g.gap ? t('goalUp', { n: g.gap }) : t('goalHold');
 
 export interface CupEnd {
   rank: number;
@@ -125,8 +157,9 @@ export interface Settlement {
   stuntPay: number;
   fines: number;
   feud: FeudOutcome;
-  /** The race of the cup this was (1-based), and the cup's division and tier. */
+  /** The race of the cup this was (1-based), the races the cup ran to, and the cup's division and tier. */
   cupRace: number;
+  cupOf: number;
   div: number;
   tier: number;
   table: Standing[];
@@ -152,6 +185,7 @@ export function settleRace(save: Save, s: RaceSummary): Settlement {
   const feud = settleFeud(save.feud, s, st.prize);
   earned += feud.cash;
   const cupRace = save.cup.race;
+  const cupOf = cupRaces(save.cup);
   const end = cupOver(save.cup) ? endCup(save.cup, div, tier, save.endless, save.gate) : null;
   if (end) {
     earned += end.bonus;
@@ -171,7 +205,7 @@ export function settleRace(save: Save, s: RaceSummary): Settlement {
   if (save.best === 0 || s.place < save.best) save.best = s.place;
   save.grudges = [...s.grudges];
   save.carry = null;
-  return { prize, koBonus, grudgeBonus, shoveBonus, nearPay: s.nearPay, chainPay: s.chainPay, stuntPay, fines: s.fines, feud, cupRace, div, tier, table, end, earned };
+  return { prize, koBonus, grudgeBonus, shoveBonus, nearPay: s.nearPay, chainPay: s.chainPay, stuntPay, fines: s.fines, feud, cupRace, cupOf, div, tier, table, end, earned };
 }
 
 // ---- the garage --------------------------------------------------------------------------------

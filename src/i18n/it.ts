@@ -285,5 +285,10 @@ export const IT: Table = {
   looks: 'Aspetto',
   garageTip: 'Potenziamenti, mezzi, vernici e cappelli',
   canBuy: '{n} alla tua portata',
+  goalUp: "{n} pt dalla top 3",
+  goalHold: "top 3 · tieni duro",
+  goalWin: "{n} pt dal 1º",
+  goalLead: "1º · tieni duro",
+  firstUp: "Primo potenziamento alla portata!",
   nothingToBuy: 'Niente che tu possa permetterti',
 };

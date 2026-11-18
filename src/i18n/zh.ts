@@ -285,5 +285,10 @@ export const ZH: Table = {
   looks: '外观',
   garageTip: '升级、载具、涂装和帽子',
   canBuy: '有 {n} 样买得起',
+  goalUp: "距前三还差 {n} 分",
+  goalHold: "在前三 · 守住",
+  goalWin: "距第一还差 {n} 分",
+  goalLead: "第一 · 守住",
+  firstUp: "第一个升级买得起了！",
   nothingToBuy: '暂时还买不起新东西',
 };

@@ -4,7 +4,7 @@
 import type { Upgrades } from './sim/world';
 import { DIVISIONS, TIERS, VEHICLES, UPGRADE_MAX, upgradeCost, ROSTER, WEAPON, type WeaponKind } from './sim/config';
 import { PAINTS, HATS } from './shop';
-import { newCup, newFeud, GATE_AT, type Cup, type Feud } from './career';
+import { newCup, newFeud, GATE_AT, FIRST_CUP, CUP_RACES, type Cup, type Feud } from './career';
 import { saveData } from './platform';
 import { readDaily, today, type Daily } from './daily';
 import type { QualityMode } from './view/quality';
@@ -81,14 +81,14 @@ export function parseSave(raw: string | null): Save {
 const WAS: Record<string, string> = { koRace: 'kos25', koLife: 'kos1000' };
 
 const fresh: Save = {
-    cash: 0, up: { top: 0, steer: 0, hp: 0 }, grudges: [], races: 0, best: 0, div: 0, cup: newCup(), titles: 0, gate: 0, endless: 0, feud: newFeud(), tier: 0,
+    cash: 0, up: { top: 0, steer: 0, hp: 0 }, grudges: [], races: 0, best: 0, div: 0, cup: newCup(FIRST_CUP), titles: 0, gate: 0, endless: 0, feud: newFeud(), tier: 0,
     garage: { cur: 0, owned: [0] }, paint: { cur: 0, owned: [0] }, hat: { cur: 0, owned: [0] }, launchBest: 0, carry: null, muted: false, sessions: 0, firstDay: 0, musicOff: false, sfxOff: false, hapticsOff: false, quality: 'auto', lang: null, calm: null, daily: readDaily(null, today()),
     streak: newStreak(), ach: [], life: { kos: 0, wins: 0 },
   };
   try {
     if (!raw) return fresh;
     const s = JSON.parse(raw) as Partial<Save>;
-    const cup = newCup();
+    const cup = newCup(s.cup?.of === FIRST_CUP ? FIRST_CUP : CUP_RACES);
     if (s.cup && Array.isArray(s.cup.pts)) {
       cup.race = Math.max(0, Math.floor(Number(s.cup.race) || 0));
       s.cup.pts.forEach((p, i) => { if (i < cup.pts.length) cup.pts[i] = Number(p) || 0; });

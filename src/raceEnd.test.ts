@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import * as C from './sim/config';
 import { botInput } from './sim/ai';
 import { World } from './sim/world';
-import { CUP_RACES } from './career';
+import { FIRST_CUP } from './career';
 import { parseSave, type Save } from './meta';
 import { CHAIN_LINKS } from './daily';
 
@@ -56,7 +56,7 @@ describe('a cup race settles into the save', () => {
     expect(res.shoveBonus).toBe(w.shoves * C.SHOVE_BONUS);
     expect(res.time).toBe(w.time);
     expect(res.earned).toBeGreaterThanOrEqual(0);
-    expect(res.league.races).toBe(CUP_RACES);
+    expect(res.league.races).toBe(FIRST_CUP); // a new career's first cup
     expect(res.league.race).toBe(1);
     expect(res.league.table.filter((r) => r.me).length).toBe(1);
     expect(res.league.table.every((r) => r.name.length > 0)).toBe(true);

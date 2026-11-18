@@ -18,7 +18,7 @@ import { statsOverlay } from './view/stats';
 import * as funnel from './funnel';
 import * as tele from './telemetry';
 import { parseSave, storeSave, type Save } from './meta';
-import { CUP_RACES, riderName, REVENGE_PAY } from './career';
+import { cupRaces, FIRST_CUP, riderName, REVENGE_PAY } from './career';
 import { settleWorld } from './raceEnd';
 import { BOSS, MUTATOR, weeklyMutator } from './sim/fun';
 import { Moments, Highlight, HIGHLIGHT } from './highlight';
@@ -76,7 +76,7 @@ function setState(s: typeof state): void {
   state = s;
   funnel.setScreen(s);
   app.classList.toggle('racing', s === 'race');
-  music(s !== 'race' ? 'title' : chase ? shiftTrack(shifts) : raceTrack(save.div, save.tier, save.cup.race, save.cup.race === CUP_RACES - 1));
+  music(s !== 'race' ? 'title' : chase ? shiftTrack(shifts) : raceTrack(save.div, save.tier, save.cup.race, save.cup.race === cupRaces(save.cup) - 1));
 }
 let paused = false;
 /** The host (or an ad) has the game paused; separate from the player's own pause menu. */
@@ -126,7 +126,7 @@ function newRace(): void {
   const nem = chase ? null : save.feud.nemesis;
   const opts = { seed: chase ? seed + 5003 * ++shifts : seed, chase, upgrades: save.up, grudges: chase ? [] : save.grudges, length: LEN, div: save.div, tier: save.tier, endless: save.endless, rookie: chase ? -1 : save.races,
     vehicle: save.garage.cur, nemesis: nem?.id, weapon: chase ? undefined : save.carry ?? undefined,
-    boss: !chase && save.cup.race === CUP_RACES - 1, mutator: !chase && save.cup.race === MUTATOR.race ? weeklyMutator(Date.now()) : undefined };
+    boss: !chase && save.cup.race === cupRaces(save.cup) - 1, mutator: !chase && save.cup.race === MUTATOR.race ? weeklyMutator(Date.now()) : undefined };
   world = new World(opts);
   recorder = new Recorder(opts);
   moments = new Moments();
@@ -147,7 +147,7 @@ function newRace(): void {
 function intro(): void {
   const nem = world.chase ? null : save.feud.nemesis;
   const extra = world.mutator ? t('mutPill', { name: t(`mut_${world.mutator}`) }) : world.boss >= 0 ? `${t('bossPill', { n: Math.round(BOSS.pay * world.div.prize) })} · ${t('x2pts')}` : '';
-  hud.setLeague(world.chase ? t('shiftPill') : t('pill', { div: world.div.name, n: save.cup.race + 1, m: CUP_RACES }), extra);
+  hud.setLeague(world.chase ? t('shiftPill') : t('pill', { div: world.div.name, n: save.cup.race + 1, m: cupRaces(save.cup) }), extra);
   hud.setNemesis(nem, nem ? riderName(nem.id) : '', Math.round(REVENGE_PAY * world.div.prize));
 }
 
@@ -166,7 +166,8 @@ function startRace(): void {
 
 /** From the results (or a restart): the next race, straight into its countdown. */
 function nextRace(placement: string, shift = false): void {
-  platform.interstitial(placement);
+  // 3.3.59: no ad inside a new player's first cup; it is the stretch where the sandbox loses them
+  if (save.races >= FIRST_CUP) platform.interstitial(placement);
   chase = shift;
   newRace();
   stage.raceStart();

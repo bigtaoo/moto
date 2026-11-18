@@ -285,5 +285,10 @@ export const ES: Table = {
   looks: "Aspecto",
   garageTip: "Mejoras, vehículos, pintura y sombreros",
   canBuy: "{n} a tu alcance",
+  goalUp: "a {n} pts del top 3",
+  goalHold: "top 3 · aguanta",
+  goalWin: "a {n} pts del 1.º",
+  goalLead: "1.º · aguanta",
+  firstUp: "¡Primera mejora a tu alcance!",
   nothingToBuy: "Nada a tu alcance todavía",
 };
