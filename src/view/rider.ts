@@ -5,16 +5,15 @@
 // Local axes: +z forward, +y up. Sim +x (screen right) is local -x, because the world mirrors x (track.ts).
 
 import * as THREE from 'three';
-import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import type { WeaponKind } from '../sim/config';
-import { Kit, cached, kitMaterial, rigidMesh, rigidParts, shared, toonMaterial } from './toon';
+import { Kit, cached, kitMaterial, prim, rigidMesh, rigidParts, roundedBox, shared, toonMaterial } from './toon';
 import { Wobble } from './hats';
 
 export const JOINT = 0x34343c;
 export const TARGET = 0xf4d23c;
 export const INK_W = 0.024;
 
-export const rbox = (w: number, h: number, d: number, r = Math.min(w, h, d) * 0.3) => new RoundedBoxGeometry(w, h, d, 1, r);
+export const rbox = (w: number, h: number, d: number, r = Math.min(w, h, d) * 0.3) => prim(`rb:${w},${h},${d},${r}`, () => roundedBox(w, h, d, r));
 export const ball = (r: number, seg = 8) => new THREE.SphereGeometry(r, seg, Math.round(seg * 0.75));
 /** A capsule along z. */
 export const rod = (r: number, len: number) => new THREE.CapsuleGeometry(r, Math.max(0.001, len - 2 * r), 2, 8).rotateX(Math.PI / 2);

@@ -1,11 +1,10 @@
 // Traffic (instanced, five car shapes), the security buggy, weapon pickups and blob shadows.
 
 import * as THREE from 'three';
-import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import type { World } from '../sim/world';
 import { place } from './track';
 import { makeWeapon } from './rider';
-import { Kit, cached, kitMaterial, paintedMaterial, shared } from './toon';
+import { Kit, cached, kitMaterial, paintedMaterial, prim, roundedBox, shared } from './toon';
 
 const MAX_CARS = 48;
 const o = new THREE.Object3D();
@@ -20,7 +19,7 @@ const HUB = 0xb4bac2;
 const PAINT = { paint: 1 } as const;
 const CAR_INK = 0.045;
 /** A chamfered box: rounded corners with one segment, cheap enough for a street full of cars. */
-const cbox = (w: number, h: number, d: number, r = 0.08) => new RoundedBoxGeometry(w, h, d, 1, r);
+const cbox = (w: number, h: number, d: number, r = 0.08) => prim(`cb:${w},${h},${d},${r}`, () => roundedBox(w, h, d, r));
 const tyre = (r: number, w: number) => new THREE.CylinderGeometry(r, r, w, 12).rotateZ(Math.PI / 2);
 const hub = (r: number, w: number) => new THREE.CylinderGeometry(r, r, w, 8).rotateZ(Math.PI / 2);
 
