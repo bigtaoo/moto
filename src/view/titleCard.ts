@@ -33,7 +33,7 @@ export function drawTitle(save: Save, on: TitleCardActions): void {
   if (best && save.races > 0) {
     best.textContent = t('best', { div: C.stage(save.div, save.tier, save.endless).name, n: save.cup.race + 1, m: cupRaces(save.cup), cash: save.cash })
       + (save.titles ? t('champs', { n: save.titles }) : '');
-    const g = cupGoal(save.cup, save.div);
+    const g = cupGoal(save.cup, save.div, save.gate);
     if (g) best.textContent += ` · ${goalText(g)}`;
   }
   // A returning player has read the tagline: its 52 px go to the grid of places to go instead.

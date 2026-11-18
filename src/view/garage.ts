@@ -33,11 +33,7 @@ export const rideName = (i: number): string => t(`ride${i}` as Key);
 
 /** How many things on the three tabs the player can afford right now (the badge on the way in). */
 export function buyable(save: Save): number {
-  let n = 0;
-  for (const k of Object.keys(UP_NAMES) as UpKey[]) {
-    const cost = upgradePrice(save, k);
-    if (cost !== null && save.cash >= cost) n++;
-  }
+  let n = upgradesBuyable(save);
   if (save.races >= TAB_AT.rides) VEHICLES.forEach((v, i) => { if (rideState(save, i) === 'buy' && save.cash >= v.price) n++; });
   if (save.races >= TAB_AT.looks) {
     PAINTS.forEach((_, i) => { if (wearState(save, 'paint', i) === 'buy' && save.cash >= wearPrice('paint', i)) n++; });
@@ -46,12 +42,17 @@ export function buyable(save: Save): number {
   return n;
 }
 
+/** How many upgrade levels the player can pay for right now. */
+const upgradesBuyable = (save: Save) =>
+  (Object.keys(UP_NAMES) as UpKey[]).filter((k) => { const cost = upgradePrice(save, k); return cost !== null && save.cash >= cost; }).length;
+
 /** The button into the garage, with what is affordable under it. */
 export function garageButton(save: Save, cls = 'shift garagego'): string {
   const n = buyable(save);
   // 3.3.59: on the sandbox only the long sessions ever bought anything, and the players who bought stayed.
   // So the first time an upgrade is in reach, the tile says so outright and draws the eye to itself.
-  const first = n > 0 && !save.up.top && !save.up.steer && !save.up.hp;
+  // Only an upgrade counts: a paint or a ride in reach is not what the line promises (3.3.60).
+  const first = (Object.keys(UP_NAMES) as UpKey[]).every((k) => !save.up[k]) && upgradesBuyable(save) > 0;
   return `<button class="${cls}${n ? ' has' : ''}${first ? ' nudge' : ''}"><span>${icon('wrench')} ${t('garage')}</span>
     <small>${first ? t('firstUp') : n ? t('canBuy', { n }) : t('garageTip')}</small></button>`;
 }

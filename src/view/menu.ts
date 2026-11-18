@@ -9,7 +9,7 @@ import type { QualityMode } from './quality';
 import { CUP_RACES } from '../career';
 import { t, NATIVE, CODES, isLang, type Key, type Lang } from '../i18n';
 
-export interface MenuSettings { music: boolean; sfx: boolean; haptics: boolean; quality: QualityMode; shake: boolean; lang: Lang | null; auto: Lang; }
+export interface MenuSettings { music: boolean; sfx: boolean; haptics: boolean; quality: QualityMode; shake: boolean; lang: Lang | null; auto: Lang; /** Races in the cup being run (career.ts cupRaces): the first is shorter. */ cupOf: number; }
 
 export interface MenuActions {
   resume: () => void;
@@ -32,7 +32,7 @@ const Q_NAMES: Record<QualityMode, Key> = { auto: 'qAuto', low: 'qLow', high: 'q
 export class Menu {
   /** Set by the game; the menu calls these. */
   on: MenuActions = { resume() {}, restart() {}, music() {}, sfx() {}, haptics() {}, shake() {}, quality() {}, lang() {}, home() {} };
-  private settings: MenuSettings = { music: true, sfx: true, haptics: true, quality: 'auto', shake: true, lang: null, auto: 'en' };
+  private settings: MenuSettings = { music: true, sfx: true, haptics: true, quality: 'auto', shake: true, lang: null, auto: 'en', cupOf: CUP_RACES };
   /** The card's page: the switches, how to play, or the list of languages. */
   private page: 'main' | 'help' | 'langs' = 'main';
   /** 'pause' is the race's menu; 'settings' is the same card off the road, with a Done instead. */
@@ -105,7 +105,7 @@ export class Menu {
       return;
     }
     if (this.page === 'help') {
-      const tips = [t(DESKTOP ? 'hintKeys' : 'hint'), t('howTell'), t(DESKTOP ? 'howChargeKeys' : 'howCharge'), t('howShove'), t('howTaunt'), t('howHeat'), t('howCup', { n: CUP_RACES }), `${t('nem')}: ${t('nemTip')}`];
+      const tips = [t(DESKTOP ? 'hintKeys' : 'hint'), t('howTell'), t(DESKTOP ? 'howChargeKeys' : 'howCharge'), t('howShove'), t('howTaunt'), t('howHeat'), t('howCup', { n: s.cupOf }), `${t('nem')}: ${t('nemTip')}`];
       card.innerHTML = `<h2>${t('howTo')}</h2><ul class="howto">${tips.map((x) => `<li>${x}</li>`).join('')}</ul>
         <button class="primary" data-a="back">${t('back')}</button>`;
       return;

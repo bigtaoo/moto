@@ -7,6 +7,7 @@ import { setCalm, MOTION } from './motion';
 import { setHaptics } from '../haptics';
 import * as funnel from '../funnel';
 import { storeSave, type Save } from '../meta';
+import { cupRaces } from '../career';
 import { loadLang, resolve } from '../i18n';
 import * as platform from '../platform';
 import type { Hud } from './hud';
@@ -61,7 +62,7 @@ export function wireMenu(w: Wiring): void {
 
 /** The menu's switches as they stand, for `Menu.show`. */
 export const menuSettings = (s: Save) =>
-  ({ music: !s.musicOff, sfx: !s.sfxOff, haptics: !s.hapticsOff, quality: s.quality, shake: !MOTION.calm, lang: s.lang, auto: resolve(platform.language()) });
+  ({ music: !s.musicOff, sfx: !s.sfxOff, haptics: !s.hapticsOff, quality: s.quality, shake: !MOTION.calm, lang: s.lang, auto: resolve(platform.language()), cupOf: cupRaces(s.cup) });
 
 /** Everything outside the race that listens: keys, the HUD's own buttons, the page going away. */
 export function wireChrome(w: Wiring): void {

@@ -256,7 +256,7 @@ function leagueHtml(l: League): string {
   // after the second-to-last race, say what is coming: the finale scores double (career.ts FINALE_PTS)
   // and, while it runs, the one thing the next race is for: the points to the places that go up (3.3.59)
   const fin = !e && l.race === l.races - 1 ? `${t('final')} · ${t('x2pts')}` : '';
-  const goal = [fin, e ? '' : l.goal ?? ''].filter(Boolean).join(' · ');
+  const goal = [fin, l.goal].filter(Boolean).join(' · ');
   const next = goal ? `<div class="cupend">${goal}</div>` : '';
   return `<div class="cup"><div class="cuphead">${t('cupHead', { div: l.div })} · ${e ? t('final') : t('raceN', { n: l.race, m: l.races })}</div>${head}${rows}${next}</div>`;
 }

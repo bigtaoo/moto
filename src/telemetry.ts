@@ -152,6 +152,10 @@ let resultsAt = 0;
 let buys = 0;
 let racingNow = false;
 
+/**
+ * The ladder position strides CUP_RACES per rung whatever the cup's length, so an index means the same
+ * place in every build: a new career's three-race first cup (3.3.59) leaves rung 0's fourth index unused.
+ */
 function stepOf(div: number, tier: number, cupRace: number, ride: number): Props {
   return { step_id: stepId(div, tier), step_index: stepIndex(div, tier, cupRace, CUP_RACES), tier, div, cup_race: cupRace, ride };
 }

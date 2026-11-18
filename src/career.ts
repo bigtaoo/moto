@@ -42,12 +42,12 @@ export const riderName = (id: number) => (id === 0 ? t('you') : C.ROSTER[id - 1]
  */
 export const FINALE_PTS = 2;
 
-/** Is this race (0-based within the cup) the double-points finale? */
-export const isFinale = (race: number, of = CUP_RACES) => race === of - 1;
+/** Is the cup's next race the double-points finale? */
+export const isFinale = (cup: Cup) => cup.race === cupRaces(cup) - 1;
 
 /** Add one race's finishing places (per rider id; 0 or missing: did not race) to the cup. */
 export function scoreRace(cup: Cup, places: number[]): void {
-  const mult = isFinale(cup.race, cupRaces(cup)) ? FINALE_PTS : 1;
+  const mult = isFinale(cup) ? FINALE_PTS : 1;
   for (let id = 0; id < cup.pts.length; id++) {
     const p = places[id] ?? 0;
     if (p > 0) cup.pts[id] += (POINTS[p - 1] ?? 0) * mult;
@@ -73,23 +73,33 @@ export const cupOver = (cup: Cup) => cup.race >= cupRaces(cup);
 
 /**
  * 3.3.59: what the cup asks of the player next, in one line: the points between them and the places that
- * move the career on (the top PROMOTE, or 1st in a season's last division, which promotes nobody). `gap`
- * 0: they are in those places. Level on points the player is ahead (see `standings`), so the gap is the
- * rider at the line's points minus theirs. Null before the cup's first race, when everyone has nothing.
+ * move the career on. That is the top PROMOTE, except in a season's last division, which promotes nobody:
+ * there 1st takes the title, and so does the top PROMOTE once the gate is one cup away (see `endCup`).
+ * `gap` 0: they are in those places. Level on points the player is ahead (see `standings`), so the gap is
+ * the rider at the line's points minus theirs. Null before the cup's first race, when everyone has
+ * nothing, and when the races left cannot close the gap: a target out of reach is no reason to ride on.
  */
-export function cupGoal(cup: Cup, div: number): { gap: number; last: boolean } | null {
+export function cupGoal(cup: Cup, div: number, gate = 0): CupGoal | null {
   if (cup.race === 0) return null;
-  const last = div >= C.DIVISIONS.length - 1;
-  const line = last ? 1 : C.PROMOTE;
+  const line = div >= C.DIVISIONS.length - 1 && gate + 1 < GATE_AT ? 1 : C.PROMOTE;
   const table = standings(cup);
   const me = table.find((s) => s.id === 0)!;
-  if (me.rank <= line) return { gap: 0, last };
-  return { gap: table.filter((s) => s.id !== 0)[line - 1].pts - me.pts, last };
+  if (me.rank <= line) return { gap: 0, line };
+  const gap = table.filter((s) => s.id !== 0)[line - 1].pts - me.pts;
+  let left = 0;
+  for (let r = cup.race; r < cupRaces(cup); r++) left += POINTS[0] * (r === cupRaces(cup) - 1 ? FINALE_PTS : 1);
+  return gap > left ? null : { gap, line };
+}
+
+export interface CupGoal {
+  gap: number;
+  /** The place the player has to be at or above: 1 or C.PROMOTE. */
+  line: number;
 }
 
 /** The goal as the card says it. */
-export const goalText = (g: { gap: number; last: boolean }): string =>
-  g.last ? (g.gap ? t('goalWin', { n: g.gap }) : t('goalLead')) : g.gap ? t('goalUp', { n: g.gap }) : t('goalHold');
+export const goalText = (g: CupGoal): string =>
+  g.line === 1 ? (g.gap ? t('goalWin', { n: g.gap }) : t('goalLead')) : g.gap ? t('goalUp', { n: g.gap }) : t('goalHold');
 
 export interface CupEnd {
   rank: number;

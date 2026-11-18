@@ -36,12 +36,12 @@ describe('career cup', () => {
   it('scores the last race of a cup double, and only that one', () => {
     const cup = newCup();
     for (let i = 0; i < CUP_RACES - 1; i++) {
-      expect(isFinale(cup.race)).toBe(false);
+      expect(isFinale(cup)).toBe(false);
       scoreRace(cup, places(2));
     }
     const before = cup.pts[0];
     expect(before).toBe(POINTS[1] * (CUP_RACES - 1));
-    expect(isFinale(cup.race)).toBe(true);
+    expect(isFinale(cup)).toBe(true);
     scoreRace(cup, places(2));
     expect(cup.pts[0] - before).toBe(POINTS[1] * FINALE_PTS);
     expect(cupOver(cup)).toBe(true);
@@ -122,7 +122,7 @@ describe('the first cup', () => {
     const save = parseSave(null);
     expect(cupRaces(save.cup)).toBe(FIRST_CUP);
     for (let i = 0; i < FIRST_CUP - 1; i++) expect(settleRace(save, raceSummary(2)).end).toBeNull();
-    expect(isFinale(save.cup.race, cupRaces(save.cup))).toBe(true);
+    expect(isFinale(save.cup)).toBe(true);
     const last = settleRace(save, raceSummary(2));
     expect(last.end?.promoted).toBe(true);
     expect(last.cupOf).toBe(FIRST_CUP);
@@ -135,6 +135,11 @@ describe('the first cup', () => {
     expect(cupRaces(parseSave(JSON.stringify(save)).cup)).toBe(FIRST_CUP);
     expect(cupRaces(parseSave(JSON.stringify({ ...save, cup: { race: 1, pts: save.cup.pts } })).cup)).toBe(CUP_RACES);
   });
+
+  it('gives a save an older build stored before the first race the short cup too', () => {
+    const old = { ...parseSave(null), cup: { race: 0, pts: newCup().pts }, sessions: 1 };
+    expect(cupRaces(parseSave(JSON.stringify(old)).cup)).toBe(FIRST_CUP);
+  });
 });
 
 describe('cup goal', () => {
@@ -142,7 +147,7 @@ describe('cup goal', () => {
     const cup = newCup();
     expect(cupGoal(cup, 0)).toBeNull();
     scoreRace(cup, places(6)); // the rivals took 1-5 and 7-8: 3rd has POINTS[2]
-    expect(cupGoal(cup, 0)).toEqual({ gap: POINTS[2] - POINTS[5], last: false });
+    expect(cupGoal(cup, 0)).toEqual({ gap: POINTS[2] - POINTS[5], line: C.PROMOTE });
     scoreRace(cup, places(1));
     expect(cupGoal(cup, 0)!.gap).toBe(0);
   });
@@ -150,7 +155,25 @@ describe('cup goal', () => {
   it('asks for 1st in the last division, which promotes nobody', () => {
     const cup = newCup();
     scoreRace(cup, places(2));
-    expect(cupGoal(cup, C.DIVISIONS.length - 1)).toEqual({ gap: POINTS[0] - POINTS[1], last: true });
+    expect(cupGoal(cup, C.DIVISIONS.length - 1)).toEqual({ gap: POINTS[0] - POINTS[1], line: 1 });
+  });
+
+  it('asks for the top 3 in the last division once a top-3 cup would pass the gate', () => {
+    const cup = newCup();
+    scoreRace(cup, places(5));
+    const top = C.DIVISIONS.length - 1;
+    expect(cupGoal(cup, top, GATE_AT - 1)).toEqual({ gap: POINTS[2] - POINTS[4], line: C.PROMOTE });
+    expect(endCup({ ...cup, race: CUP_RACES, pts: cup.pts.map((p, i) => (i === 0 ? POINTS[2] : p)) }, top, 0, 0, GATE_AT - 1).champion).toBe(true);
+  });
+
+  it('is nothing when the races left cannot close the gap', () => {
+    const cup = newCup();
+    cup.race = CUP_RACES - 1; // only the finale left, worth POINTS[0] * FINALE_PTS at most
+    const most = POINTS[0] * FINALE_PTS;
+    cup.pts = cup.pts.map((_, i) => (i === 0 ? 0 : i <= 3 ? most + 1 : 0));
+    expect(cupGoal(cup, 0)).toBeNull();
+    cup.pts = cup.pts.map((_, i) => (i === 0 ? 0 : i <= 3 ? most : 0));
+    expect(cupGoal(cup, 0)).toEqual({ gap: most, line: C.PROMOTE });
   });
 });
 

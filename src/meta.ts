@@ -88,7 +88,9 @@ const fresh: Save = {
   try {
     if (!raw) return fresh;
     const s = JSON.parse(raw) as Partial<Save>;
-    const cup = newCup(s.cup?.of === FIRST_CUP ? FIRST_CUP : CUP_RACES);
+    // a career that has not finished a race yet starts on the short first cup, also when an older build
+    // stored its save before that race (3.3.60)
+    const cup = newCup(s.cup?.of === FIRST_CUP || (!num(s.races) && !num(s.cup?.race)) ? FIRST_CUP : CUP_RACES);
     if (s.cup && Array.isArray(s.cup.pts)) {
       cup.race = Math.max(0, Math.floor(Number(s.cup.race) || 0));
       s.cup.pts.forEach((p, i) => { if (i < cup.pts.length) cup.pts[i] = Number(p) || 0; });

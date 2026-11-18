@@ -54,6 +54,6 @@ export function settleWorld(save: Save, w: World, falls: number): RaceResult {
 
 /** The running cup's goal line, if it has one yet. */
 function goalOf(save: Save): string | undefined {
-  const g = cupGoal(save.cup, save.div);
+  const g = cupGoal(save.cup, save.div, save.gate);
   return g ? goalText(g) : undefined;
 }
