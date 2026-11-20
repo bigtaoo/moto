@@ -1,8 +1,14 @@
 import { defineConfig, type Plugin } from 'vite';
 import { readFileSync } from 'node:fs';
+import { execSync } from 'node:child_process';
 
-// the build on every analytics event (src/telemetry.ts), so metrics compare release to release
-const version = (JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string }).version;
+// the build on every analytics event (src/telemetry.ts), so metrics compare release to release. The package
+// version alone stayed 0.2.0 across a dozen sandbox uploads, so builds could only be told apart by time:
+// the commit goes on it too (3.3.62), with `+dirty` when the tree had changes nobody committed.
+const pkg = (JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string }).version;
+const git = (cmd: string): string => { try { return execSync(cmd, { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return ''; } };
+const rev = git('git rev-parse --short=7 HEAD');
+const version = rev ? `${pkg}+${rev}${git('git status --porcelain -uno') ? '.dirty' : ''}` : pkg;
 
 // ?stats in a dev build posts its samples here (src/view/stats.ts): one line each in the dev server's log, so
 // a phone on USB (`adb reverse tcp:5182 tcp:5182`, the `phone` entry in .claude/launch.json) can be measured from the desktop. Dev server only.

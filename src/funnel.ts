@@ -68,7 +68,12 @@ export function event(name: string, data?: Record<string, string | number | bool
 let leaveFields: () => Record<string, string | number | boolean> = () => ({});
 export const onLeave = (f: typeof leaveFields): void => { leaveFields = f; };
 
-// leaving: the last screen, how long, how many races (pagehide is the one that fires on phones too).
+// leaving: the last screen, how long, how many races. Sent when the page goes hidden, not only on pagehide
+// (3.3.62): Bridge flushes its event queue by beacon on `visibilitychange` → hidden, and anything queued after
+// that is lost when the tab closes. On the sandbox half of the r43 sessions had no session_end at all. The
+// listener sits on window in the capture phase, so it runs before Bridge's own on document. A player who
+// comes back (another tab, the phone's home screen) sends another one when they leave again: the last
+// session_end of a session is where they left, the same rule Bridge has for its core_session_end.
 // Guarded, because this is module scope: without it importing this file outside a browser throws, and
 // it is imported by most of the game's flow (doc 3.3.32).
 let left = false;
@@ -77,4 +82,11 @@ export function leave(): void {
   left = true;
   track('session_end', { reason: screen, sec: sec(), races: racesThisSession, played: Math.round(played), ...leaveFields() });
 }
-if (typeof addEventListener === 'function') addEventListener('pagehide', () => leave());
+/** Visible again after a leave: the next leave is sent too. */
+export function returned(): void {
+  left = false;
+}
+if (typeof addEventListener === 'function') {
+  addEventListener('visibilitychange', () => { if (document.hidden) leave(); else returned(); }, true);
+  addEventListener('pagehide', () => leave());
+}

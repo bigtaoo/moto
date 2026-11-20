@@ -78,7 +78,7 @@ export function wireChrome(w: Wiring): void {
     const b = (e.target as Element).closest?.('button');
     if (b) { if (e.key === ' ') b.click(); return; }
     if (w.at() === 'title' && !titleEl.classList.contains('hidden')) w.start();
-    else if (w.at() === 'results') hud.results.continue();
+    else if (w.at() === 'results') { if (!hud.garage.continue()) hud.results.continue(); }
     else return;
     e.preventDefault();
   });

@@ -11,6 +11,7 @@ import { Stage } from './view/stage';
 import { Controls, DESKTOP, keysReach } from './view/input';
 import { Hud } from './view/hud';
 import { drawTitle } from './view/titleCard';
+import { buyable, firstUpInReach, upLevels } from './view/garage';
 import { wireMenu, wireChrome, menuSettings, type Wiring } from './view/wiring';
 import { sfx, unlockAudio, hold, setMuted, setChannel, music, raceTrack, shiftTrack, preloadAudio } from './view/audio';
 import { installIconCss } from './view/icons';
@@ -189,10 +190,33 @@ function backToTitle(): void {
   showTitle();
 }
 
-/** The garage over the card that asked for it; `back` puts that card up again when it closes (3.3.40). */
-function openGarage(acts: ReturnType<typeof shopActions>, back: () => void): void {
-  hud.garage.show(save, { ...acts, close: () => { hud.garage.hide(); back(); } });
+/** The garage stop before the next race has come up this session (3.3.62). */
+let garageStopped = false;
+
+/** The garage over the card that asked for it; `back` puts that card up again when it closes (3.3.40).
+ *  `from` says which way in it was (analytics, 3.3.62); `stop`: it stands before the next race, and `back`
+ *  starts that race. */
+function openGarage(acts: ReturnType<typeof shopActions>, back: () => void, from: 'results' | 'title' | 'stop'): void {
+  const t0 = performance.now();
+  const cash = save.cash;
+  const ups = upLevels(save);
+  funnel.event('garage_opened', { from, cash, can_buy: buyable(save), ups, career_race: save.races });
+  funnel.setScreen('garage');
+  hud.garage.show(save, {
+    ...acts, next: from === 'stop',
+    close: () => {
+      funnel.event('garage_closed', { from, sec: Math.round((performance.now() - t0) / 1000), spent: cash - save.cash, ups: upLevels(save) - ups, cash: save.cash });
+      funnel.setScreen(state);
+      hud.garage.hide();
+      back();
+    },
+  });
 }
+
+/** 3.3.62: no new player on the r43 sandbox bought an upgrade, cup winners with $2,000 and more included,
+ *  and the garage tile was a scroll below the "next race" button. So once a session, while no upgrade is
+ *  owned and one is affordable, "next race" goes through the garage first; its button goes on to the race. */
+const garageStop = (): boolean => !garageStopped && firstUpInReach(save);
 
 function finishRace(): void {
   const w = world;
@@ -204,8 +228,13 @@ function finishRace(): void {
   setState('results');
   platform.lifecycle(place <= C.PROMOTE ? 'level_completed' : 'level_failed', { world: w.div.name, level: String(res.league.race) });
   const show = () => hud.results.show(res, save, {
-    garage: () => { hud.results.hide(); openGarage(shop, show); },
-    double, again: () => nextRace('race_end'), shift: () => nextRace('race_end', true), home: backToTitle,
+    garage: () => { hud.results.hide(); openGarage(shop, show, 'results'); },
+    double, again: () => {
+      if (!garageStop()) return nextRace('race_end');
+      garageStopped = true;
+      hud.results.hide();
+      openGarage(shop, () => nextRace('race_end'), 'stop');
+    }, shift: () => nextRace('race_end', true), home: backToTitle,
   });
   const double = () => {
     void platform.showRewarded('double_cash').then((ok) => {
@@ -387,7 +416,7 @@ const showTitle = (): void => drawTitle(save, {
   garage: () => {
     const acts = shopActions(save, () => hud.garage.redraw(), (u) => bootAch = [...bootAch, ...u]);
     titleEl.classList.add('hidden');
-    openGarage(acts, () => { titleEl.classList.remove('hidden'); showTitle(); });
+    openGarage(acts, () => { titleEl.classList.remove('hidden'); showTitle(); }, 'title');
   },
   shift: () => { chase = true; newRace(); startRace(); },
   launch: () => { if (!launch) launch = new LaunchMode(stage, view.group, save, app, () => { launch = null; showTitle(); }); },

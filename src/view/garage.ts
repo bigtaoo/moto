@@ -23,6 +23,8 @@ export interface GarageActions {
   carry: (k: WeaponKind) => void;
   /** Leave: back to wherever the garage was opened from. */
   close: () => void;
+  /** The garage stands between the results and the next race (3.3.62): its way out is the race. */
+  next?: boolean;
 }
 
 const UP_NAMES: Record<UpKey, Key> = { top: 'upTop', steer: 'upSteer', hp: 'upHp' };
@@ -46,13 +48,20 @@ export function buyable(save: Save): number {
 const upgradesBuyable = (save: Save) =>
   (Object.keys(UP_NAMES) as UpKey[]).filter((k) => { const cost = upgradePrice(save, k); return cost !== null && save.cash >= cost; }).length;
 
+/** No upgrade bought yet, and one is affordable: the moment 3.3.59's nudge and 3.3.62's garage stop are for. */
+export const firstUpInReach = (save: Save): boolean =>
+  (Object.keys(UP_NAMES) as UpKey[]).every((k) => !save.up[k]) && upgradesBuyable(save) > 0;
+
+/** How many upgrade levels the player owns (analytics). */
+export const upLevels = (save: Save): number => save.up.top + save.up.steer + save.up.hp;
+
 /** The button into the garage, with what is affordable under it. */
 export function garageButton(save: Save, cls = 'shift garagego'): string {
   const n = buyable(save);
   // 3.3.59: on the sandbox only the long sessions ever bought anything, and the players who bought stayed.
   // So the first time an upgrade is in reach, the tile says so outright and draws the eye to itself.
   // Only an upgrade counts: a paint or a ride in reach is not what the line promises (3.3.60).
-  const first = (Object.keys(UP_NAMES) as UpKey[]).every((k) => !save.up[k]) && upgradesBuyable(save) > 0;
+  const first = firstUpInReach(save);
   return `<button class="${cls}${n ? ' has' : ''}${first ? ' nudge' : ''}"><span>${icon('wrench')} ${t('garage')}</span>
     <small>${first ? t('firstUp') : n ? t('canBuy', { n }) : t('garageTip')}</small></button>`;
 }
@@ -112,7 +121,18 @@ export class Garage {
     return !this.el.classList.contains('hidden');
   }
 
+  private shownAt = 0;
+
+  /** Enter or Space on the stop before a race: the race, once the screen has been up long enough to read
+   *  (the same 600 ms as the results, or the key that went on from the results would skip it). */
+  continue(): boolean {
+    if (!this.open || !this.on?.next) return false;
+    if (performance.now() - this.shownAt >= 600) this.on.close();
+    return true;
+  }
+
   show(save: Save, on: GarageActions): void {
+    this.shownAt = performance.now();
     this.save = save;
     this.on = on;
     if (!this.tabs(save).includes(this.tab)) this.tab = 'up';
@@ -147,10 +167,13 @@ export class Garage {
     const tabs = this.tabs(save).map((x) => `<button class="tab ${x === this.tab ? 'on' : ''}" data-tab="${x}">${t(names[x])}</button>`).join('');
     const body = this.tab === 'up' ? `<div class="ups">${upsHtml(save)}</div>`
       : this.tab === 'rides' ? ridesHtml(save) : shopHtml(save);
+    // on the stop before a race, the line says why the garage came up, and the upgrades in reach move
+    const hint = on.next && firstUpInReach(save) ? `<div class="ghint">${t('firstUp')}</div>` : '';
+    const out = on.next ? `${t('nextRace')} ${icon('play')}` : `${icon('left')} ${t('back')}`;
     card.innerHTML = `<div class="ghead"><h2>${t('garage')}</h2><div class="cashline">${t('cash')} <b>${money(save.cash)}</b></div></div>
-      <div class="tabs">${tabs}</div>
-      <div class="gbody">${body}</div>
-      <button class="primary gback">${icon('left')} ${t('back')}</button>`;
+      ${hint}<div class="tabs">${tabs}</div>
+      <div class="gbody${hint ? ' first' : ''}">${body}</div>
+      <button class="primary gback">${out}</button>`;
     const pass = (f: () => void) => () => f();
     card.querySelectorAll<HTMLButtonElement>('.up button').forEach((b) => { b.onclick = () => on.buy(b.dataset.k as UpKey); });
     card.querySelectorAll<HTMLButtonElement>('.ride').forEach((b) => { b.onclick = () => on.ride(Number(b.dataset.v)); });

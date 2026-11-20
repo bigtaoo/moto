@@ -14,7 +14,11 @@
 /* The first upgrade in reach (3.3.59): the tile bobs until the player has bought one. */
 .shift.nudge { animation: nudge 1.4s ease-in-out infinite; }
 @keyframes nudge { 0%, 70%, 100% { transform: none; } 78% { transform: scale(1.06) rotate(-2deg); } 86% { transform: scale(1.06) rotate(2deg); } }
-@media (prefers-reduced-motion: reduce) { .shift.nudge { animation: none; } }
+/* The garage stop before a race (3.3.62): what it is for, and the upgrades that can be bought bob too. */
+.ghint { margin-top: 6px; font-weight: 800; color: var(--ink); background: var(--yellow); border-radius: 8px; padding: 4px 8px; }
+.gbody.first .up button:not(:disabled) { animation: nudge 1.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .shift.nudge, .gbody.first .up button { animation: none; } }
+.calm .shift.nudge, .calm .gbody.first .up button { animation: none; }
 
 .card p.gone { display: none; }
 

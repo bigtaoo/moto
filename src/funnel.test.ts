@@ -99,4 +99,16 @@ describe('the early-session funnel', () => {
     expect(d.played).toBe(42);
     expect(d.cash).toBe(1200);
   });
+
+  it('sends session_end again after the page came back, so the last one is where they left (3.3.62)', async () => {
+    const f = await session();
+    f.setScreen('race');
+    f.leave(); // hidden: another tab, the home screen
+    f.leave(); // pagehide right after the hide: not twice
+    f.returned();
+    f.setScreen('results');
+    f.leave();
+    expect(names()).toEqual(['session_end', 'session_end']);
+    expect(sent.map((e) => e.data.reason)).toEqual(['race', 'results']);
+  });
 });
