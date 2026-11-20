@@ -233,24 +233,46 @@ export const boardType = (): BoardType => {
   return ty === 'in_game' || ty === 'native' || ty === 'native_popup' ? ty : 'not_available';
 };
 
+/** How a board call failed, as one of two words (no messages in analytics). */
+const why = (e: unknown): string => (e instanceof Error && e.message.endsWith('timed out') ? 'timeout' : 'error');
+
 let sent = -1;
-/** The player's score after a race; skipped where there is no board, or when it hasn't changed. */
+/** The player's score after a race; skipped where there is no board, or when it hasn't changed. A failed
+ *  write is tried again after the next race. `board_write{ok}` says whether it landed (3.3.63). */
 export function submitScore(score: number): void {
   if (boardType() === 'not_available' || score <= sent) return;
   sent = score;
-  try { bridge.leaderboards.setScore(BOARD, score).catch((e: unknown) => console.warn('Leaderboard write failed', e)); } catch { /* none */ }
+  const t0 = performance.now();
+  const ms = () => Math.round(performance.now() - t0);
+  let p: Promise<unknown>;
+  try { p = within(bridge.leaderboards.setScore(BOARD, score), READ_MS, 'leaderboard write'); } catch (e) { p = Promise.reject(e); }
+  p.then(() => track('board_write', { ok: true, ms: ms(), score }), (e: unknown) => {
+    console.warn('Leaderboard write failed', e);
+    if (sent === score) sent = -1;
+    track('board_write', { ok: false, ms: ms(), score, err: why(e) });
+  });
 }
 
-/** The board's top entries (an `in_game` board only). */
+/** The board's top entries (an `in_game` board only). `board_read` says whether they came, how many, and
+ *  whether the player's own row was among them (3.3.63). */
 export async function boardEntries(): Promise<BoardEntry[]> {
   const me = String(bridge?.player?.id ?? '');
-  const raw = await within<any[]>(bridge.leaderboards.getEntries(BOARD), READ_MS, 'leaderboard read');
-  return (Array.isArray(raw) ? raw : []).slice(0, 50).map((e, i) => ({
+  const t0 = performance.now();
+  let raw: any[];
+  try {
+    raw = await within<any[]>(bridge.leaderboards.getEntries(BOARD), READ_MS, 'leaderboard read');
+  } catch (e) {
+    track('board_read', { ok: false, ms: Math.round(performance.now() - t0), err: why(e) });
+    throw e;
+  }
+  const list = (Array.isArray(raw) ? raw : []).slice(0, 50).map((e, i) => ({
     name: String(e?.name ?? '').slice(0, 24),
     score: Number(e?.score) || 0,
     rank: Number(e?.rank) || i + 1,
     me: !!me && String(e?.id ?? '') === me,
   }));
+  track('board_read', { ok: true, ms: Math.round(performance.now() - t0), n: list.length, mine: list.some((e) => e.me), sent: Math.max(sent, 0) });
+  return list;
 }
 
 /** The platform's own board overlay (a `native_popup` board). */
