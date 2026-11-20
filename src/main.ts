@@ -20,7 +20,7 @@ import * as tele from './telemetry';
 import { parseSave, storeSave, type Save } from './meta';
 import { cupRaces, FIRST_CUP, isFinale, riderName, REVENGE_PAY } from './career';
 import { settleWorld } from './raceEnd';
-import { BOSS, MUTATOR, weeklyMutator } from './sim/fun';
+import { BOSS, raceMutator } from './sim/fun';
 import { Moments, Highlight, HIGHLIGHT } from './highlight';
 import { LaunchMode } from './launchMode';
 import { today } from './daily';
@@ -126,7 +126,7 @@ function newRace(): void {
   const nem = chase ? null : save.feud.nemesis;
   const opts = { seed: chase ? seed + 5003 * ++shifts : seed, chase, upgrades: save.up, grudges: chase ? [] : save.grudges, length: LEN, div: save.div, tier: save.tier, endless: save.endless, rookie: chase ? -1 : save.races,
     vehicle: save.garage.cur, nemesis: nem?.id, weapon: chase ? undefined : save.carry ?? undefined,
-    boss: !chase && isFinale(save.cup), mutator: !chase && save.cup.race === MUTATOR.race ? weeklyMutator(Date.now()) : undefined };
+    boss: !chase && isFinale(save.cup), mutator: chase ? undefined : raceMutator(save.cup.race, save.races, Date.now()) };
   world = new World(opts);
   recorder = new Recorder(opts);
   moments = new Moments();

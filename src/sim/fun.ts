@@ -1,6 +1,8 @@
 // Tuning for the fourth round of play (SIM_VERSION 20): bowling with the tumbling body, the oil can, each
 // division's own roadside hazard, the taunt, the cup's last-race boss and the weekly mutator.
 
+import { ROOKIE } from './config';
+
 /**
  * Down and still tumbling, the player can lean the body sideways (`slide` m/s at full steer) while it moves
  * at `minSpeed` or more; a rider still on their scooter hit by it (within x/z metres) is knocked off, a
@@ -46,7 +48,11 @@ export const HAZARD = {
   hydrant: { count: 4, reach: 6.5, on: 45, cycle: 105, push: 16, slow: 0.994, halfZ: 1.6 },
 } as const;
 
-/** The weekly mutator, on the second race of every cup (UTC weeks from Monday). */
+/**
+ * The weekly mutator, on the second race of every cup (UTC weeks from Monday), but never in the rookie
+ * races: the second race of the first cup is a new player's second race, and the traffic week put it at
+ * 0.65 x 1.6 = 1.04 of full density, double the first race (docs 3.3.61).
+ */
 export const MUTATORS = ['lowgrav', 'bats', 'bigheads', 'traffic', 'police'] as const;
 export type Mutator = (typeof MUTATORS)[number];
 export const MUTATOR = { race: 1, prize: 1.25, air: 2, traffic: 1.6, patrol: 2 };
@@ -56,3 +62,7 @@ export function weeklyMutator(now: number): Mutator {
   const week = Math.floor((now / 86_400_000 + 3) / 7);
   return MUTATORS[((week % MUTATORS.length) + MUTATORS.length) % MUTATORS.length];
 }
+
+/** The mutator of a career race: `cupRace` 0-based in its cup, `races` finished before it. */
+export const raceMutator = (cupRace: number, races: number, now: number): Mutator | undefined =>
+  cupRace === MUTATOR.race && races >= ROOKIE.len.length ? weeklyMutator(now) : undefined;

@@ -3,7 +3,7 @@ import { World, type Rider, type SimEvent } from './world';
 import { botInput } from './ai';
 import { crash } from './combat';
 import { Recorder, playReplay } from './replay';
-import { BOSS, TAUNT, weeklyMutator, MUTATORS } from './fun';
+import { BOSS, TAUNT, weeklyMutator, raceMutator, MUTATOR, MUTATORS } from './fun';
 import * as C from './config';
 
 /** Past the countdown, no traffic, every rival placid and sent far back except `keep`. */
@@ -223,6 +223,17 @@ describe('the weekly mutator', () => {
     // Monday to Sunday is one week
     expect(weeklyMutator(Date.UTC(2026, 10, 9, 0, 1))).toBe(weeklyMutator(Date.UTC(2026, 10, 15, 23, 59)));
     expect(weeklyMutator(Date.UTC(2026, 10, 15, 23, 59))).not.toBe(weeklyMutator(Date.UTC(2026, 10, 16, 0, 1)));
+  });
+
+  it('comes on the second race of a cup, but not in the rookie races', () => {
+    const now = Date.UTC(2026, 10, 18);
+    const rookies = C.ROOKIE.len.length;
+    // a new player's second race is the first cup's second race: eased, so no mutator
+    for (let races = 0; races < rookies; races++) expect(raceMutator(MUTATOR.race, races, now)).toBeUndefined();
+    expect(raceMutator(MUTATOR.race, rookies, now)).toBe(weeklyMutator(now));
+    expect(raceMutator(MUTATOR.race, 40, now)).toBe(weeklyMutator(now));
+    expect(raceMutator(MUTATOR.race + 1, 40, now)).toBeUndefined();
+    expect(raceMutator(0, 40, now)).toBeUndefined();
   });
 
   it('bats: everyone starts with one and every pickup is one', () => {
