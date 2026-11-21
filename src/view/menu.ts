@@ -3,7 +3,7 @@
 // start a race and pause it to reach the sound switches, the graphics setting or how to play.
 
 import { icon } from './icons';
-import { DESKTOP } from './input';
+import { DESKTOP, controlKind, STEER_WORD, SLAP_WORD } from './input';
 import { CAN_BUZZ } from '../haptics';
 import type { QualityMode } from './quality';
 import { CUP_RACES } from '../career';
@@ -105,7 +105,8 @@ export class Menu {
       return;
     }
     if (this.page === 'help') {
-      const tips = [t(DESKTOP ? 'hintKeys' : 'hint'), t('howTell'), t(DESKTOP ? 'howChargeKeys' : 'howCharge'), t('howShove'), t('howTaunt'), t('howHeat'), t('howCup', { n: s.cupOf }), `${t('nem')}: ${t('nemTip')}`];
+      const kind = controlKind();
+      const tips = [`${t(STEER_WORD[kind])} · ${t(SLAP_WORD[kind])}`, t('howTell'), t(DESKTOP ? 'howChargeKeys' : 'howCharge'), t('howShove'), t('howTaunt'), t('howHeat'), t('howCup', { n: s.cupOf }), `${t('nem')}: ${t('nemTip')}`];
       card.innerHTML = `<h2>${t('howTo')}</h2><ul class="howto">${tips.map((x) => `<li>${x}</li>`).join('')}</ul>
         <button class="primary" data-a="back">${t('back')}</button>`;
       return;

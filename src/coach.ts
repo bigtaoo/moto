@@ -4,6 +4,18 @@
 // the first time a rival comes into reach the race all but stops and a big card asks for the key; the slap,
 // or a few seconds with no key, lets it go.
 
+import type { Hint } from './view/hud';
+
+// 3.3.65: each half of the controls line stays up until that control has been used, not for six seconds from
+// GO: on r46 a tenth of desktop players took over 28 s to steer and over 34 s to slap, so the whole tail went
+// hunting after the line had gone.
+let usedSteer = false, usedSlap = false;
+/** The player drove the bike with this control, so its half of the line has done its job. */
+export const usedControl = (k: 'steer' | 'slap'): void => { if (k === 'steer') usedSteer = true; else usedSlap = true; };
+/** What the controls line should say while `teach` (a rookie racing, with no bigger card up). */
+export const hintNeed = (teach: boolean): Hint | 'off' =>
+  teach && (!usedSteer || !usedSlap) ? { steer: !usedSteer, slap: !usedSlap } : 'off';
+
 /** How fast the race runs while the card is up. */
 export const COACH_SLOW = 0.12;
 /** Real seconds the card waits for the key before the race runs on without it. */
@@ -15,8 +27,14 @@ export interface CoachReport {
   slapped: boolean;
   /** How long the card was up, in milliseconds. */
   ms: number;
-  /** Which time this race the card came up. */
+  /** Which time this race the card came up; 0 when the player never needed it. */
   n: number;
+  /**
+   * The player found the slap on their own, before the card ever came up. 3.3.65: without this the coach
+   * only ever reported on the players it had to teach, so the self-taught ones were invisible and the card's
+   * answer rate could not be read against them.
+   */
+  early: boolean;
 }
 
 export class SlapCoach {
@@ -40,7 +58,10 @@ export class SlapCoach {
   /** The player swung. Before the card ever came up, they have found the key on their own. */
   swung(): void {
     if (this.phase === 'on') this.end(true);
-    else this.phase = 'off';
+    else if (this.phase === 'wait') {
+      this.phase = 'off';
+      this.report({ slapped: true, ms: 0, n: 0, early: true });
+    }
   }
 
   /**
@@ -65,7 +86,7 @@ export class SlapCoach {
   }
 
   private end(slapped: boolean): void {
-    this.report({ slapped, ms: Math.round(this.t * 1000), n: this.tries });
+    this.report({ slapped, ms: Math.round(this.t * 1000), n: this.tries, early: false });
     this.phase = slapped || this.tries >= COACH_TRIES ? 'off' : 'wait';
   }
 }

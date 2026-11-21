@@ -241,6 +241,7 @@ export type SimEvent =
   | { type: 'shove'; from: number; to: number; into: ShoveInto }
   | { type: 'steal'; from: number; to: number; kind: C.WeaponKind; took: boolean }
   | { type: 'crash'; rider: number; cause: CrashCause; vx: number; speed: number }
+  | { type: 'scrape'; rider: number; vx: number; speed: number }
   | { type: 'recover'; rider: number }
   | { type: 'pickup'; rider: number; kind: C.WeaponKind }
   | { type: 'drop'; pickup: number }

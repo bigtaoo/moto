@@ -26,7 +26,7 @@ describe('the slap coach', () => {
     c.swung();
     expect(c.on).toBe(false);
     expect(c.frame(0.016, true)).toBe(1); // once is enough
-    expect(out).toEqual([{ slapped: true, ms: 500, n: 1 }]);
+    expect(out).toEqual([{ slapped: true, ms: 500, n: 1, early: false }]);
   });
 
   it('never holds the race for long: no key in time, and it runs on, and comes back at most a few times', () => {
@@ -45,16 +45,18 @@ describe('the slap coach', () => {
     c.arm(true);
     c.frame(0.2, true);
     expect(c.frame(0.2, false)).toBe(1);
-    expect(out).toEqual([{ slapped: false, ms: 400, n: 1 }]);
+    expect(out).toEqual([{ slapped: false, ms: 400, n: 1, early: false }]);
     expect(c.frame(0.1, true)).toBe(COACH_SLOW);
   });
 
-  it('is not needed by a player who slaps before any rival is near', () => {
+  it('is not needed by a player who slaps before any rival is near, and says so once', () => {
     const { c, out } = make();
     c.arm(true);
     c.swung();
     expect(c.frame(0.016, true)).toBe(1);
-    expect(out).toEqual([]);
+    expect(out).toEqual([{ slapped: true, ms: 0, n: 0, early: true }]); // 3.3.65: the self-taught are counted too
+    c.swung();
+    expect(out).toHaveLength(1);
   });
 
   it('comes down without a report when the race ends under it', () => {

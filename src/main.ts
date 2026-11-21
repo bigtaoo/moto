@@ -8,7 +8,7 @@ import { botInput } from './sim/ai';
 import { Recorder } from './sim/replay';
 import { RaceView } from './view/scene';
 import { Stage } from './view/stage';
-import { Controls, DESKTOP, keysReach } from './view/input';
+import { Controls, controlKind, keysReach } from './view/input';
 import { Hud } from './view/hud';
 import { drawTitle } from './view/titleCard';
 import { buyable, firstUpInReach, upLevels } from './view/garage';
@@ -33,7 +33,7 @@ import { PAINTS, HATS } from './shop';
 import { shopActions, counted } from './shopping';
 import { settleShift } from './shift';
 import { blocker } from './view/blocker';
-import { SlapCoach } from './coach';
+import { SlapCoach, hintNeed, usedControl } from './coach';
 import { unlock, visit, dayMult, type Unlocked } from './rewards';
 
 const params = new URLSearchParams(location.search);
@@ -100,8 +100,8 @@ let acc = 0;
 /** Hitstop, slow motion and the grudge call-outs, which the events set (src/events.ts). */
 let feel = newFeel();
 let atkBuffer = 0;
-/** The first slap, taught by force in a desktop rookie's first race (3.3.64, src/coach.ts). */
-const coach = new SlapCoach((r) => funnel.event('slap_coach', { slapped: r.slapped, ms: r.ms, n: r.n }));
+/** The first slap, taught by force in a rookie's first race (3.3.64, src/coach.ts). */
+const coach = new SlapCoach((r) => funnel.event('slap_coach', { slapped: r.slapped, ms: r.ms, n: r.n, early: r.early, kind: controlKind() }));
 let lastCount = -1;
 /** Times the player came off this race (for the daily "without falling off"). */
 let falls = 0;
@@ -144,7 +144,7 @@ function newRace(): void {
   acc = 0;
   feel = newFeel(save.life.kos === 0);
   atkBuffer = 0;
-  coach.arm(DESKTOP && !BOT && !chase && save.races === 0);
+  coach.arm(!BOT && !chase && save.races === 0); // 3.3.65: on every device, not only `pointer: fine` ones
   lastCount = -1;
   falls = 0;
 }
@@ -280,7 +280,7 @@ function tick(): void {
   } else if (state === 'race') {
     inp.targetX = controls.targetX;
     inp.steer = controls.steer;
-    if (controls.steer !== 0 || controls.targetX !== null) funnel.tutorialStep('steer');
+    if (controls.steer !== 0 || controls.targetX !== null) { usedControl('steer'); funnel.tutorialStep('steer'); }
     inp.brake = controls.brake;
     if (controls.attack) { atkBuffer = 8; controls.attack = false; }
     inp.attack = atkBuffer > 0;
@@ -301,7 +301,7 @@ function tick(): void {
   // taken off the world before any is handled: one that throws must not leave the rest, the race's end
   // above all, to be handled again on every tick after
   for (const e of world.events.splice(0)) {
-    if (e.type === 'swing' && e.rider === 0) { swung = true; funnel.tutorialStep('slap'); coach.swung(); }
+    if (e.type === 'swing' && e.rider === 0) { swung = true; usedControl('slap'); funnel.tutorialStep('slap'); coach.swung(); }
     if (e.type === 'hit' && e.from === 0) funnel.tutorialStep('hit');
     if (e.type === 'crash' && e.rider === 0) falls++;
     if (state === 'race') moments.note(e, world);
@@ -368,8 +368,9 @@ function frame(now: number): void {
   // the Bridge holds the game paused while it lacks the focus): the HUD asks for that click, paused or not,
   // and a countdown waits for it so the race doesn't start without them
   if (!keysEver && keysReach()) keysEver = true;
-  const askKeys = state === 'race' && !BOT && !paused && DESKTOP && !keysReach();
-  hud.showHint(askKeys ? 'click' : state === 'race' && save.races < 2 && world.time < 6 ? 'controls' : 'off');
+  const askKeys = state === 'race' && !BOT && !paused && controlKind() === 'key' && !keysReach();
+  // the line yields to the slap card, which asks for the same key in bigger letters (src/coach.ts)
+  hud.showHint(askKeys ? null : hintNeed(state === 'race' && !BOT && !paused && save.races < 2 && !coach.on));
   // held only so long: a player whose keys never arrive is better off racing with the ask still on screen
   // than staring at a frozen countdown (any click in the game fixes it). keysWait keeps counting past the
   // hold so the telemetry still reports the whole wait.

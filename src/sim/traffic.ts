@@ -96,9 +96,20 @@ export function updateTraffic(w: World): void {
   for (const r of w.riders) {
     if (r.state !== 'ride' || r.invT > 0 || r.airT > 0) continue;
     for (const c of w.cars) {
-      if (Math.abs(r.x - c.x) < C.CAR.halfW + C.CAR.riderHalfW && Math.abs(r.z - c.z) < C.CAR.halfL + 0.4) {
-        const side = r.x >= c.x ? 1 : -1;
-        r.speed = Math.max(0, Math.min(r.speed, Math.abs(r.speed - c.speed) * 0.6 + 4));
+      const dx = r.x - c.x;
+      if (Math.abs(dx) < C.CAR.halfW + C.CAR.riderHalfW && Math.abs(r.z - c.z) < C.CAR.halfL + 0.4) {
+        const side = dx >= 0 ? 1 : -1;
+        const close = Math.abs(r.speed - c.speed);
+        // the opening races forgive the player a graze along a flank at something like the car's own speed
+        if (r.isPlayer && C.inRookie(w.rookie) && Math.abs(dx) >= C.SCRAPE.x && c.speed > 0) {
+          r.speed = Math.max(0, Math.min(r.speed, close * 0.6 + C.SCRAPE.keep));
+          r.latV = side * C.SCRAPE.push;
+          r.x = w.road.clampX(c.x + side * (C.CAR.halfW + C.CAR.riderHalfW + 0.02), r.z);
+          r.invT = C.SCRAPE.invT;
+          w.events.push({ type: 'scrape', rider: r.id, vx: side * C.SCRAPE.push, speed: r.speed });
+          break;
+        }
+        r.speed = Math.max(0, Math.min(r.speed, close * 0.6 + 4));
         crash(w, r, 'car', side * 4);
         break;
       }

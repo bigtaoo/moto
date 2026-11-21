@@ -1,7 +1,7 @@
 // DOM overlay. Per-frame changes go through transform/opacity only; text is touched only when it changes.
 
 import { icon } from './icons';
-import { DESKTOP } from './input';
+import { DESKTOP, controlKind, STEER_WORD as STEER, SLAP_WORD as SLAP, SLAP_BIG_WORD as SLAP_BIG } from './input';
 import type { World } from '../sim/world';
 import { ATTACK, WEAPON } from '../sim/config';
 import type { RaceView } from './scene';
@@ -14,8 +14,10 @@ import '../style.coach.css';
 
 const $ = <T extends HTMLElement = HTMLElement>(root: ParentNode, sel: string) => root.querySelector(sel) as T;
 
-/** The controls line: the keys where a mouse is the main pointer, else the touch controls. */
-const CONTROLS = DESKTOP ? 'hintKeys' : 'hint';
+/** Which halves of the controls line are still unlearnt. `null` is the ask for a click instead. */
+export type Hint = { steer: boolean; slap: boolean } | null;
+/** The same, as the HUD holds it: `null` has already become the click ask. */
+type Want = { steer: boolean; slap: boolean } | 'off' | 'click';
 
 /** Set a class only when it would change: a no-op `toggle` still dirties the element's style. */
 const cls = (el: HTMLElement, name: string, on: boolean) => {
@@ -50,7 +52,8 @@ export class Hud {
   private readonly hint: HTMLElement;
   private readonly coachEl: HTMLElement;
   private coachOn = false;
-  private hintMode:'off' | 'controls' | 'click' = 'off';
+  private hintKey = '';
+  private want: Want = 'off';
   private readonly slapL: HTMLElement;
   private readonly slapR: HTMLElement;
   private readonly incL: HTMLElement;
@@ -145,8 +148,10 @@ export class Hud {
   localize(): void {
     this.slapL.innerHTML = `${icon('left')} ${t('slap')}`;
     this.slapR.innerHTML = `${t('slap')} ${icon('right')}`;
-    this.coachEl.textContent = t('slapNow');
-    this.hint.textContent = t(this.hintMode === 'click' ? 'clickForKeys' : CONTROLS);
+    this.coachEl.textContent = t(SLAP_BIG[controlKind()]);
+    const want = this.want;
+    this.hintKey = '';
+    this.paintHint(want);
     this.pauseBtn.setAttribute('aria-label', t('pause'));
     this.unitEl.textContent = t('kmh');
     this.tauntBtn.textContent = DESKTOP ? `${t('taunt')} [T]` : t('taunt');
@@ -226,20 +231,42 @@ export class Hud {
     this.nemEl.className = 'nemcard show';
   }
 
-  /** The line low on the screen: the touch controls, a pulsing ask for a click while the keys can't reach the game, or nothing. */
-  showHint(mode: 'off' | 'controls' | 'click'): void {
-    if (mode === this.hintMode) return;
-    this.hintMode = mode;
-    if (mode !== 'off') this.hint.textContent = t(mode === 'click' ? 'clickForKeys' : CONTROLS);
-    this.hint.classList.toggle('on', mode !== 'off');
-    this.hint.classList.toggle('ask', mode === 'click');
-    this.root.classList.toggle('hinting', mode !== 'off');
+  /**
+   * The line low on the screen: whichever controls the player has not used yet, a pulsing ask for a click
+   * while the keys can't reach the game, or nothing. 3.3.65: it used to be one line for the first 8 s of
+   * the first two races, but in r46 the median first steer came at 7 s and the median first slap at 12 s,
+   * with the slowest tenth at 28 s and 34 s - most of the tail only started looking for the controls after
+   * the line had gone. Now each half stays up until that control has been used.
+   */
+  showHint(need: Hint | 'off'): void {
+    this.paintHint(need === null ? 'click' : need);
+  }
+
+  private paintHint(want: Want): void {
+    const kind = controlKind();
+    const key = typeof want === 'string' ? want : `${kind}:${want.steer ? 1 : 0}${want.slap ? 1 : 0}`;
+    if (key === this.hintKey) return;
+    this.hintKey = key;
+    this.want = want;
+    let on = want !== 'off';
+    if (want === 'click') this.hint.textContent = t('clickForKeys');
+    else if (typeof want !== 'string') {
+      const parts: string[] = [];
+      if (want.steer) parts.push(t(STEER[kind]));
+      if (want.slap) parts.push(t(SLAP[kind]));
+      on = parts.length > 0;
+      if (on) this.hint.textContent = parts.join(' · ');
+    }
+    this.hint.classList.toggle('on', on);
+    this.hint.classList.toggle('ask', want === 'click');
+    this.root.classList.toggle('hinting', on);
   }
 
   /** The big ask for the slap key over a slowed race (3.3.64). */
   coach(on: boolean): void {
     if (on === this.coachOn) return;
     this.coachOn = on;
+    if (on) this.coachEl.textContent = t(SLAP_BIG[controlKind()]);
     this.coachEl.classList.toggle('on', on);
   }
 

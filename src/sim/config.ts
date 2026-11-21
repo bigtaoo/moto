@@ -4,7 +4,7 @@
  * Bump on any change to the race rules that alters what a seed plus inputs produce, and record the new
  * golden hash in world.test.ts. Replays and (later) online rooms only mix the same version.
  */
-export const SIM_VERSION = 40;
+export const SIM_VERSION = 41;
 
 export const TICK_HZ = 30;
 export const DT = 1 / TICK_HZ;
@@ -129,13 +129,40 @@ export const DOWN = {
 export const ROOKIE = {
   len: [0.5, 0.65, 0.8, 0.9], // times the stage's race length
   traffic: [0.5, 0.65, 0.8, 0.9], // times the division's density
-  rivalTop: [-2.5, -1.9, -1.3, -0.6], // m/s off every rival's top speed, so the first races can actually be won
+  /**
+   * m/s off every rival's top speed, so the first races can actually be won. Longer than the other two
+   * lists on purpose: the length and traffic easing stop after four races, and the rivals keep tapering
+   * past that so race 5 is not a cliff. 3.3.65: measured on a beginner who steers along the road but
+   * never reads traffic and never swings, the old ramp let them place top-3 in 23% of first races and 2%
+   * of third races - they spent a quarter of the race on the ground and nothing could be done about it
+   * from the saddle. This ramp puts the first race at 63%, which is the floor; anyone who fights back
+   * does better.
+   */
+  rivalTop: [-5.0, -4.4, -3.8, -3.2, -2.0, -1.0],
 };
 /** `ROOKIE[key]` for a player with `races` races behind them: 1 (or 0 m/s) once they are past the opening. */
 export const rookieEase = (races: number, key: 'len' | 'traffic'): number =>
   races >= 0 && races < ROOKIE[key].length ? ROOKIE[key][races] : 1;
 export const rookieTop = (races: number): number =>
   races >= 0 && races < ROOKIE.rivalTop.length ? ROOKIE.rivalTop[races] : 0;
+/** Still inside the eased opening races. */
+export const inRookie = (races: number): boolean => races >= 0 && races < ROOKIE.len.length;
+/**
+ * The rookie races forgive a graze. 3.3.65: a beginner who steers along the road but does not yet read
+ * traffic took 4 car falls in the first race, and every fall costs about 3.5 s on the ground - 30% of the
+ * race lying down, against 19% for the players who finish. Thinning the traffic does not help (dropping
+ * race 1 from 0.50 to 0.15 of the division's density moved the ground share only 29% -> 27%): it is the
+ * falls that cost, not the cars. So in the opening races the player's shoulder along a car's flank, at a
+ * speed near the car's own, is a scrape - shoved aside and slowed - and only a square-on or fast hit floors
+ * them. Rivals still fall, and so does the player against an oncoming car: only a car
+ * travelling the player's way can be scraped along.
+ */
+export const SCRAPE = {
+  x: 0.8, // metres of lateral gap from the car's middle at or past which the contact is a graze
+  keep: 6, // m/s left on top of the closing-speed term
+  push: 7, // m/s of sideways shove away from the car
+  invT: 8, // ticks before traffic can bite again
+};
 
 export const INVULN_TICKS = 45;
 export const RECOVER_SPEED = 0.35;

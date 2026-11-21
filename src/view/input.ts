@@ -15,6 +15,25 @@ const NO_SCROLL = new Set([' ', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright
 /** A mouse (and so most likely a keyboard) is the main pointer: a desktop, not a phone or tablet. */
 export const DESKTOP = typeof matchMedia === 'function' && matchMedia('(pointer: fine)').matches;
 
+/** What the player is driving the bike with. */
+export type ControlKind = 'key' | 'mouse' | 'touch';
+let seenKind: ControlKind | null = null;
+/**
+ * 3.3.65: the guidance used to key off `DESKTOP`, which is what the device *could* do. Of 83 desktop
+ * sessions in the first race of r46, 17 steered with the mouse and 7 by touch (a touch laptop matches
+ * `pointer: fine`), yet all of them were told to press Space - and those keyboard-worded cards went
+ * unanswered by 46% of keyboard players against 8% of mouse players. So the wording follows what the
+ * player has actually pressed, and only falls back on the device until they press anything.
+ */
+export const controlKind = (): ControlKind => seenKind ?? (DESKTOP ? 'key' : 'touch');
+/** Called from the handlers that drive the bike, so a click only to give the iframe focus does not count. */
+const sawKind = (k: ControlKind): void => { seenKind = k; };
+
+/** What to call each control, in the words of whatever the player is actually pressing. */
+export const STEER_WORD = { key: 'hintSteerKeys', mouse: 'hintSteerDrag', touch: 'hintSteerDrag' } as const;
+export const SLAP_WORD = { key: 'hintSlapKeys', mouse: 'hintSlapClick', touch: 'hintSlapTap' } as const;
+export const SLAP_BIG_WORD = { key: 'slapNowKeys', mouse: 'slapNowClick', touch: 'slapNowTap' } as const;
+
 /**
  * Where a drag of `dx` CSS px from `anchor` (metres across the road) points, held inside [lo, hi].
  * `pxPerMetre` is how far the bike itself slides on screen for a metre across the road
@@ -109,6 +128,7 @@ export class Controls {
   private readonly down = (e: PointerEvent): void => {
     this.onAny?.();
     if (e.pointerType === 'mouse' && e.button !== 0) return;
+    sawKind(e.pointerType === 'touch' ? 'touch' : 'mouse');
     if (this.drag) {
       // second finger: slap right away
       this.attack = true;
@@ -151,6 +171,7 @@ export class Controls {
       if (k === 'p') { this.onPause?.(); return; }
       if (k === 't' && !e.repeat) this.taunt = true;
       if ((k === ' ' || k === 'j') && !e.repeat) this.attack = true;
+      if (NO_SCROLL.has(k) || k === 'a' || k === 'd' || k === 'j' || k === 's') sawKind('key');
       this.keys.add(k);
     } else {
       this.keys.delete(k);
