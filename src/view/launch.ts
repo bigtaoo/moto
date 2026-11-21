@@ -92,7 +92,7 @@ export class LaunchView {
 
   constructor(private readonly stage: Stage, private readonly l: Launch, seed: number, env: Env, paint: Paint, hat: Hat, vehicle: number) {
     stage.setEnv(env);
-    this.track = new Track(LAUNCH.field.to + 30, seed, env, NO_ROAD);
+    this.track = new Track(LAUNCH.field.to + 30, seed, env, NO_ROAD, false);
     this.rider = new RiderView(paint.body, paint.ride, vehicle, paint.mark);
     this.rag = new Ragdoll(paint.body, paint.ride, this.rider.mat, paint.mark);
     this.rag.onImpact = (x, z, v) => this.fx.puff(x, z, v, Math.random);

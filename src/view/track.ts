@@ -27,7 +27,8 @@ export class Track {
   private cones: THREE.InstancedMesh | null = null;
   private conePos: { x: number; z: number; down: boolean }[] = [];
 
-  constructor(readonly length: number, seed: number, private readonly env: Env, private readonly R: Road) {
+  /** `startGate`: the arch 12 m past the line. The dummy launch has its ramp there, so it asks for none. */
+  constructor(readonly length: number, seed: number, private readonly env: Env, private readonly R: Road, startGate = true) {
     setRoadPhase((seed % 97) * 0.37);
     const from = -60;
     const to = length + 320;
@@ -36,15 +37,25 @@ export class Track {
     this.barriers(from, to);
     this.trees(from, to, seed);
     this.signs(from, to);
-    this.gate(12, false);
+    if (startGate) this.gate(12, false);
     this.gate(length, true);
     this.works();
     this.trails();
     this.ramps();
     // Nothing a track holds ever moves again (cones are knocked over through an instance matrix, not by
-    // moving the mesh), so each piece keeps the matrix it was built with and the renderer walks none of
-    // them per frame. The group itself stays live: three's force flag still reaches inside if it moves.
-    this.group.traverse((o) => { if (o !== this.group) { o.updateMatrix(); o.matrixAutoUpdate = o.matrixWorldAutoUpdate = false; } });
+    // moving the mesh), so each piece keeps the matrix it was built with and the renderer composes none of
+    // them again.
+    //
+    // 3.3.66: this used to clear matrixWorldAutoUpdate as well, which three reads as "never compose this
+    // object's world matrix" -- the first time included. Every piece put down with place() was therefore
+    // drawn at the world origin, which is exactly where the player starts: both arches' four posts, both
+    // chequered beams, the start and finish lines, the roadworks signs, arrow and roller and the ramps,
+    // all in one pile in the middle of the opening frame. (The road, the ground, the barriers, the trees
+    // and the cones never showed it, because their vertices are built in world coordinates already.) The
+    // world matrices are composed once, here; after that matrixWorldNeedsUpdate stays false and the
+    // renderer recomposes nothing, which is all the saving the old line was after.
+    this.group.traverse((o) => { if (o !== this.group) { o.updateMatrix(); o.matrixAutoUpdate = false; } });
+    this.group.updateMatrixWorld(true);
   }
 
   /** Is (x, z) on or by a trail (keep trees and signs off it)? */
@@ -420,15 +431,21 @@ export class Track {
     lineHolder.add(line);
     place(lineHolder, 0, 0.03, z);
     const mat = this.keep(toonMaterial({ color: finish ? 0xf2c230 : 0xdedede }));
+    // 3.3.66: the posts stood on the barrier line, 0.3 m past the road's edge. Once they were being drawn
+    // where they belong (see the constructor), a player hugging the outside lane still had the near post
+    // 1.5 m off axis and six metres tall in the opening frame. OUT is how far past the barrier they stand
+    // now: at 2.6 m the nearest a post comes to the camera's axis at the line is 3.8 m over 20 m, which
+    // puts it at the very edge of a portrait frustum rather than across the road ahead.
+    const OUT = 2.6;
     const post = this.keep(new THREE.BoxGeometry(0.6, 6, 0.6));
     post.translate(0, 3, 0);
-    const beam = new THREE.Mesh(this.keep(new THREE.BoxGeometry(span + 1.2, 1.4, 0.5)), this.keep(toonMaterial({ map: checker })));
+    const beam = new THREE.Mesh(this.keep(new THREE.BoxGeometry(span + 2 * OUT + 1.2, 1.4, 0.5)), this.keep(toonMaterial({ map: checker })));
     beam.position.y = 6.2;
     const g = new THREE.Group();
     const l = new THREE.Mesh(post, mat);
     const r = new THREE.Mesh(post, mat);
-    l.position.x = span / 2 + 0.3;
-    r.position.x = -span / 2 - 0.3;
+    l.position.x = span / 2 + OUT;
+    r.position.x = -span / 2 - OUT;
     g.add(l, r, beam);
     place(g, 0, 0, z);
     this.group.add(lineHolder, g);

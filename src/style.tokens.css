@@ -1,0 +1,32 @@
+/* The palette, in one place. Before 3.3.66 the three stylesheets held 31 different hex values between
+   them and only four of those were tokens: five greens that all meant "good", two near-identical light
+   reds on dark, and six different panel tints behind the six panels of the results card. Everything
+   below is named by what it is for, and nothing in src/*.css writes a hex of its own any more.
+
+   The two panel fills are the whole set: --panel for the cool ones (the cup table, the day's challenges)
+   and --panel-warm for the warm ones (achievements, the board's striping, the grudge note). A seventh tint
+   would only tell the player that the panels are different, which they are not. */
+:root {
+  /* brand */
+  --yellow: #f2c230; /* the accent: prizes, the primary button, the player's row */
+  --yellow-dk: #c99a00; /* the same note as text on a pale ground, where the accent itself would glare */
+  --ink: #16161a;
+  --paper: #f4f4f0; /* every white surface and every white word on a dark one */
+  /* states */
+  --red: #e0453a;
+  --red-lt: #ff8a7a; /* red as text on ink: the thug tag, a miss, a bad banner */
+  --green: #1f7a3a; /* money won, a challenge done, an achievement held */
+  --green-lt: #7bd389; /* the launch meter's landing zone */
+  --orange: #d9480f; /* someone is coming for you: the hunt tag, the chaser pill */
+  --pink: #e8408a; /* the taunt, which belongs to no other family on purpose */
+  --sky: #4dabf7; /* the speed read-out */
+  --sky-far: #bfe2f2; /* the page behind the canvas, matched to the horizon */
+  --ice: #9ff0ff; /* the pops that fly off a hit */
+  --ink-red: #2a0d12; /* the nemesis's own dark, so their card is not just another black box */
+  /* surfaces */
+  --panel: #eef0f4;
+  --panel-warm: #f3efe2;
+  --mute: #ddd; /* a button that cannot be pressed */
+  --mute-ink: #888;
+  --font: 'DB Digits', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}

@@ -1,7 +1,9 @@
 // The title card's live parts: where the player stands, the streak's double-up ad, the security shift,
 // the dummy launch and the leaderboard. Drawn again whenever one of them changes something.
 
-import { titleInfo } from './title';
+import { titleInfo, achHtml, dailyPage } from './title';
+import { openPage } from './subpage';
+import { ACHIEVEMENTS } from '../rewards';
 import { wireBoard } from './board';
 import { streakDouble } from '../shopping';
 import { cupGoal, cupRaces, goalText } from '../career';
@@ -55,5 +57,12 @@ export function drawTitle(save: Save, on: TitleCardActions): void {
   if (gg) gg.onclick = () => { if (on.onTitle()) on.garage(); };
   const og = info.querySelector<HTMLButtonElement>('.optsgo');
   if (og) og.onclick = () => { if (on.onTitle()) on.opts(); };
+  // 3.3.66: the two folds are pages of their own now, so the card itself stays one screen
+  const dl = info.querySelector<HTMLButtonElement>('.dailygo');
+  if (dl) dl.onclick = () => { if (on.onTitle()) openPage(on.app, t('daily'), dailyPage(save).body); };
+  const ac = info.querySelector<HTMLButtonElement>('.achsgo');
+  if (ac) ac.onclick = () => {
+    if (on.onTitle()) openPage(on.app, t('achievements', { n: save.ach.length, m: ACHIEVEMENTS.length }), achHtml(save, on.ach));
+  };
   wireBoard(info, on.app);
 }

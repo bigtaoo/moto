@@ -8,6 +8,7 @@ import { UPGRADE_MAX, UPGRADE_CAP, VEHICLES, DIVISIONS, stage, type Vehicle, typ
 import { rideState, upgradeLock, upgradePrice, type UpKey } from '../career';
 import { PAINTS, HATS, wearState, wearPrice } from '../shop';
 import { shopHtml, bindShop } from './shop';
+import { rideThumb } from './thumbs';
 import type { Save } from '../meta';
 
 /** From which race each tab opens; upgrades are there from the first one. */
@@ -97,7 +98,9 @@ function ridesHtml(save: Save): string {
     const label = st === 'riding' ? t('riding') : st === 'owned' ? t('rideIt') : st === 'buy' ? money(v.price)
       : locked(stage(v.rung % DIVISIONS.length, Math.floor(v.rung / DIVISIONS.length)).name);
     const off = st === 'riding' || st === 'locked' || (st === 'buy' && save.cash < v.price);
-    return `<button class="ride ${st}" data-v="${i}" ${off ? 'disabled' : ''}><b>${rideName(i)}</b><span>${statLine(v)}</span><small>${t(`blurb${i}` as Key)}</small><i>${label}</i></button>`;
+    // the ride in the player's own paint, so the card shows the thing they would be riding (3.3.66)
+    return `<button class="ride ${st}" data-v="${i}" ${off ? 'disabled' : ''}>${rideThumb(i, PAINTS[save.paint.cur].ride)}
+      <b>${rideName(i)}</b><span>${statLine(v)}</span><small>${t(`blurb${i}` as Key)}</small><i>${label}</i></button>`;
   }).join('');
   return `<div class="rides">${cards}</div>`;
 }
@@ -177,11 +180,17 @@ export class Garage {
     // on the stop before a race, the line says why the garage came up, and the upgrades in reach move
     const hint = on.next && firstUpInReach(save) ? `<div class="ghint">${t('firstUp')}</div>` : '';
     const must = this.mustBuy;
-    const out = must ? t('buyFirst') : on.next ? `${t('nextRace')} ${icon('play')}` : `${icon('left')} ${t('back')}`;
-    card.innerHTML = `<div class="ghead"><h2>${t('garage')}</h2><div class="cashline">${t('cash')} <b>${money(save.cash)}</b></div></div>
+    // 3.3.66: leaving is not what this screen is for, so Back is a small white button at the top, where
+    // every second-level page keeps it. The big yellow button at the foot is left for the one case where
+    // going on IS the point: the stop that stands between the results and the next race.
+    const back = on.next ? '' : `<button class="back gback">${icon('left')} ${t('back')}</button>`;
+    const go = on.next
+      ? `<button class="primary gback"${must ? ' disabled' : ''}>${must ? t('buyFirst') : `${t('nextRace')} ${icon('play')}`}</button>`
+      : '';
+    card.innerHTML = `<div class="ghead"><h2>${t('garage')}</h2>${back}<div class="cashline">${t('cash')} <b>${money(save.cash)}</b></div></div>
       ${hint}<div class="tabs">${tabs}</div>
       <div class="gbody${hint ? ' first' : ''}">${body}</div>
-      <button class="primary gback"${must ? ' disabled' : ''}>${out}</button>`;
+      ${go}`;
     const pass = (f: () => void) => () => f();
     card.querySelectorAll<HTMLButtonElement>('.up button').forEach((b) => { b.onclick = () => on.buy(b.dataset.k as UpKey); });
     card.querySelectorAll<HTMLButtonElement>('.ride').forEach((b) => { b.onclick = () => on.ride(Number(b.dataset.v)); });

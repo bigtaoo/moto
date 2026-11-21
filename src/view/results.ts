@@ -110,6 +110,31 @@ function againLabel(l: League): string {
 
 const row = (a: string, b: string, cls = '') => `<div class="row ${cls}"><span>${a}</span><b>${b}</b></div>`;
 
+/**
+ * The one line of news out of everything the fold hides, so a closed fold never swallows the big moment.
+ * 3.3.66: the cup table, the day's challenges and the feud came to 302 px of a 898 px card on an 812 px
+ * phone, pushing the garage and the main menu off the bottom with nothing to say they were there.
+ */
+function newsLine(res: RaceResult): string {
+  const { out, name } = res.feud;
+  const e = res.league.end;
+  if (out.broken) return t('brokenCard', { name: name(out.vs!) });
+  if (out.fresh !== null) return `${t('newNem')} ${name(out.fresh)}`;
+  if (e?.champion) return t('champion', { n: e.bonus });
+  if (e?.promoted) return t('promoted', { o: ord(e.rank) });
+  if (e) return t('cupRank', { o: ord(e.rank) });
+  return '';
+}
+
+/** The race's background -- cup, challenges, feud, grudges -- one tap away under the pay. */
+function more(res: RaceResult, d: DailyOutcome, n: number): string {
+  const body = feudCard(res) + leagueHtml(res.league)
+    + (n >= NEW.daily ? dailyHtml(d.rows, d.done, d.done.length ? d.cash / d.done.length : 0) : '')
+    + (res.grudges.length ? `<div class="grudges">${t('holding')} <b>${res.grudges.join(', ')}</b><br><small>${t('grudgeTip', { n: GRUDGE_BONUS })}</small></div>` : '');
+  const news = newsLine(res);
+  return `<details class="more"><summary><span>${t('details')}</span>${news ? `<em>${news}</em>` : ''}</summary>${body}</details>`;
+}
+
 export class Results {
   private shownAt = 0;
   private again: (() => void) | null = null;
@@ -178,10 +203,7 @@ export class Results {
         ${res.ach.map((a) => row(`${icon('star')} ${t(`a_${a.id}` as Key)}`, '+' + money(a.pay), 'good')).join('')}
       </div>
       ${res.double > 0 && !res.doubled ? `<button class="double"><span>${icon('play')} ${t('double', { n: res.double })}</span><small>${t('watchAd')}</small></button>` : ''}
-      ${feudCard(res)}
-      ${leagueHtml(res.league)}
-      ${n >= NEW.daily ? dailyHtml(d.rows, d.done, d.done.length ? d.cash / d.done.length : 0) : ''}
-      ${res.grudges.length ? `<div class="grudges">${t('holding')} <b>${res.grudges.join(', ')}</b><br><small>${t('grudgeTip', { n: GRUDGE_BONUS })}</small></div>` : ''}
+      ${more(res, d, n)}
       <div class="cashline">${t('cash')} <b>${money(save.cash)}</b></div>
       <button class="primary again">${againLabel(res.league)}</button>
       <div class="tiles">${garageButton(save)}${shiftOpen(save) ? shiftButton(save, 'shift shiftgo') : ''}${n >= NEW.home ? `<button class="shift home">${t('toMenu')}</button>` : ''}</div>`;

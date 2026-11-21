@@ -64,7 +64,16 @@ interface Touch {
 export class Controls {
   targetX: number | null = null;
   steer = 0;
-  brake = false;
+  /**
+   * 3.3.66: a phone had no brake at all -- arrows and S were the only way to slow down, so every touch
+   * player drove flat out into every pile-up. The HUD's brake button sets this while a finger is on it.
+   */
+  holdBrake = false;
+  /** Held: the brake, from the keys or from the button under the thumb. */
+  get brake(): boolean {
+    return this.keyBrake || this.holdBrake;
+  }
+  private keyBrake = false;
   /** Set when a slap is asked for; main consumes it. */
   attack = false;
   /** Set by T (or the HUD's button) for the taunt; main consumes it. */
@@ -122,7 +131,8 @@ export class Controls {
     this.attack = false;
     this.taunt = false;
     this.steer = 0;
-    this.brake = false;
+    this.keyBrake = false;
+    this.holdBrake = false;
   }
 
   private readonly down = (e: PointerEvent): void => {
@@ -184,6 +194,6 @@ export class Controls {
     const s = (has('arrowright', 'd') ? 1 : 0) - (has('arrowleft', 'a') ? 1 : 0);
     if (s !== 0) this.targetX = null;
     this.steer = s;
-    this.brake = has('arrowdown', 's');
+    this.keyBrake = has('arrowdown', 's');
   }
 }

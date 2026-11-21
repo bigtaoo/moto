@@ -48,7 +48,7 @@ export function react(e: SimEvent, w: World, view: RaceView, hud: Hud, feel: Fee
   const near = (id: number) => id === 0 || Math.abs(w.riders[id].z - w.player.z) < 28;
   switch (e.type) {
     case 'go':
-      hud.flash(t('go'), 'go');
+      hud.flash(t('go'), 'go start');
       sfx.beep(true);
       break;
     case 'swing':

@@ -1,0 +1,94 @@
+/* What 3.3.66 added: the second-level pages, the results card's fold, the pictures in the garage, and the
+   brake button. Every card rule is written as `.overlay .card ...` or deeper, because this file is
+   @import-ed at the top of style.css and a plain `.card` here would lose to every `.card` rule there. */
+
+/* ---------- the way back ----------
+   A small white button at the top of whatever opened, the same on every second-level page: the garage,
+   the day's challenges, the achievements, the board. The big button at the foot of a card is for going
+   on, never for going back -- before this, the garage's way out was the biggest thing on the screen. */
+.back {
+  display: inline-flex; align-items: center; gap: 3px; flex: 0 0 auto;
+  padding: 5px 11px; min-height: 34px; font: inherit; font-weight: 800; font-size: 13px;
+  background: var(--paper); color: var(--ink); border: 2px solid var(--ink); border-radius: 999px; cursor: pointer;
+}
+.back .ic { width: 0.9em; height: 0.9em; }
+/* the way out sits at the top right of the head; the purse takes the row under it, instead of standing
+   between the screen's name and the way off it */
+.ghead { flex-wrap: wrap; }
+.ghead .back { order: 2; margin-left: auto; }
+.ghead .cashline { order: 3; width: 100%; text-align: left; }
+.back:active { transform: translateY(1px); }
+
+/* ---------- second-level pages ---------- */
+.subpage .card { text-align: left; max-width: 340px; }
+.subpage .ghead { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.subpage .ghead h2 { font-size: 24px; }
+/* the list is the page: it may scroll, the card around it may not */
+.pbody { max-height: 62vh; overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; }
+/* the panel kept its own heading and its own ground from the days when it sat on the results card
+   among five others; on a page of its own the card's heading says it once and the card is the ground */
+.pbody > .daily > .cuphead:first-child { display: none; }
+.pbody > .daily, .pbody > .achs { background: none; margin: 0; padding: 0; }
+
+/* ---------- the results card's fold ----------
+   Everything behind the race -- the cup table, the day's challenges, the feud -- used to print in full
+   under the pay, 302 px of a card that already ran 86 px past an 812 px phone, pushing the garage and the
+   menu off the bottom. It is one row now, with the one piece of news it hides shown on the row itself. */
+.more { margin: 6px 0; text-align: left; background: var(--panel); border-radius: 10px; }
+.more > summary {
+  display: flex; align-items: baseline; gap: 8px; padding: 7px 10px; cursor: pointer;
+  font-size: 14px; font-weight: 900; list-style: none;
+}
+.more > summary::-webkit-details-marker { display: none; }
+.more > summary::after { content: ''; flex: 0 0 auto; margin-left: auto; border: 5px solid transparent; border-top: 6px solid var(--ink); transform: translateY(3px); }
+.more[open] > summary::after { transform: translateY(-3px) rotate(180deg); }
+.more > summary em {
+  font-style: normal; font-weight: 700; font-size: 12px; opacity: 0.75;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis; min-width: 0;
+}
+.more > :not(summary) { margin-left: 8px; margin-right: 8px; }
+.more > :last-child { margin-bottom: 8px; }
+/* the panels inside the fold already have the fold's own ground behind them */
+.more .cup, .more .daily, .more .grudges { background: none; padding-left: 2px; padding-right: 2px; }
+
+/* ---------- the garage's pictures ----------
+   A name and three numbers told a player nothing about what a shopping cart or an office chair looks
+   like. Each card carries a 128 px shot of the thing itself, drawn from the race's own geometry. */
+.thumb { display: block; width: 100%; height: 56px; object-fit: contain; margin-bottom: 2px; }
+.thumb.sm { width: 38px; height: 38px; margin: 0 auto 2px; }
+.sw.none {
+  display: flex; align-items: center; justify-content: center; width: 34px; height: 34px;
+  border-radius: 50%; border: 2px dashed var(--ink); opacity: 0.5; font-weight: 900;
+}
+
+/* ---------- what a card costs, or that it is yours ----------
+   Name over tag, both rows always there, so the eye reads down one column instead of hunting for where
+   "On" sits against "$1,000" on the card beside it. A price is a pill in the accent colour: buying is
+   what the shop is for, and before this the price was the same grey weight as the word "Owned". */
+.tagline {
+  font-style: normal; display: block; margin-top: 2px; font-size: 12px; font-weight: 900; white-space: nowrap;
+  padding: 2px 8px; border-radius: 999px; border: 2px solid transparent; line-height: 1.25;
+}
+.tagline.buy { background: var(--yellow); border-color: var(--ink); }
+.tagline.owned { border-color: var(--ink); }
+.tagline.on { opacity: 0.75; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+.tagline.locked { opacity: 0.7; font-size: 11px; }
+/* a ride's price is the same offer in the same pill; it is written into the card's own last line, so the
+   rule has to out-rank the plain green text style style.css gives it */
+.rides .ride.buy:not(:disabled) i {
+  align-self: flex-start; color: var(--ink); background: var(--yellow);
+  border: 2px solid var(--ink); border-radius: 999px; padding: 1px 9px; font-size: 13px;
+}
+/* the weapons' prices run to five digits at Legend, so their cards may be wider than the hats' */
+.carry .tagline { font-size: 13px; }
+
+/* ---------- the brake ----------
+   A phone had no brake at all: Down and S were the only way to slow, so every touch player drove flat
+   out into every pile-up and every fall. Mirrors the taunt, on the left, where the steering thumb is. */
+.brakebtn {
+  position: absolute; left: max(16px, env(safe-area-inset-left)); bottom: 20%; display: none; pointer-events: auto; cursor: pointer;
+  border: 3px solid var(--ink); border-radius: 999px; background: var(--paper); color: var(--ink);
+  font: 900 19px var(--font); padding: 12px 22px; min-height: 48px; touch-action: none;
+}
+.brakebtn.on { display: block; }
+.brakebtn:active { background: var(--yellow); transform: translateY(2px); }

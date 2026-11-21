@@ -4,6 +4,7 @@
 
 import type { Save } from '../meta';
 import { PAINTS, HATS, wearState, wearPrice, wearTier, carryPrice } from '../shop';
+import { hatThumb, weaponThumb } from './thumbs';
 import { TIERS, type WeaponKind } from '../sim/config';
 import { icon } from './icons';
 import { t, money, type Key } from '../i18n';
@@ -22,23 +23,31 @@ function tag(save: Save, k: 'paint' | 'hat', i: number): { st: string; off: bool
   return { st, off, label };
 }
 
+/**
+ * 3.3.66: every card is name over tag, both rows always there, so the eye reads down one column instead
+ * of hunting for where "On" sits against "$1,000" on the card beside it. The tag's own class says which
+ * of the three it is, so owning something looks nothing like paying for it.
+ */
+const wearCard = (cls: string, data: string, off: boolean, art: string, name: string, st: string, label: string): string =>
+  `<button class="${cls} ${st}" ${data} ${off ? 'disabled' : ''}>${art}<b>${name}</b><i class="tagline ${st}">${label}</i></button>`;
+
 export function shopHtml(save: Save): string {
   const paints = PAINTS.map((p, i) => {
     const { st, off, label } = tag(save, 'paint', i);
-    return `<button class="paint ${st}" data-p="${i}" ${off ? 'disabled' : ''} title="${t(`paint${i}` as Key)}">
-      <span class="sw" style="background:linear-gradient(135deg, ${hex(p.body)} 0 55%, ${hex(p.ride)} 55%)"><i style="background:${hex(p.mark)}"></i></span>
-      <b>${t(`paint${i}` as Key)}</b><i>${label}</i></button>`;
+    const sw = `<span class="sw" style="background:linear-gradient(135deg, ${hex(p.body)} 0 55%, ${hex(p.ride)} 55%)"><i style="background:${hex(p.mark)}"></i></span>`;
+    return wearCard('paint', `data-p="${i}" title="${t(`paint${i}` as Key)}"`, off, sw, t(`paint${i}` as Key), st, label);
   }).join('');
-  const hats = HATS.map((_, i) => {
+  const hats = HATS.map((h, i) => {
     const { st, off, label } = tag(save, 'hat', i);
-    return `<button class="paint hat ${st}" data-h="${i}" ${off ? 'disabled' : ''}><b>${t(`hat${i}` as Key)}</b><i>${label}</i></button>`;
+    // the bare head has nothing to draw: a dash keeps its card the same shape as the six with hats on
+    const art = hatThumb(h) || '<span class="sw none">—</span>';
+    return wearCard('paint hat', `data-h="${i}"`, off, art, t(`hat${i}` as Key), st, label);
   }).join('');
   const carry = KINDS.map((k) => {
     const price = carryPrice(save, k);
     const mine = save.carry === k;
     const off = save.carry !== null || save.cash < price;
-    return `<button class="carry ${mine ? 'on' : ''}" data-w="${k}" ${off ? 'disabled' : ''}>
-      <b>${t(CARRY_KEY[k])}</b><i>${mine ? t('packed') : money(price)}</i></button>`;
+    return wearCard('carry', `data-w="${k}"`, off, weaponThumb(k), t(CARRY_KEY[k]), mine ? 'on' : 'buy', mine ? t('packed') : money(price));
   }).join('');
   return `<div class="shop"><div class="cuphead">${t('paintShop')}</div><div class="paints">${paints}</div>
     <div class="cuphead">${t('hatShop')}</div><div class="paints">${hats}</div>

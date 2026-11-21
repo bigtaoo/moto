@@ -29,7 +29,7 @@
 .tabs { display: flex; gap: 6px; margin: 10px 0 8px; }
 .tab {
   flex: 1; padding: 8px 4px; font: inherit; font-weight: 800; font-size: 15px; cursor: pointer;
-  background: var(--paper, #fff); border: 3px solid var(--ink); border-radius: 10px;
+  background: var(--paper); border: 3px solid var(--ink); border-radius: 10px;
 }
 .tab.on { background: var(--ink); color: var(--paper); }
 /* One tab at a time, but the three differ by hundreds of pixels; a floor keeps the Back button

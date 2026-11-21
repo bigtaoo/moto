@@ -27,7 +27,13 @@
      loose buttons used to; a 420px-tall screen has no room for two of them side by side. The garage
      is a card of its own -- head, tabs, body -- and must not be dealt into the results grid. */
   .overlay .card .tiles { grid-column: 2; grid-template-columns: 1fr; margin-top: 8px; }
-  #title .card .tiles { grid-template-columns: 1fr; }
+  /* 3.3.66: the title's two folds became two more tiles, and a single column of six ran the card 108 px
+     past a 360 px-tall screen. Side by side they are three rows, inside the column the card gives them. */
+  #title .card .tiles { grid-template-columns: 1fr 1fr; }
+  /* the card's own two-column rule above pins every .shift to its column 2; inside the tile grid that
+     would stack all six in the right-hand track with the left one empty */
+  #title .card .tiles .shift { grid-column: auto; }
+  #title .card .tiles .shift small { font-size: 10px; }
   #garage .card { display: block; max-width: 560px; }
   #garage .gbody { min-height: 0; }
   .logo { font-size: 34px; }

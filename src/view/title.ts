@@ -52,30 +52,33 @@ function streak(save: Save, ad: boolean): string {
   return `<div class="tl streak"><span>${icon('flame')} ${t('streakDay', { n: s.n })}</span><span><em>+${money(paid)}</em>${x2}</span></div>`;
 }
 
-/** Every achievement: won ones ticked (`fresh`: just now, highlighted), the rest with what they ask and pay. */
+/** Every achievement: won ones ticked (`fresh`: just now, highlighted), the rest with what they ask and pay.
+ *  The body of the achievements page (3.3.66); the title card carries only the tile that opens it. */
 export function achHtml(save: Save, fresh: Unlocked[]): string {
-  const items = ACHIEVEMENTS.map((a) => {
+  return ACHIEVEMENTS.map((a) => {
     const got = save.ach.includes(a.id);
     const cls = fresh.some((f) => f.id === a.id) ? 'got new' : got ? 'got' : '';
     return `<div class="ac ${cls}"><span><b>${t(`a_${a.id}` as Key)}</b><small>${t(`ad_${a.id}` as Key)}</small></span><i>${got ? icon('star') : '+' + money(a.pay)}</i></div>`;
   }).join('');
-  return `<details class="achs"${fresh.length ? ' open' : ''}><summary>${t('achievements', { n: save.ach.length, m: ACHIEVEMENTS.length })}</summary>${items}</details>`;
 }
 
-/** Today's challenges, folded away: the summary carries how many of them are done. */
-function dailyFold(save: Save): string {
+/** Today's challenges: how many are done (for the tile) and the list (for the page). */
+export function dailyPage(save: Save): { done: number; of: number; body: string } {
   const rs = rows(save.daily);
   const mult = dayMult(stage(save.div, save.tier, save.endless).prize);
   const win = save.daily.won ? '' : `<div class="dc"><span>${t('firstWin')}</span><b>+${money(Math.round(FIRST_WIN_PAY * mult))}</b></div>`;
-  const done = rs.filter((r) => r.done).length;
-  return `<details class="achs"><summary>${t('daily')} ${done}/${rs.length}</summary>${dailyHtml(rs, [], 0, win)}</details>`;
+  return { done: rs.filter((r) => r.done).length, of: rs.length, body: dailyHtml(rs, [], 0, win) };
 }
 
 /** The returning player's goals, as HTML for the title card; `ad`: the streak's doubling ad is on offer. */
 export function titleInfo(save: Save, fresh: Unlocked[] = [], ad = false): string {
   if (save.races === 0) return '';
+  const d = dailyPage(save);
+  const got = save.ach.length;
   // where they stand, then where they can go: one tap each, instead of a column to scroll through
-  const tiles = garageButton(save) + (shiftOpen(save) ? shiftButton(save, 'shift shiftgo') : '') + launchButton(save) + boardButton() + optsButton();
-  return streak(save, ad) + nextRide(save) + nemesis(save)
-    + `<div class="tiles">${tiles}</div>` + dailyFold(save) + achHtml(save, fresh);
+  const tiles = garageButton(save) + (shiftOpen(save) ? shiftButton(save, 'shift shiftgo') : '')
+    + `<button class="shift dailygo${d.done < d.of ? '' : ' has'}"><span>${icon('bang')} ${t('daily')}</span><small>${d.done}/${d.of}</small></button>`
+    + `<button class="shift achsgo${fresh.length ? ' has' : ''}"><span>${icon('star')} ${t('achievements', { n: got, m: ACHIEVEMENTS.length })}</span><small>${fresh.length ? t('achNew', { n: fresh.length }) : t('achTip')}</small></button>`
+    + launchButton(save) + boardButton() + optsButton();
+  return streak(save, ad) + nextRide(save) + nemesis(save) + `<div class="tiles">${tiles}</div>`;
 }

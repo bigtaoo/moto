@@ -26,6 +26,10 @@ const cls = (el: HTMLElement, name: string, on: boolean) => {
 
 /** A rival tag's height plus a hair of air: the step a tag is lifted to clear one already placed. */
 const TAG_H = 20;
+/** Tags are solid to here, then fade to TAG_FAINT at the end of the draw range (3.3.66). */
+const TAG_NEAR = 14;
+const TAG_FAR = 45;
+const TAG_FAINT = 0.28;
 
 export class Hud {
   readonly root: HTMLElement;
@@ -41,6 +45,8 @@ export class Hud {
   /** Each rival tag's last screen spot, in tenths of a pixel: the transform is written only when it moves. */
   private tagX: number[] = [];
   private tagY: number[] = [];
+  /** Each tag's drawn opacity, in twentieths, or -1 for a tag that is off (3.3.66). */
+  private tagA: number[] = [];
   /** Each tag's width, measured once when the race's tags are built. */
   private tagW: number[] = [];
   /** Scratch for the tags already placed this frame: x, y, half-width per tag. */
@@ -68,6 +74,9 @@ export class Hud {
   /** The taunt, up for a moment after the player puts someone down. */
   readonly tauntBtn: HTMLButtonElement;
   private tauntOn = false;
+  /** The brake, for the players who have no key to hold (3.3.66). */
+  readonly brakeBtn: HTMLButtonElement;
+  private brakeOn = false;
   /** Per rider: seconds left of a swing wound up at the player. */
   private tellT: number[] = [];
   readonly results: Results;
@@ -109,6 +118,7 @@ export class Hud {
         <div class="nemcard"></div>
         <div class="speedo"><b>0</b><span></span></div>
         <button class="taunt"></button>
+        <button class="brakebtn"></button>
       </div>
       <div id="results" class="overlay hidden"><div class="card"></div></div>
       <div id="garage" class="overlay hidden"><div class="card"></div></div>
@@ -134,6 +144,7 @@ export class Hud {
     this.speedEl = $(this.root, '.speedo b');
     this.unitEl = $(this.root, '.speedo span');
     this.tauntBtn = $(this.root, '.taunt');
+    this.brakeBtn = $(this.root, '.brakebtn');
     this.results = new Results($(host, '#results'));
     this.menu = new Menu($(host, '#paused'));
     this.garage = new Garage($(host, '#garage'));
@@ -155,6 +166,7 @@ export class Hud {
     this.pauseBtn.setAttribute('aria-label', t('pause'));
     this.unitEl.textContent = t('kmh');
     this.tauntBtn.textContent = DESKTOP ? `${t('taunt')} [T]` : t('taunt');
+    this.brakeBtn.textContent = t('brake');
     this.setSound(!this.soundOff);
     this.menu.localize();
     this.garage.redraw();
@@ -201,6 +213,7 @@ export class Hud {
     this.dotPx = w.riders.map(() => -1);
     this.tagX = w.riders.map(() => NaN);
     this.tagY = w.riders.map(() => NaN);
+    this.tagA = w.riders.map(() => -1);
     this.tagW = this.labels.map((l) => l.offsetWidth); // one layout per race, read before anything moves
     this.chaser.classList.remove('on');
     this.banner.className = 'banner';
@@ -346,7 +359,18 @@ export class Hud {
       const dz = r.z - p.z;
       const show = r.state === 'ride' && dz > -6 && dz < 45 && view.projectRider(i, 2.55, this.pt);
       l.classList.toggle('on', show);
-      if (!show) continue;
+      if (!show) {
+        // the inline fade would otherwise keep a hidden tag visible: `.tag` hides by opacity
+        if (this.tagA[i] !== -1) { this.tagA[i] = -1; l.style.opacity = ''; }
+        continue;
+      }
+      // 3.3.66: eight tags at full strength made the far half of the road a wall of names, and the two or
+      // three riders the player can actually reach read no louder than the pack 40 m up the road. The near
+      // ones stay solid; past 14 m the tag thins out to a quarter by the time it leaves the draw range.
+      const fade = dz <= TAG_NEAR ? 1 : Math.max(TAG_FAINT, 1 - ((dz - TAG_NEAR) / (TAG_FAR - TAG_NEAR)) * (1 - TAG_FAINT));
+      // quantized, so a tag rewrites its opacity about twenty times over the whole fade, not every frame
+      const step = Math.round(fade * 20);
+      if (step !== this.tagA[i]) { this.tagA[i] = step; l.style.opacity = String(step / 20); }
       const nem = r.id === w.nemesis;
       cls(l, 'nem', nem);
       const grudge = !nem && w.grudges.has(r.id);
@@ -364,7 +388,7 @@ export class Hud {
       // edge. Clamped before the stacking pass, so two tags pushed to the same corner still part vertically.
       const lo = half + 4, hi = this.roomW - half - 4;
       let x = hi > lo ? Math.max(lo, Math.min(hi, this.pt.x)) : this.pt.x, y = this.pt.y;
-      for (let pass = 0; pass < 3; pass++) {
+      for (let pass = 0; pass < 4; pass++) {
         let hit = false;
         for (let k = 0; k < placed.length; k += 3) {
           if (Math.abs(x - placed[k]) < half + placed[k + 2] && Math.abs(y - placed[k + 1]) < TAG_H) {
@@ -433,6 +457,10 @@ export class Hud {
     }
     const taunt = w.tauntT > 0 && p.state === 'ride';
     if (taunt !== this.tauntOn) { this.tauntOn = taunt; this.tauntBtn.classList.toggle('on', taunt); }
+    // the brake button follows what the player is actually pressing, not what the device could do: a
+    // keyboard player has S and Down and needs no button, a finger or a mouse has nothing else
+    const brake = p.state === 'ride' && controlKind() !== 'key';
+    if (brake !== this.brakeOn) { this.brakeOn = brake; this.brakeBtn.classList.toggle('on', brake); }
     if (this.bannerT > 0) {
       this.bannerT -= dt;
       if (this.bannerT <= 0) { this.banner.className = 'banner'; this.root.classList.remove('flashing'); }

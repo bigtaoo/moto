@@ -96,6 +96,16 @@ export function wireChrome(w: Wiring): void {
   // a click, not a press: a finger steering across the screen when the button comes up doesn't buy an ad
   for (const ev of ['pointerdown', 'pointerup'] as const) hud.tauntBtn.addEventListener(ev, (e) => e.stopPropagation());
   hud.tauntBtn.addEventListener('pointerdown', () => { controls.taunt = true; });
+  // the brake is held, not tapped: the press must not reach the canvas (a tap there is a slap), and every
+  // way a finger can leave the button has to let the brake go, or the bike would stay slowed
+  for (const ev of ['pointerdown', 'pointerup', 'pointercancel'] as const) hud.brakeBtn.addEventListener(ev, (e) => e.stopPropagation());
+  hud.brakeBtn.addEventListener('pointerdown', (e) => {
+    controls.holdBrake = true;
+    hud.brakeBtn.setPointerCapture(e.pointerId);
+  });
+  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture'] as const) {
+    hud.brakeBtn.addEventListener(ev, () => { controls.holdBrake = false; });
+  }
   // a hidden page is silent whatever screen it is on, and a race pauses
   document.addEventListener('visibilitychange', () => {
     hold('hidden', document.hidden);
