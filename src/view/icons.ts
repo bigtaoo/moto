@@ -19,6 +19,9 @@ const PATHS = {
   soundOn: 'M3 9h4l5-4.5v15L7 15H3zM15.3 8.3a5.2 5.2 0 0 1 0 7.4l-1.5-1.5a3.1 3.1 0 0 0 0-4.4zM18.3 5.3a9.4 9.4 0 0 1 0 13.4l-1.5-1.5a7.3 7.3 0 0 0 0-10.4z',
   soundOff: 'M3 9h4l5-4.5v15L7 15H3zM15 9.4L16.4 8 19 10.6 21.6 8 23 9.4 20.4 12 23 14.6 21.6 16 19 13.4 16.4 16 15 14.6 17.6 12z',
   pause: 'M6 4h4.5v16H6zM13.5 4H18v16h-4.5z',
+  // a checkered flag on its pole, the light squares punched out (evenodd): a track to pick, and where
+  // the next cup runs. A road drawn in perspective was tried first and read as the warning sign.
+  flag: 'M3 2h2.4v20H3zM6.5 3h15v10h-15zM10.25 3h3.75v5h-3.75zM18 3h3.5v5H18zM6.5 8h3.75v5H6.5zM14 8h3.75v5H14z',
   wrench: 'M21.7 5.6l-3.4 3.4-2.3-2.3 3.4-3.4a6 6 0 0 0-7.7 7.3L3 20.3 4.7 22l8.7-8.7a6 6 0 0 0 8.3-7.7z',
 } as const;
 

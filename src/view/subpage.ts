@@ -9,8 +9,9 @@ import { t } from '../i18n';
 /**
  * Open a card over `app` holding `body`, closed by its Back button, the backdrop or Escape.
  * The Back button is small, white and at the top, the same way out as every other second-level page.
+ * Returns the page, and the way to close it from inside: a pick on one of its own buttons (3.3.69).
  */
-export function openPage(app: HTMLElement, title: string, body: string): void {
+export function openPage(app: HTMLElement, title: string, body: string): { el: HTMLElement; close: () => void } {
   const el = document.createElement('div');
   el.className = 'overlay subpage';
   el.innerHTML = `<div class="card small"><div class="ghead"><h2>${title}</h2>
@@ -25,4 +26,5 @@ export function openPage(app: HTMLElement, title: string, body: string): void {
   el.onclick = (e) => { if (e.target === el) close(); };
   document.addEventListener('keydown', key);
   app.appendChild(el);
+  return { el, close };
 }

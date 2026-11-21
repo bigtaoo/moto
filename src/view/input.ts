@@ -5,6 +5,9 @@
 // for it at start and again on every press of a finger or mouse in it, and the HUD asks for a click while
 // a keyboard player's keys don't reach it (keysReach).
 
+import * as C from '../sim/config';
+import type { World } from '../sim/world';
+
 const TAP_MS = 230;
 const TAP_PX = 14;
 /** A camera this flat would make a pixel of thumb worth half the road: a floor, never reached in practice. */
@@ -196,4 +199,23 @@ export class Controls {
     this.steer = s;
     this.keyBrake = has('arrowdown', 's');
   }
+}
+
+/**
+ * Where the finger may put the rider right now: the road's own bounds, widened past the cones (they don't
+ * hold the player in), and pushed out over a trail's opening while one is coming up, so leaning on the
+ * barrier lets the player through the moment it opens. Lifted out of main.ts in 3.3.69.
+ */
+export function riderBounds(w: World): [number, number] {
+  const p = w.player;
+  const R = w.road;
+  let [lo, hi] = R.bounds(p.x, p.z);
+  hi = Math.max(hi, C.EDGE);
+  const i = R.nextCut(p.z);
+  const c = i >= 0 ? R.cuts[i] : null;
+  if (c && c.z0 - p.z < 50 && p.z < c.z0 + C.CUT.gap) {
+    if (c.side > 0) hi = C.CUT.outer;
+    else lo = -C.CUT.outer;
+  }
+  return [lo, hi];
 }

@@ -302,4 +302,20 @@ export const FR: Table = {
   firstUp: "1re amélioration à ta portée !",
   buyFirst: "Achète une amélioration pour repartir",
   nothingToBuy: "Rien à ta portée pour l'instant",
+
+  // 3.3.69: the free race (pick a track, back yourself) and where the next cup runs
+  freeRace: 'Course libre',
+  freeTip: 'Tout circuit déjà couru',
+  freeRules: 'Mise sur toi : 1er paie {a}×, 2e {b}×, 3e {c}×. Les pistes que la coupe a quittées paient moins.',
+  freeStake: 'Mise',
+  freeAgain: 'Y retourner · {n}',
+  freeNoStake: 'Sans mise',
+  freeAgainFree: 'Y retourner',
+  sceneHere: 'Où en est la coupe',
+  sceneOdds: 'Paie ×{n}',
+  scenePurse: 'Prix ×{n}',
+  stopPick: 'Prochaine étape',
+  stopTip: 'Où se court la prochaine coupe. Partout où la saison t\'a mené.',
+  nextStop: 'Prochaine étape',
+  swap: 'Changer',
 };

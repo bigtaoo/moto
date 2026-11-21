@@ -308,6 +308,22 @@ export const EN = {
   firstUp: "First upgrade in reach!",
   buyFirst: "Buy an upgrade to ride on",
   nothingToBuy: "Nothing you can afford yet",
+
+  // 3.3.69: the free race (pick a track, back yourself) and where the next cup runs
+  freeRace: 'Free race',
+  freeTip: 'Any track you have ridden',
+  freeRules: 'Back yourself: 1st pays {a}×, 2nd {b}×, 3rd {c}×. Tracks the cup has left behind pay less.',
+  freeStake: 'Stake',
+  freeAgain: 'Ride it again · {n}',
+  freeNoStake: 'No stake',
+  freeAgainFree: 'Ride it again',
+  sceneHere: 'Where the cup is now',
+  sceneOdds: 'Pays ×{n}',
+  scenePurse: 'Purse ×{n}',
+  stopPick: 'Next stop',
+  stopTip: 'Where the next cup runs. Anywhere this season has taken you.',
+  nextStop: 'Next stop',
+  swap: 'Change',
 };
 
 export type Key = keyof typeof EN;

@@ -302,4 +302,20 @@ export const ID: Table = {
   firstUp: "Peningkatan pertama terjangkau!",
   buyFirst: "Beli satu peningkatan untuk lanjut",
   nothingToBuy: 'Belum ada yang terjangkau',
+
+  // 3.3.69: the free race (pick a track, back yourself) and where the next cup runs
+  freeRace: 'Balapan bebas',
+  freeTip: 'Trek mana pun yang pernah dilalui',
+  freeRules: 'Pasang untuk diri sendiri: juara 1 bayar {a}×, ke-2 {b}×, ke-3 {c}×. Trek yang sudah dilewati piala membayar lebih sedikit.',
+  freeStake: 'Taruhan',
+  freeAgain: 'Sekali lagi · {n}',
+  freeNoStake: 'Tanpa taruhan',
+  freeAgainFree: 'Sekali lagi',
+  sceneHere: 'Posisi piala sekarang',
+  sceneOdds: 'Bayar ×{n}',
+  scenePurse: 'Hadiah ×{n}',
+  stopPick: 'Perhentian berikutnya',
+  stopTip: 'Tempat piala berikutnya dilombakan. Ke mana pun musim ini membawamu.',
+  nextStop: 'Perhentian berikutnya',
+  swap: 'Ganti',
 };

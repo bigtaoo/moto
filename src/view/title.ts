@@ -7,11 +7,12 @@ import { dailyHtml } from './results';
 import { garageButton, rideName } from './garage';
 import { VEHICLES, DIVISIONS, stage } from '../sim/config';
 import type { Save } from '../meta';
-import { BREAK_AT, riderName, rideState } from '../career';
+import { BREAK_AT, reached, riderName, rideState } from '../career';
 import { rows, FIRST_WIN_PAY } from '../daily';
 import { t, money, type Key } from '../i18n';
 import { ACHIEVEMENTS, dayMult, type Unlocked } from '../rewards';
 import { shiftOpen } from '../shift';
+import { freeOpen } from '../free';
 import { shiftButton } from './results';
 import { boardButton } from './board';
 import { LAUNCH } from '../sim/launch';
@@ -36,6 +37,17 @@ function nextRide(save: Save): string {
     ? `${icon('lock')} ${t('rideAt', { d: stage(v.rung % DIVISIONS.length, Math.floor(v.rung / DIVISIONS.length)).name })}`
     : save.cash >= v.price ? `<em>${t('readyToBuy')}</em>` : t('toGo', { n: v.price - save.cash });
   return `<div class="tl"><span>${t('nextRide', { name: `<b>${rideName(i)}</b>` })}</span><span>${how}</span></div>`;
+}
+
+/** The free race, once it is open: a stage of the player's choosing, for a stake (3.3.69). */
+const freeTile = (save: Save): string =>
+  !freeOpen(save) ? '' : `<button class="shift freego"><span>${icon('flag')} ${t('freeRace')}</span><small>${t('freeTip')}</small></button>`;
+
+/** Where the next cup starts, and the way to move it (3.3.69). Mid-cup the stage is settled, so it hides. */
+function nextStop(save: Save): string {
+  if (save.cup.race > 0 || reached(save) === 0) return '';
+  const here = stage(save.div, save.tier, save.endless).name;
+  return `<div class="tl"><span>${icon('flag')} ${t('nextStop')}</span><span><b>${here}</b><button class="x2 stopgo">${t('swap')}</button></span></div>`;
 }
 
 /** The nemesis and how close they are to broken. */
@@ -84,7 +96,7 @@ export function titleInfo(save: Save, fresh: Unlocked[] = [], ad = false): strin
   const dests = garageButton(save) + (shiftOpen(save) ? shiftButton(save, 'shift shiftgo') : '');
   const side = `<button class="shift dailygo${d.done < d.of ? '' : ' has'}"><span>${icon('bang')} ${t('daily')}</span><small>${d.done}/${d.of}</small></button>`
     + `<button class="shift achsgo${fresh.length ? ' has' : ''}"><span>${icon('star')} ${t('achievements', { n: got, m: ACHIEVEMENTS.length })}</span><small>${fresh.length ? t('achNew', { n: fresh.length }) : t('achTip')}</small></button>`
-    + boardButton() + launchButton(save);
-  return optsButton() + streak(save, ad) + nextRide(save) + nemesis(save)
+    + boardButton() + launchButton(save) + freeTile(save);
+  return optsButton() + streak(save, ad) + nextStop(save) + nextRide(save) + nemesis(save)
     + `<div class="tiles dests">${dests}</div><div class="tiles mini">${side}</div>`;
 }

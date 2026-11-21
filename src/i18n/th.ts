@@ -302,4 +302,20 @@ export const TH: Table = {
   firstUp: "ซื้ออัปเกรดแรกได้แล้ว!",
   buyFirst: "ซื้ออัปเกรดก่อนแล้วค่อยไปต่อ",
   nothingToBuy: 'ยังซื้ออะไรไม่ไหว',
+
+  // 3.3.69: the free race (pick a track, back yourself) and where the next cup runs
+  freeRace: 'แข่งอิสระ',
+  freeTip: 'สนามไหนที่เคยลงก็ได้',
+  freeRules: 'เดิมพันตัวเอง: ที่ 1 จ่าย {a} เท่า ที่ 2 {b} เท่า ที่ 3 {c} เท่า สนามที่ถ้วยผ่านไปแล้วจ่ายน้อยลง',
+  freeStake: 'เดิมพัน',
+  freeAgain: 'ลงอีกรอบ · {n}',
+  freeNoStake: 'ไม่วางเดิมพัน',
+  freeAgainFree: 'ลงอีกรอบ',
+  sceneHere: 'ตำแหน่งปัจจุบันของถ้วย',
+  sceneOdds: 'จ่าย ×{n}',
+  scenePurse: 'เงินรางวัล ×{n}',
+  stopPick: 'จุดต่อไป',
+  stopTip: 'ถ้วยรอบหน้าจะแข่งที่ไหน เลือกได้ทุกที่ที่ฤดูกาลนี้ไปถึง',
+  nextStop: 'จุดต่อไป',
+  swap: 'เปลี่ยน',
 };

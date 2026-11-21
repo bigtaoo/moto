@@ -302,4 +302,20 @@ export const JA: Table = {
   firstUp: "初めての強化が買える！",
   buyFirst: "強化を1つ買って出発しよう",
   nothingToBuy: 'まだ買えるものはない',
+
+  // 3.3.69: the free race (pick a track, back yourself) and where the next cup runs
+  freeRace: 'フリーレース',
+  freeTip: '走ったコースから好きなだけ',
+  freeRules: '自分に賭ける：1位は {a} 倍、2位は {b} 倍、3位は {c} 倍。カップが通り過ぎたコースは配当が下がる。',
+  freeStake: '賭け金',
+  freeAgain: 'もう一度 · {n}',
+  freeNoStake: '賭けなし',
+  freeAgainFree: 'もう一度',
+  sceneHere: 'カップの現在地',
+  sceneOdds: '配当 ×{n}',
+  scenePurse: '賞金 ×{n}',
+  stopPick: '次の開催地',
+  stopTip: '次のカップが走る場所。今シーズン行ったところから選べる。',
+  nextStop: '次の開催地',
+  swap: '変更',
 };

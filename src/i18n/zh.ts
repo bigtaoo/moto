@@ -302,4 +302,20 @@ export const ZH: Table = {
   firstUp: "第一个升级买得起了！",
   buyFirst: "先买一个升级再出发",
   nothingToBuy: '暂时还买不起新东西',
+
+  // 3.3.69: the free race (pick a track, back yourself) and where the next cup runs
+  freeRace: '自由赛',
+  freeTip: '跑过的赛道随便选',
+  freeRules: '押自己赢：第一赔 {a} 倍，第二 {b} 倍，第三 {c} 倍。已经跑过头的赛道赔得少。',
+  freeStake: '赌注',
+  freeAgain: '再跑一场 · {n}',
+  freeNoStake: '不押注',
+  freeAgainFree: '再跑一场',
+  sceneHere: '杯赛当前所在',
+  sceneOdds: '赔率 ×{n}',
+  scenePurse: '奖金 ×{n}',
+  stopPick: '下一站',
+  stopTip: '下一轮杯赛在哪里开跑。本赛季去过的地方随便挑。',
+  nextStop: '下一站',
+  swap: '更换',
 };

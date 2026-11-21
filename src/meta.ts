@@ -17,8 +17,10 @@ export interface Save {
   grudges: number[];
   races: number;
   best: number;
-  /** Division index into DIVISIONS. */
+  /** Division index into DIVISIONS: where this cup is being run. */
   div: number;
+  /** The highest division reached this season. The cup may be run at any division up to it (3.3.69). */
+  reach: number;
   cup: Cup;
   /** Times the top division's cup was won. */
   titles: number;
@@ -81,7 +83,7 @@ export function parseSave(raw: string | null): Save {
 const WAS: Record<string, string> = { koRace: 'kos25', koLife: 'kos1000' };
 
 const fresh: Save = {
-    cash: 0, up: { top: 0, steer: 0, hp: 0 }, grudges: [], races: 0, best: 0, div: 0, cup: newCup(FIRST_CUP), titles: 0, gate: 0, endless: 0, feud: newFeud(), tier: 0,
+    cash: 0, up: { top: 0, steer: 0, hp: 0 }, grudges: [], races: 0, best: 0, div: 0, reach: 0, cup: newCup(FIRST_CUP), titles: 0, gate: 0, endless: 0, feud: newFeud(), tier: 0,
     garage: { cur: 0, owned: [0] }, paint: { cur: 0, owned: [0] }, hat: { cur: 0, owned: [0] }, launchBest: 0, carry: null, muted: false, sessions: 0, firstDay: 0, musicOff: false, sfxOff: false, hapticsOff: false, quality: 'auto', lang: null, calm: null, daily: readDaily(null, today()),
     streak: newStreak(), ach: [], life: { kos: 0, wins: 0 },
   };
@@ -120,13 +122,16 @@ const fresh: Save = {
     const count = (v: unknown) => Math.max(0, Math.floor(num(v)));
     // a rival id the race can look up: anything else would throw at the finish, after the race had paid out
     const grudges = Array.isArray(s.grudges) ? s.grudges.filter((n, i, a) => Number.isInteger(n) && n >= 1 && n <= ROSTER.length && a.indexOf(n) === i) : [];
+    const div = Math.max(0, Math.min(DIVISIONS.length - 1, Math.floor(num(s.div))));
     return {
       cash: count(s.cash) + refund(s.up?.top, UPGRADE_MAX.top) + refund(s.up?.steer, UPGRADE_MAX.steer) + refund(s.up?.hp, UPGRADE_MAX.hp),
       up: { top: lvl(s.up?.top, UPGRADE_MAX.top), steer: lvl(s.up?.steer, UPGRADE_MAX.steer), hp: lvl(s.up?.hp, UPGRADE_MAX.hp) },
       grudges,
       races: count(s.races),
       best: count(s.best),
-      div: Math.max(0, Math.min(DIVISIONS.length - 1, Math.floor(Number(s.div) || 0))),
+      div,
+      // a save from before 3.3.69 has been everywhere up to where it stands
+      reach: Math.max(div, Math.min(DIVISIONS.length - 1, count(s.reach))),
       cup,
       titles: count(s.titles),
       gate: Math.min(GATE_AT - 1, count(s.gate)),

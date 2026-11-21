@@ -207,7 +207,9 @@ export function settleRace(save: Save, s: RaceSummary): Settlement {
     if (end.nextTier) {
       save.tier++;
       save.div = 0;
+      save.reach = 0;
     }
+    save.reach = Math.max(save.reach, save.div);
     save.cup = newCup();
   }
   save.cash += earned;
@@ -241,12 +243,28 @@ export function buyUpgrade(save: Save, k: UpKey): boolean {
   return true;
 }
 
+/** The highest division reached this season. A save from before 3.3.69 is wherever it stands. */
+export const reached = (save: Save): number => Math.max(save.div, save.reach);
+
+/**
+ * Run the next cup at another division of this season. Only between cups, and only somewhere already
+ * reached: the ladder is still climbed in order, but a division once won stays open, so a player who
+ * likes the Dust Bowl is not sent away from it for good by winning there (3.3.69).
+ */
+export function pickDiv(save: Save, div: number): boolean {
+  if (save.cup.race > 0 || div < 0 || div > reached(save) || div === save.div) return false;
+  save.div = div;
+  return true;
+}
+
 export type RideState = 'riding' | 'owned' | 'buy' | 'locked';
 
 export function rideState(save: Save, v: number): RideState {
   if (save.garage.cur === v) return 'riding';
   if (save.garage.owned.includes(v)) return 'owned';
-  return C.rung(save.div, save.tier) >= C.VEHICLES[v].rung ? 'buy' : 'locked';
+  // what the career has reached, not where this cup happens to be run: dropping back a division to race
+  // somewhere else must not take the next ride off the shelf
+  return C.rung(reached(save), save.tier) >= C.VEHICLES[v].rung ? 'buy' : 'locked';
 }
 
 /** Buy (if need be, and affordable) and ride vehicle `v`. */

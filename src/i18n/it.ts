@@ -302,4 +302,20 @@ export const IT: Table = {
   firstUp: "Primo potenziamento alla portata!",
   buyFirst: "Compra un potenziamento per ripartire",
   nothingToBuy: 'Niente che tu possa permetterti',
+
+  // 3.3.69: the free race (pick a track, back yourself) and where the next cup runs
+  freeRace: 'Gara libera',
+  freeTip: 'Qualsiasi pista già corsa',
+  freeRules: 'Punta su di te: 1° paga {a}×, 2° {b}×, 3° {c}×. Le piste che la coppa ha lasciato indietro pagano meno.',
+  freeStake: 'Posta',
+  freeAgain: 'Di nuovo · {n}',
+  freeNoStake: 'Senza posta',
+  freeAgainFree: 'Di nuovo',
+  sceneHere: 'Dove si trova la coppa',
+  sceneOdds: 'Paga ×{n}',
+  scenePurse: 'Premio ×{n}',
+  stopPick: 'Prossima tappa',
+  stopTip: 'Dove si corre la prossima coppa. Ovunque questa stagione ti abbia portato.',
+  nextStop: 'Prossima tappa',
+  swap: 'Cambia',
 };

@@ -302,4 +302,20 @@ export const PL: Table = {
   firstUp: "Pierwsze ulepszenie w zasięgu!",
   buyFirst: "Kup ulepszenie, by jechać dalej",
   nothingToBuy: 'Na razie nic cię nie stać',
+
+  // 3.3.69: the free race (pick a track, back yourself) and where the next cup runs
+  freeRace: 'Wyścig dowolny',
+  freeTip: 'Dowolna przejechana trasa',
+  freeRules: 'Postaw na siebie: 1. miejsce płaci {a}×, 2. {b}×, 3. {c}×. Trasy, które puchar ma już za sobą, płacą mniej.',
+  freeStake: 'Stawka',
+  freeAgain: 'Jeszcze raz · {n}',
+  freeNoStake: 'Bez stawki',
+  freeAgainFree: 'Jeszcze raz',
+  sceneHere: 'Tu stoi puchar',
+  sceneOdds: 'Płaci ×{n}',
+  scenePurse: 'Nagroda ×{n}',
+  stopPick: 'Następny przystanek',
+  stopTip: 'Gdzie pojedzie następny puchar. Wszędzie, gdzie zabrał cię ten sezon.',
+  nextStop: 'Następny przystanek',
+  swap: 'Zmień',
 };

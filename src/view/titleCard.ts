@@ -22,6 +22,10 @@ export interface TitleCardActions {
   /** False once the player has left the title: the card's buttons go dead rather than firing into a race. */
   onTitle: () => boolean;
   shift: () => void;
+  /** The free race: a stage the player picks, for a stake (3.3.69). */
+  free: () => void;
+  /** Where the next cup runs (3.3.69). */
+  stop: () => void;
   launch: () => void;
   /** Upgrades, rides and looks, on their own screen. */
   garage: () => void;
@@ -51,6 +55,10 @@ export function drawTitle(save: Save, on: TitleCardActions): void {
   if (x2) streakDouble(save, x2, () => { if (on.onTitle()) drawTitle(save, on); });
   const sh = info.querySelector<HTMLButtonElement>('.shiftgo');
   if (sh) sh.onclick = () => { if (on.onTitle()) on.shift(); };
+  const fr = info.querySelector<HTMLButtonElement>('.freego');
+  if (fr) fr.onclick = () => { if (on.onTitle()) on.free(); };
+  const st = info.querySelector<HTMLButtonElement>('.stopgo');
+  if (st) st.onclick = () => { if (on.onTitle()) on.stop(); };
   const lg = info.querySelector<HTMLButtonElement>('.launchgo');
   if (lg) lg.onclick = () => { if (on.onTitle()) on.launch(); };
   const gg = info.querySelector<HTMLButtonElement>('.garagego');

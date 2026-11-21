@@ -302,4 +302,20 @@ export const RU: Table = {
   firstUp: "Первое улучшение по карману!",
   buyFirst: "Купи улучшение, чтобы ехать дальше",
   nothingToBuy: "Пока ничего по карману",
+
+  // 3.3.69: the free race (pick a track, back yourself) and where the next cup runs
+  freeRace: 'Свободный заезд',
+  freeTip: 'Любая трасса, где ты бывал',
+  freeRules: 'Ставь на себя: 1-е место платит {a}×, 2-е — {b}×, 3-е — {c}×. Трассы, которые кубок уже прошёл, платят меньше.',
+  freeStake: 'Ставка',
+  freeAgain: 'Ещё раз · {n}',
+  freeNoStake: 'Без ставки',
+  freeAgainFree: 'Ещё раз',
+  sceneHere: 'Где сейчас кубок',
+  sceneOdds: 'Платит ×{n}',
+  scenePurse: 'Приз ×{n}',
+  stopPick: 'Следующая остановка',
+  stopTip: 'Где пройдёт следующий кубок. Везде, где вы были в этом сезоне.',
+  nextStop: 'Следующая остановка',
+  swap: 'Сменить',
 };

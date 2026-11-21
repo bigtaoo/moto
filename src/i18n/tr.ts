@@ -302,4 +302,20 @@ export const TR: Table = {
   firstUp: "İlk yükseltmeye paran yetiyor!",
   buyFirst: "Devam etmek için bir yükseltme al",
   nothingToBuy: "Henüz paran hiçbirine yetmiyor",
+
+  // 3.3.69: the free race (pick a track, back yourself) and where the next cup runs
+  freeRace: 'Serbest yarış',
+  freeTip: 'Daha önce sürdügün her pist',
+  freeRules: 'Kendine oyna: 1. {a}×, 2. {b}×, 3. {c}× öder. Kupanın geride bıraktığı pistler daha az öder.',
+  freeStake: 'Bahis',
+  freeAgain: 'Bir daha · {n}',
+  freeNoStake: 'Bahissiz',
+  freeAgainFree: 'Bir daha',
+  sceneHere: 'Kupa şu an burada',
+  sceneOdds: 'Öder ×{n}',
+  scenePurse: 'Ödül ×{n}',
+  stopPick: 'Sonraki durak',
+  stopTip: 'Sonraki kupa nerede koşulacak. Bu sezon gittiğin her yer.',
+  nextStop: 'Sonraki durak',
+  swap: 'Değiştir',
 };

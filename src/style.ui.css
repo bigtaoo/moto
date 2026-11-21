@@ -92,3 +92,23 @@
 }
 .brakebtn.on { display: block; }
 .brakebtn:active { background: var(--yellow); transform: translateY(2px); }
+
+/* ---------- the pickers (3.3.69) ----------
+   A page's own one-line explanation, above whatever it asks for. */
+.subpage .ptip { margin: 0 0 8px; font-size: 13px; line-height: 1.35; opacity: 0.8; }
+/* The stake, as chips: a share of what the player has, so the bet keeps up with the career. */
+/* a grid, not a flex row: four chips of equal width, wrapping to a second row of equal ones rather than
+   leaving one stretched across it. Nowrap because 不押注 broke a character to a line at flex-basis 0. */
+.subpage .bets { display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 6px; margin-bottom: 10px; }
+.subpage .bet {
+  white-space: nowrap; padding: 7px 4px; min-height: 36px; font: inherit; font-weight: 800; font-size: 14px;
+  background: var(--paper); color: var(--ink); border: 2px solid var(--ink); border-radius: 8px; cursor: pointer;
+}
+.subpage .bet.on { background: var(--yellow); box-shadow: 0 2px 0 var(--ink); }
+/* One column of stages: the names run long in every language, so two would wrap to three lines. */
+.subpage .tiles.scenes { grid-template-columns: 1fr; gap: 5px; margin: 0; }
+.subpage .tiles.scenes .shift { min-height: 44px; }
+/* where the cup stands: marked, not offered as somewhere else to go */
+.subpage .shift.pick.on { background: var(--panel-warm); }
+/* the lobby's "next stop" line: the name, then the way to move it */
+.tl .stopgo { margin-left: 6px; }

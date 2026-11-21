@@ -15,6 +15,7 @@ import { t, ord, money, type Key } from '../i18n';
 import { garageButton } from './garage';
 import type { Unlocked } from '../rewards';
 import { shiftOpen, type ShiftResult } from '../shift';
+import type { FreeResult } from '../free';
 
 export interface League {
   /** The division this race was in. */
@@ -78,6 +79,14 @@ export interface ResultActions {
 export interface ShiftActions {
   again: () => void;
   shift: () => void;
+  home: () => void;
+}
+
+export interface FreeActions {
+  /** Ride the same track for the same stake again (off when the cash is no longer there). */
+  again: () => void;
+  /** Pick another track. */
+  pick: () => void;
   home: () => void;
 }
 
@@ -174,6 +183,20 @@ export class Results {
     this.el.classList.remove('hidden');
   }
 
+  /** A finished free race. */
+  showFree(r: FreeResult, save: Save, on: FreeActions): void {
+    this.shownAt = performance.now();
+    const card = this.el.querySelector('.card') as HTMLElement;
+    const can = save.cash >= r.stake;
+    card.innerHTML = freeHtml(r, save, can);
+    const guard = (f: () => void) => () => { if (this.armed) f(); };
+    this.again = can ? on.again : on.pick;
+    (card.querySelector('.again') as HTMLButtonElement).onclick = guard(on.again);
+    (card.querySelector('.freego') as HTMLButtonElement).onclick = guard(on.pick);
+    (card.querySelector('.home') as HTMLButtonElement).onclick = guard(on.home);
+    this.el.classList.remove('hidden');
+  }
+
   /** Show (or redraw, after a purchase) the screen; a redraw keeps the time it came up. */
   show(res: RaceResult, save: Save, on: ResultActions): void {
     if (!this.open) this.shownAt = performance.now();
@@ -235,6 +258,27 @@ export function shiftHtml(r: ShiftResult, save: Save): string {
     <button class="primary again">${t('backToCup')}</button>
     ${shiftButton(save, 'shift shiftgo')}
     <button class="shift home">${t('toMenu')}</button>`;
+}
+
+/** A finished free race: the stake, what the place brought back, and nothing else (3.3.69). */
+export function freeHtml(r: FreeResult, save: Save, again: boolean): string {
+  const net = r.paid - r.stake;
+  // Nothing staked, nothing to settle: a ride for its own sake shows the place and the time, and the win
+  // is a win. With a stake the three rows are the whole story, and only a profit is called one.
+  const rows = r.stake === 0 ? '' : `
+    <div class="rows">
+      ${row(t('freeStake'), money(-r.stake), 'bad')}
+      ${row(t('prize', { o: ord(r.place) }), money(r.paid), r.paid ? 'good' : '')}
+      ${row(t('earned'), money(net), 'total')}
+    </div>`;
+  return `
+    <h2 class="${r.stake === 0 ? (r.place === 1 ? 'win' : '') : net > 0 ? 'win' : ''}">${t('place', { o: ord(r.place) })}</h2>
+    <div class="sub">${r.name} · ${r.time.toFixed(1)} s</div>
+    ${rows}
+    <div class="cashline">${t('cash')} <b>${money(save.cash)}</b></div>
+    <button class="primary again"${again ? '' : ' disabled'}>${r.stake === 0 ? t('freeAgainFree') : t('freeAgain', { n: money(r.stake) })}</button>
+    <div class="tiles"><button class="shift freego">${icon('flag')} ${t('freeRace')}</button>
+      <button class="shift home">${t('toMenu')}</button></div>`;
 }
 
 /** From which race's results each part of the card shows (a new player's first results stay short). */

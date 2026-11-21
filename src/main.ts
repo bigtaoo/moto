@@ -8,10 +8,10 @@ import { botInput } from './sim/ai';
 import { Recorder } from './sim/replay';
 import { RaceView } from './view/scene';
 import { Stage } from './view/stage';
-import { Controls, controlKind, keysReach } from './view/input';
+import { Controls, controlKind, keysReach, riderBounds } from './view/input';
 import { Hud } from './view/hud';
 import { drawTitle } from './view/titleCard';
-import { buyable, firstUpInReach, upLevels } from './view/garage';
+import { openGarage, garageStop } from './view/garageOpen';
 import { wireMenu, wireChrome, menuSettings, type Wiring } from './view/wiring';
 import { sfx, unlockAudio, hold, setMuted, setChannel, music, raceTrack, shiftTrack, preloadAudio } from './view/audio';
 import { installIconCss } from './view/icons';
@@ -19,19 +19,22 @@ import { statsOverlay } from './view/stats';
 import * as funnel from './funnel';
 import * as tele from './telemetry';
 import { parseSave, storeSave, type Save } from './meta';
-import { cupRaces, FIRST_CUP, isFinale, riderName, REVENGE_PAY } from './career';
+import { cupRaces, FIRST_CUP, isFinale, pickDiv, riderName, REVENGE_PAY } from './career';
 import { settleWorld } from './raceEnd';
-import { BOSS, raceMutator } from './sim/fun';
+import { BOSS } from './sim/fun';
 import { Moments, Highlight, HIGHLIGHT } from './highlight';
 import { LaunchMode } from './launchMode';
 import { today } from './daily';
 import * as platform from './platform';
-import { setLang, loadLang, t } from './i18n';
+import { setLang, loadLang, t, money } from './i18n';
 import { setHaptics } from './haptics';
 import { MOTION, setCalm } from './view/motion';
 import { PAINTS, HATS } from './shop';
 import { shopActions, counted } from './shopping';
 import { settleShift } from './shift';
+import { settleFree, type Free } from './free';
+import { raceOpts } from './raceOpts';
+import { openFree, openStop } from './view/scenes';
 import { blocker } from './view/blocker';
 import { SlapCoach, hintNeed, usedControl } from './coach';
 import { unlock, visit, dayMult, type Unlocked } from './rewards';
@@ -72,6 +75,9 @@ let state: 'title' | 'race' | 'results' = 'title';
 /** This race is a security shift (src/shift.ts), and how many this session has run (each its own seed). */
 let chase = false;
 let shifts = 0;
+/** This race is the free one the player picked, and what they staked on it (src/free.ts). */
+let free: Free | null = null;
+let frees = 0;
 
 /** Change screens: the HUD layout and the music follow. */
 function setState(s: typeof state): void {
@@ -108,35 +114,17 @@ let falls = 0;
 /** The world whose race was settled: a race pays out once, whatever happens after. */
 let settled: World | null = null;
 
-const controls = new Controls(canvas, () => (world ? world.player.x : 0), () => {
-  if (!world) return [-C.EDGE, C.EDGE];
-  const p = world.player;
-  const R = world.road;
-  let [lo, hi] = R.bounds(p.x, p.z);
-  hi = Math.max(hi, C.EDGE); // the cones don't hold the player in
-  // a trail's opening coming up: pushing out holds the player on the barrier and lets them in when it opens
-  const i = R.nextCut(p.z);
-  const c = i >= 0 ? R.cuts[i] : null;
-  if (c && c.z0 - p.z < 50 && p.z < c.z0 + C.CUT.gap) {
-    if (c.side > 0) hi = C.CUT.outer;
-    else lo = -C.CUT.outer;
-  }
-  return [lo, hi];
-}, () => (view ? view.steerPxPerMetre() : 0));
+const controls = new Controls(canvas, () => (world ? world.player.x : 0),
+  () => (world ? riderBounds(world) : [-C.EDGE, C.EDGE]), () => (view ? view.steerPxPerMetre() : 0));
 
 function newRace(): void {
   view?.dispose();
-  const seed = ((save.races * 7919 + 17) % 99991) + 1;
-  // a shift has no feuds, and the weapon bought for the next race waits for it
-  const nem = chase ? null : save.feud.nemesis;
-  const opts = { seed: chase ? seed + 5003 * ++shifts : seed, chase, upgrades: save.up, grudges: chase ? [] : save.grudges, length: LEN, div: save.div, tier: save.tier, endless: save.endless, rookie: chase ? -1 : save.races,
-    vehicle: save.garage.cur, nemesis: nem?.id, weapon: chase ? undefined : save.carry ?? undefined,
-    boss: !chase && isFinale(save.cup), mutator: chase ? undefined : raceMutator(save.cup.race, save.races, Date.now()) };
+  const opts = raceOpts(save, { chase, free, n: chase ? ++shifts : free ? ++frees : 0, length: LEN });
   world = new World(opts);
   recorder = new Recorder(opts);
   moments = new Moments();
   const paint = PAINTS[save.paint.cur];
-  view = new RaceView(stage, world, seed, paint, HATS[save.hat.cur]);
+  view = new RaceView(stage, world, opts.seed, paint, HATS[save.hat.cur]);
   hud.setup(world, paint.body);
   hud.results.hide();
   intro();
@@ -151,9 +139,13 @@ function newRace(): void {
 
 /** The division pill and the nemesis card, over the countdown. */
 function intro(): void {
-  const nem = world.chase ? null : save.feud.nemesis;
+  const nem = world.chase || free ? null : save.feud.nemesis;
   const extra = world.mutator ? t('mutPill', { name: t(`mut_${world.mutator}`) }) : world.boss >= 0 ? `${t('bossPill', { n: Math.round(BOSS.pay * world.div.prize) })} · ${t('x2pts')}` : '';
-  hud.setLeague(world.chase ? t('shiftPill') : t('pill', { div: world.div.name, n: save.cup.race + 1, m: cupRaces(save.cup) }), extra);
+  // a free race is nobody's cup: the stage's name and the stake, not "race 1 of 4" (3.3.69)
+  const league = world.chase ? t('shiftPill')
+    : free ? `${world.div.name} · ${t('freeStake')} ${money(free.stake)}`
+    : t('pill', { div: world.div.name, n: save.cup.race + 1, m: cupRaces(save.cup) });
+  hud.setLeague(league, extra);
   hud.setNemesis(nem, nem ? riderName(nem.id) : '', Math.round(REVENGE_PAY * world.div.prize));
 }
 
@@ -165,7 +157,7 @@ function startRace(): void {
   unlockAudio();
   titleEl.classList.add('hidden');
   setState('race');
-  if (chase) return;
+  if (chase || free) return;
   platform.lifecycle('level_started', { world: world.div.name, level: String(save.cup.race + 1) });
   if (!BOT) tele.raceStart(world);
 }
@@ -178,7 +170,7 @@ function nextRace(placement: string, shift = false): void {
   newRace();
   stage.raceStart();
   setState('race');
-  if (chase) return;
+  if (chase || free) return;
   platform.lifecycle('level_started', { world: world.div.name, level: String(save.cup.race + 1) });
   tele.raceStart(world);
 }
@@ -189,56 +181,33 @@ function backToTitle(): void {
   if (state === 'title' || launch) return;
   setPaused(false);
   chase = false;
+  free = null;
   newRace(); // the next race waits behind the card, as it does on a boot
   setState('title');
   titleEl.classList.remove('hidden');
   showTitle();
 }
 
-/** The garage stop before the next race has come up this session (3.3.62). */
-let garageStopped = false;
-
-/** The garage over the card that asked for it; `back` puts that card up again when it closes (3.3.40).
- *  `from` says which way in it was (analytics, 3.3.62); `stop`: it stands before the next race, and `back`
- *  starts that race. */
-function openGarage(acts: ReturnType<typeof shopActions>, back: () => void, from: 'results' | 'title' | 'stop'): void {
-  const t0 = performance.now();
-  const cash = save.cash;
-  const ups = upLevels(save);
-  funnel.event('garage_opened', { from, cash, can_buy: buyable(save), ups, career_race: save.races });
-  funnel.setScreen('garage');
-  hud.garage.show(save, {
-    ...acts, next: from === 'stop',
-    close: () => {
-      funnel.event('garage_closed', { from, sec: Math.round((performance.now() - t0) / 1000), spent: cash - save.cash, ups: upLevels(save) - ups, cash: save.cash });
-      funnel.setScreen(state);
-      hud.garage.hide();
-      back();
-    },
-  });
-}
-
-/** 3.3.62: no new player on the r43 sandbox bought an upgrade, cup winners with $2,000 and more included,
- *  and the garage tile was a scroll below the "next race" button. So once a session, while no upgrade is
- *  owned and one is affordable, "next race" goes through the garage first; its button goes on to the race. */
-const garageStop = (): boolean => !garageStopped && firstUpInReach(save);
+/** The garage over the card that asked for it, and the stop before a race (src/view/garageOpen.ts). */
+const garage = (acts: ReturnType<typeof shopActions>, back: () => void, from: 'results' | 'title' | 'stop'): void =>
+  openGarage(hud.garage, save, acts, back, from, state);
 
 function finishRace(): void {
   const w = world;
   if (settled === w) return;
   settled = w;
+  if (free) return finishFree(w, free);
   if (w.chase) return finishShift(w);
   const res = settleWorld(save, w, falls);
   const place = res.place;
   setState('results');
   platform.lifecycle(place <= C.PROMOTE ? 'level_completed' : 'level_failed', { world: w.div.name, level: String(res.league.race) });
   const show = () => hud.results.show(res, save, {
-    garage: () => { hud.results.hide(); openGarage(shop, show, 'results'); },
+    garage: () => { hud.results.hide(); garage(shop, show, 'results'); },
     double, again: () => {
-      if (!garageStop()) return nextRace('race_end');
-      garageStopped = true;
+      if (!garageStop(save)) return nextRace('race_end');
       hud.results.hide();
-      openGarage(shop, () => nextRace('race_end'), 'stop');
+      garage(shop, () => nextRace('race_end'), 'stop');
     }, shift: () => nextRace('race_end', true), home: backToTitle,
   });
   const double = () => {
@@ -261,6 +230,27 @@ function finishRace(): void {
     view.rebind(w);
     funnel.event('highlight', { skipped });
     show();
+  });
+}
+
+/** Take the stake and line up the free race the player picked (src/free.ts). */
+function startFree(f: Free): void {
+  free = f;
+  save.cash -= f.stake;
+  storeSave(save);
+  funnel.event('free_start', { div: f.div, tier: f.tier, stake: f.stake, cash: save.cash });
+}
+
+/** A free race is over: the stake pays by place, and nothing in the career has moved. */
+function finishFree(w: World, f: Free): void {
+  const r = settleFree(save, w, f);
+  storeSave(save);
+  funnel.event('free_end', { place: r.place, stake: r.stake, paid: r.paid, div: f.div, tier: f.tier });
+  setState('results');
+  hud.results.showFree(r, save, {
+    again: () => { if (save.cash >= f.stake) { startFree(f); nextRace('free_end'); } },
+    pick: () => openFree(app, save, (n) => { startFree(n); nextRace('free_end'); }),
+    home: backToTitle,
   });
 }
 
@@ -416,9 +406,11 @@ const showTitle = (): void => drawTitle(save, {
   garage: () => {
     const acts = shopActions(save, () => hud.garage.redraw(), (u) => bootAch = [...bootAch, ...u]);
     titleEl.classList.add('hidden');
-    openGarage(acts, () => { titleEl.classList.remove('hidden'); showTitle(); }, 'title');
+    garage(acts, () => { titleEl.classList.remove('hidden'); showTitle(); }, 'title');
   },
   shift: () => { chase = true; newRace(); startRace(); },
+  free: () => openFree(app, save, (f) => { startFree(f); newRace(); startRace(); }),
+  stop: () => openStop(app, save, (d) => { if (pickDiv(save, d)) { storeSave(save); newRace(); } showTitle(); }),
   launch: () => { if (!launch) launch = new LaunchMode(stage, view.group, save, app, () => { launch = null; showTitle(); }); },
   opts: () => hud.menu.show(true, menuSettings(save), 'settings'),
 });

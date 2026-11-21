@@ -302,4 +302,20 @@ export const ES: Table = {
   firstUp: "¡Primera mejora a tu alcance!",
   buyFirst: "Compra una mejora para seguir",
   nothingToBuy: "Nada a tu alcance todavía",
+
+  // 3.3.69: the free race (pick a track, back yourself) and where the next cup runs
+  freeRace: 'Carrera libre',
+  freeTip: 'Cualquier pista ya corrida',
+  freeRules: 'Apuesta por ti: 1.º paga {a}×, 2.º {b}×, 3.º {c}×. Las pistas que la copa ya dejó atrás pagan menos.',
+  freeStake: 'Apuesta',
+  freeAgain: 'Otra vuelta · {n}',
+  freeNoStake: 'Sin apuesta',
+  freeAgainFree: 'Otra vuelta',
+  sceneHere: 'Donde va la copa',
+  sceneOdds: 'Paga ×{n}',
+  scenePurse: 'Premio ×{n}',
+  stopPick: 'Siguiente parada',
+  stopTip: 'Dónde se corre la próxima copa. Donde sea que hayas llegado esta temporada.',
+  nextStop: 'Siguiente parada',
+  swap: 'Cambiar',
 };

@@ -302,4 +302,20 @@ export const KO: Table = {
   firstUp: "첫 업그레이드를 살 수 있어!",
   buyFirst: "업그레이드를 하나 사고 출발하자",
   nothingToBuy: '아직 살 수 있는 게 없다',
+
+  // 3.3.69: the free race (pick a track, back yourself) and where the next cup runs
+  freeRace: '자유 레이스',
+  freeTip: '달려본 코스 아무거나',
+  freeRules: '자신에게 걸기: 1위 {a}배, 2위 {b}배, 3위 {c}배. 컵이 지나친 코스는 배당이 낮다.',
+  freeStake: '판돈',
+  freeAgain: '한 번 더 · {n}',
+  freeNoStake: '판돈 없이',
+  freeAgainFree: '한 번 더',
+  sceneHere: '컵의 현재 위치',
+  sceneOdds: '배당 ×{n}',
+  scenePurse: '상금 ×{n}',
+  stopPick: '다음 무대',
+  stopTip: '다음 컵이 열리는 곳. 이번 시즌에 가 본 곳 중에서 고른다.',
+  nextStop: '다음 무대',
+  swap: '변경',
 };

@@ -302,4 +302,20 @@ export const VI: Table = {
   firstUp: "Mua được nâng cấp đầu tiên!",
   buyFirst: "Mua một nâng cấp để đi tiếp",
   nothingToBuy: 'Chưa mua nổi thứ gì',
+
+  // 3.3.69: the free race (pick a track, back yourself) and where the next cup runs
+  freeRace: 'Đua tự do',
+  freeTip: 'Bất kỳ đường đua đã chạy',
+  freeRules: 'Cược vào chính mình: hạng 1 trả {a}×, hạng 2 {b}×, hạng 3 {c}×. Đường mà cúp đã bỏ lại trả ít hơn.',
+  freeStake: 'Tiền cược',
+  freeAgain: 'Chạy lại · {n}',
+  freeNoStake: 'Không cược',
+  freeAgainFree: 'Chạy lại',
+  sceneHere: 'Nơi cúp đang ở',
+  sceneOdds: 'Trả ×{n}',
+  scenePurse: 'Thưởng ×{n}',
+  stopPick: 'Chặng tiếp theo',
+  stopTip: 'Nơi cúp kế tiếp sẽ chạy. Bất cứ đâu mùa này đã đưa bạn tới.',
+  nextStop: 'Chặng tiếp theo',
+  swap: 'Đổi',
 };
