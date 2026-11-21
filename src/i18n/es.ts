@@ -8,6 +8,7 @@ export const ES: Table = {
   hint: 'Arrastra para girar · Toca para golpear',
   hintKeys: '← → girar · Espacio golpear',
   clickForKeys: 'Haz clic en el juego para usar el teclado',
+  slapNow: "¡Pulsa ESPACIO para golpear!",
   slap: 'GOLPE',
   watchAd: 'ver un anuncio',
   paused: 'Pausa',
@@ -290,5 +291,6 @@ export const ES: Table = {
   goalWin: "a {n} pts del 1.º",
   goalLead: "1.º · aguanta",
   firstUp: "¡Primera mejora a tu alcance!",
+  buyFirst: "Compra una mejora para seguir",
   nothingToBuy: "Nada a tu alcance todavía",
 };

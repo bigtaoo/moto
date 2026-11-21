@@ -8,6 +8,7 @@ export const PL: Table = {
   hint: 'Przeciągnij, by skręcić · Dotknij, by uderzyć',
   hintKeys: '← → skręt · Spacja uderzenie',
   clickForKeys: 'Kliknij grę, by używać klawiszy',
+  slapNow: "Wciśnij SPACJĘ, by uderzyć!",
   slap: 'CIOS',
   watchAd: 'obejrzyj reklamę',
   paused: 'Pauza',
@@ -290,5 +291,6 @@ export const PL: Table = {
   goalWin: "{n} pkt do 1. miejsca",
   goalLead: "1. miejsce · trzymaj się",
   firstUp: "Pierwsze ulepszenie w zasięgu!",
+  buyFirst: "Kup ulepszenie, by jechać dalej",
   nothingToBuy: 'Na razie nic cię nie stać',
 };

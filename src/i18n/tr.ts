@@ -8,6 +8,7 @@ export const TR: Table = {
   hint: 'Sürükle: dön · Dokun: vur',
   hintKeys: '← → dön · Boşluk vur',
   clickForKeys: 'Klavyeyi kullanmak için oyuna tıklayın',
+  slapNow: "Vurmak için BOŞLUK’a bas!",
   slap: 'VUR',
   watchAd: 'reklam izle',
   paused: 'Durduruldu',
@@ -290,5 +291,6 @@ export const TR: Table = {
   goalWin: "1.'liğe {n} puan",
   goalLead: "1. · dayan",
   firstUp: "İlk yükseltmeye paran yetiyor!",
+  buyFirst: "Devam etmek için bir yükseltme al",
   nothingToBuy: "Henüz paran hiçbirine yetmiyor",
 };

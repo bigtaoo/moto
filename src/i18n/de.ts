@@ -8,6 +8,7 @@ export const DE: Table = {
   hint: 'Ziehen zum Lenken · Tippen zum Schlagen',
   hintKeys: '← → lenken · Leertaste schlagen',
   clickForKeys: 'Klick ins Spiel, um die Tasten zu nutzen',
+  slapNow: "LEERTASTE drücken: Schlag!",
   slap: 'SCHLAG',
   watchAd: 'Werbung ansehen',
   paused: 'Pause',
@@ -290,5 +291,6 @@ export const DE: Table = {
   goalWin: "{n} Pkt. bis Platz 1",
   goalLead: "Platz 1 · halt durch",
   firstUp: "Erstes Upgrade drin!",
+  buyFirst: "Kauf ein Upgrade, dann geht’s weiter",
   nothingToBuy: "Noch kannst du dir nichts leisten",
 };

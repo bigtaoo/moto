@@ -8,6 +8,7 @@ export const VI: Table = {
   hint: 'Kéo để lái · Chạm để tát',
   hintKeys: '← → lái · Space tát',
   clickForKeys: 'Bấm vào game để dùng bàn phím',
+  slapNow: "Nhấn SPACE để tát!",
   slap: 'TÁT',
   watchAd: 'xem quảng cáo',
   paused: 'Tạm dừng',
@@ -290,5 +291,6 @@ export const VI: Table = {
   goalWin: "còn {n} điểm tới hạng 1",
   goalLead: "hạng 1 · giữ vững",
   firstUp: "Mua được nâng cấp đầu tiên!",
+  buyFirst: "Mua một nâng cấp để đi tiếp",
   nothingToBuy: 'Chưa mua nổi thứ gì',
 };

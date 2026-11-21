@@ -33,6 +33,7 @@ import { PAINTS, HATS } from './shop';
 import { shopActions, counted } from './shopping';
 import { settleShift } from './shift';
 import { blocker } from './view/blocker';
+import { SlapCoach } from './coach';
 import { unlock, visit, dayMult, type Unlocked } from './rewards';
 
 const params = new URLSearchParams(location.search);
@@ -75,6 +76,7 @@ let shifts = 0;
 /** Change screens: the HUD layout and the music follow. */
 function setState(s: typeof state): void {
   state = s;
+  if (s === 'results') coach.stop(); // not on 'title': the boot's newRace() armed it for the race behind the card
   funnel.setScreen(s);
   app.classList.toggle('racing', s === 'race');
   music(s !== 'race' ? 'title' : chase ? shiftTrack(shifts) : raceTrack(save.div, save.tier, save.cup.race, isFinale(save.cup)));
@@ -98,6 +100,8 @@ let acc = 0;
 /** Hitstop, slow motion and the grudge call-outs, which the events set (src/events.ts). */
 let feel = newFeel();
 let atkBuffer = 0;
+/** The first slap, taught by force in a desktop rookie's first race (3.3.64, src/coach.ts). */
+const coach = new SlapCoach((r) => funnel.event('slap_coach', { slapped: r.slapped, ms: r.ms, n: r.n }));
 let lastCount = -1;
 /** Times the player came off this race (for the daily "without falling off"). */
 let falls = 0;
@@ -140,6 +144,7 @@ function newRace(): void {
   acc = 0;
   feel = newFeel(save.life.kos === 0);
   atkBuffer = 0;
+  coach.arm(DESKTOP && !BOT && !chase && save.races === 0);
   lastCount = -1;
   falls = 0;
 }
@@ -296,7 +301,7 @@ function tick(): void {
   // taken off the world before any is handled: one that throws must not leave the rest, the race's end
   // above all, to be handled again on every tick after
   for (const e of world.events.splice(0)) {
-    if (e.type === 'swing' && e.rider === 0) { swung = true; funnel.tutorialStep('slap'); }
+    if (e.type === 'swing' && e.rider === 0) { swung = true; funnel.tutorialStep('slap'); coach.swung(); }
     if (e.type === 'hit' && e.from === 0) funnel.tutorialStep('hit');
     if (e.type === 'crash' && e.rider === 0) falls++;
     if (state === 'race') moments.note(e, world);
@@ -335,20 +340,10 @@ platform.host.onPause = (on) => {
 };
 platform.host.onAudio = (on) => setMuted('host', !on);
 
-/** The player's own sound switch, kept in the save. */
-function toggleSound(): void {
-  save.muted = !save.muted;
-  setMuted('player', save.muted);
-  hud.setSound(!save.muted);
-  storeSave(save);
-  funnel.event('settings_changed', { setting: 'sound', value: !save.muted });
-}
-
 /** Everything the pause menu and the page chrome reach back into (src/view/wiring.ts). */
 const wiring: Wiring = {
   save: () => save, hud, controls, stage: () => stage, titleEl,
   at: () => state, paused: () => paused, setPaused, home: () => backToTitle(), start: () => startRace(),
-  toggleSound: () => { if (save) toggleSound(); },
   relocalize: () => { localize(); if (state === 'title' && !launch) showTitle(); },
   restart: () => {
     if (state !== 'race') return;
@@ -361,8 +356,6 @@ const wiring: Wiring = {
   },
 };
 wireMenu(wiring);
-
-
 wireChrome(wiring);
 
 let lastT = performance.now();
@@ -396,6 +389,12 @@ function frame(now: number): void {
   let simDt = dt;
   if (feel.hitstop > 0) { feel.hitstop -= dt; simDt = 0; }
   else if (feel.slow > 0) { feel.slow -= dt; if (!MOTION.calm) simDt *= 0.35; }
+  // the slap card holds the race nearly still until the key (src/coach.ts); it slows rather than freezes, so
+  // the rival it points at is still seen moving alongside
+  if (state === 'race' && !waiting && world.countdown <= 0 && !world.player.finished) {
+    simDt *= coach.frame(dt, world.player.state === 'ride' && world.targetFor(world.player, 0.3) !== null);
+  }
+  hud.coach(coach.on && state === 'race');
   if (state !== 'title' && !waiting) {
     acc += simDt;
     let n = 0;
@@ -495,6 +494,6 @@ async function boot(): Promise<void> {
 boot().catch((e) => { console.error(e); tele.bootFailed(); });
 
 // For poking at the game from the console while testing.
-Object.assign(window, { __game: { get world() { return world; }, get view() { return view; }, get state() { return state; }, get paused() { return { player: paused, host: hostPaused }; }, hud, get save() { return save; }, botInput, platform,
+Object.assign(window, { __game: { get world() { return world; }, get view() { return view; }, get state() { return state; }, get paused() { return { player: paused, host: hostPaused }; }, hud, get save() { return save; }, botInput, platform, coach,
   /** Bug report: this race so far as a replay (seed, options, every input), JSON to paste. */
   replay: () => JSON.stringify(recorder.finish(world)) } });

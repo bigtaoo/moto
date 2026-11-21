@@ -10,6 +10,7 @@ export const EN = {
   hint: 'Drag to steer · Tap to slap',
   hintKeys: '← → steer · Space slap',
   clickForKeys: 'Click the game to use the keys',
+  slapNow: "Press SPACE to slap!",
   slap: 'SLAP',
   watchAd: 'watch an ad',
   paused: 'Paused',
@@ -296,6 +297,7 @@ export const EN = {
   goalWin: "{n} pts off 1st",
   goalLead: "1st · hold on",
   firstUp: "First upgrade in reach!",
+  buyFirst: "Buy an upgrade to ride on",
   nothingToBuy: "Nothing you can afford yet",
 };
 

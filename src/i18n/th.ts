@@ -8,6 +8,7 @@ export const TH: Table = {
   hint: 'ลากเพื่อเลี้ยว · แตะเพื่อตบ',
   hintKeys: '← → เลี้ยว · Space ตบ',
   clickForKeys: 'คลิกที่เกมก่อนจึงใช้แป้นพิมพ์ได้',
+  slapNow: "กด SPACE เพื่อตบ!",
   slap: 'ตบ',
   watchAd: 'ดูโฆษณา',
   paused: 'หยุดชั่วคราว',
@@ -290,5 +291,6 @@ export const TH: Table = {
   goalWin: "ขาดอีก {n} แต้มถึงอันดับ 1",
   goalLead: "อันดับ 1 · รักษาไว้",
   firstUp: "ซื้ออัปเกรดแรกได้แล้ว!",
+  buyFirst: "ซื้ออัปเกรดก่อนแล้วค่อยไปต่อ",
   nothingToBuy: 'ยังซื้ออะไรไม่ไหว',
 };

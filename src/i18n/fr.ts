@@ -8,6 +8,7 @@ export const FR: Table = {
   hint: 'Glisse pour tourner · Touche pour frapper',
   hintKeys: '← → tourner · Espace frapper',
   clickForKeys: 'Cliquez sur le jeu pour utiliser le clavier',
+  slapNow: "Appuie sur ESPACE pour frapper !",
   slap: 'BAFFE',
   watchAd: 'regarder une pub',
   paused: 'Pause',
@@ -290,5 +291,6 @@ export const FR: Table = {
   goalWin: "{n} pts de la 1re place",
   goalLead: "1er · tiens bon",
   firstUp: "1re amélioration à ta portée !",
+  buyFirst: "Achète une amélioration pour repartir",
   nothingToBuy: "Rien à ta portée pour l'instant",
 };

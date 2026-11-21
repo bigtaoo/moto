@@ -8,6 +8,7 @@ export const KO: Table = {
   hint: '드래그로 조종 · 탭으로 후려치기',
   hintKeys: '← → 조종 · 스페이스로 후려치기',
   clickForKeys: '화면을 클릭해야 키보드가 먹습니다',
+  slapNow: "스페이스로 후려쳐!",
   slap: '후려치기',
   watchAd: '광고 보기',
   paused: '일시정지',
@@ -290,5 +291,6 @@ export const KO: Table = {
   goalWin: "1위까지 {n}점",
   goalLead: "1위 · 버텨",
   firstUp: "첫 업그레이드를 살 수 있어!",
+  buyFirst: "업그레이드를 하나 사고 출발하자",
   nothingToBuy: '아직 살 수 있는 게 없다',
 };

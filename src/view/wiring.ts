@@ -2,7 +2,7 @@
 // are not steering, and the page going away. Lifted out of main.ts in 3.3.34, which had grown to four
 // lines under the 500-line cap with no room for the next change.
 
-import { sfx, unlockAudio, hold, setChannel } from './audio';
+import { sfx, unlockAudio, hold, setChannel, setMuted } from './audio';
 import { setCalm, MOTION } from './motion';
 import { setHaptics } from '../haptics';
 import * as funnel from '../funnel';
@@ -31,8 +31,6 @@ export interface Wiring {
   restart: () => void;
   /** Start a race from the title card. */
   start: () => void;
-  /** The player's own sound switch. */
-  toggleSound: () => void;
   /** Draw every screen again after the language changed. */
   relocalize: () => void;
 }
@@ -41,6 +39,16 @@ export interface Wiring {
 function setting(save: Save, name: string, value: string | boolean): void {
   storeSave(save);
   funnel.event('settings_changed', { setting: name, value });
+}
+
+/** The player's own sound switch, kept in the save (out of main.ts in 3.3.64, to make room). */
+function toggleSound(w: Wiring): void {
+  const save = w.save();
+  if (!save) return;
+  save.muted = !save.muted;
+  setMuted('player', save.muted);
+  w.hud.setSound(!save.muted);
+  setting(save, 'sound', !save.muted);
 }
 
 /** The pause menu's buttons: resume, restart, the switches, how-to and the way home. */
@@ -83,7 +91,7 @@ export function wireChrome(w: Wiring): void {
     e.preventDefault();
   });
   hud.muteBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
-  hud.muteBtn.addEventListener('click', () => w.toggleSound());
+  hud.muteBtn.addEventListener('click', () => toggleSound(w));
   hud.pauseBtn.addEventListener('click', () => w.setPaused(true));
   // a click, not a press: a finger steering across the screen when the button comes up doesn't buy an ad
   for (const ev of ['pointerdown', 'pointerup'] as const) hud.tauntBtn.addEventListener(ev, (e) => e.stopPropagation());

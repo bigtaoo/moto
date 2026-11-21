@@ -8,6 +8,7 @@ export const IT: Table = {
   hint: 'Trascina per sterzare · Tocca per colpire',
   hintKeys: '← → sterzi · Spazio colpisci',
   clickForKeys: 'Clicca sul gioco per usare i tasti',
+  slapNow: "Premi SPAZIO per colpire!",
   slap: 'COLPO',
   watchAd: 'guarda un annuncio',
   paused: 'In pausa',
@@ -290,5 +291,6 @@ export const IT: Table = {
   goalWin: "{n} pt dal 1º",
   goalLead: "1º · tieni duro",
   firstUp: "Primo potenziamento alla portata!",
+  buyFirst: "Compra un potenziamento per ripartire",
   nothingToBuy: 'Niente che tu possa permetterti',
 };

@@ -8,6 +8,7 @@ export const ZH: Table = {
   hint: '拖动转向 · 点击挥拳',
   hintKeys: '← → 转向 · 空格挥拳',
   clickForKeys: '点一下画面才能用键盘',
+  slapNow: "按空格挥拳！",
   slap: '挥拳',
   watchAd: '看个广告',
   paused: '已暂停',
@@ -290,5 +291,6 @@ export const ZH: Table = {
   goalWin: "距第一还差 {n} 分",
   goalLead: "第一 · 守住",
   firstUp: "第一个升级买得起了！",
+  buyFirst: "先买一个升级再出发",
   nothingToBuy: '暂时还买不起新东西',
 };

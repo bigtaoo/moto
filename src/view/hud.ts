@@ -10,6 +10,7 @@ import { Results } from './results';
 import { Menu } from './menu';
 import { Garage } from './garage';
 import { t, money } from '../i18n';
+import '../style.coach.css';
 
 const $ = <T extends HTMLElement = HTMLElement>(root: ParentNode, sel: string) => root.querySelector(sel) as T;
 
@@ -47,7 +48,9 @@ export class Hud {
   private readonly banner: HTMLElement;
   private readonly chaser: HTMLElement;
   private readonly hint: HTMLElement;
-  private hintMode: 'off' | 'controls' | 'click' = 'off';
+  private readonly coachEl: HTMLElement;
+  private coachOn = false;
+  private hintMode:'off' | 'controls' | 'click' = 'off';
   private readonly slapL: HTMLElement;
   private readonly slapR: HTMLElement;
   private readonly incL: HTMLElement;
@@ -98,6 +101,7 @@ export class Hud {
         <div class="pops"></div>
         <div class="chaser"></div>
         <div class="hint"></div>
+        <div class="coach"></div>
         <div class="league"></div>
         <div class="nemcard"></div>
         <div class="speedo"><b>0</b><span></span></div>
@@ -116,6 +120,7 @@ export class Hud {
     this.banner = $(this.root, '.banner');
     this.chaser = $(this.root, '.chaser');
     this.hint = $(this.root, '.hint');
+    this.coachEl = $(this.root, '.coach');
     this.slapL = $(this.root, '.slap.l');
     this.slapR = $(this.root, '.slap.r');
     this.incL = $(this.root, '.inc.l');
@@ -140,6 +145,7 @@ export class Hud {
   localize(): void {
     this.slapL.innerHTML = `${icon('left')} ${t('slap')}`;
     this.slapR.innerHTML = `${t('slap')} ${icon('right')}`;
+    this.coachEl.textContent = t('slapNow');
     this.hint.textContent = t(this.hintMode === 'click' ? 'clickForKeys' : CONTROLS);
     this.pauseBtn.setAttribute('aria-label', t('pause'));
     this.unitEl.textContent = t('kmh');
@@ -228,6 +234,13 @@ export class Hud {
     this.hint.classList.toggle('on', mode !== 'off');
     this.hint.classList.toggle('ask', mode === 'click');
     this.root.classList.toggle('hinting', mode !== 'off');
+  }
+
+  /** The big ask for the slap key over a slowed race (3.3.64). */
+  coach(on: boolean): void {
+    if (on === this.coachOn) return;
+    this.coachOn = on;
+    this.coachEl.classList.toggle('on', on);
   }
 
   flash(text: string, kind = ''): void {

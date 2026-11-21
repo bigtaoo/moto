@@ -8,6 +8,7 @@ export const ID: Table = {
   hint: 'Geser untuk membelok · Ketuk untuk menampar',
   hintKeys: '← → belok · Spasi tampar',
   clickForKeys: 'Klik gamenya dulu agar tombol berfungsi',
+  slapNow: "Tekan SPASI untuk menampar!",
   slap: 'TAMPAR',
   watchAd: 'tonton iklan',
   paused: 'Dijeda',
@@ -290,5 +291,6 @@ export const ID: Table = {
   goalWin: "{n} poin lagi ke peringkat 1",
   goalLead: "peringkat 1 · bertahan",
   firstUp: "Peningkatan pertama terjangkau!",
+  buyFirst: "Beli satu peningkatan untuk lanjut",
   nothingToBuy: 'Belum ada yang terjangkau',
 };

@@ -8,6 +8,7 @@ export const PT: Table = {
   hint: 'Arraste para virar · Toque para bater',
   hintKeys: '← → virar · Espaço bater',
   clickForKeys: 'Clique no jogo para usar o teclado',
+  slapNow: "Carrega em ESPAÇO para bater!",
   slap: 'TAPA',
   watchAd: 'ver um anúncio',
   paused: 'Pausado',
@@ -290,5 +291,6 @@ export const PT: Table = {
   goalWin: "a {n} pts do 1.º",
   goalLead: "1.º · aguenta",
   firstUp: "Primeira melhoria ao teu alcance!",
+  buyFirst: "Compra uma melhoria para seguir",
   nothingToBuy: "Nada ao teu alcance ainda",
 };

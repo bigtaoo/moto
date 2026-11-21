@@ -127,15 +127,22 @@ export class Garage {
    *  (the same 600 ms as the results, or the key that went on from the results would skip it). */
   continue(): boolean {
     if (!this.open || !this.on?.next) return false;
-    if (performance.now() - this.shownAt >= 600) this.on.close();
+    if (performance.now() - this.shownAt >= 600 && !this.mustBuy) this.on.close();
     return true;
+  }
+
+  /** 3.3.64: the stop holds the race back until the first upgrade is bought. On r45 the stop was up for 1 s
+   *  for 10 of 11 players and 1 bought: they tapped its button where the results' had been. Every player who
+   *  meets the stop can afford a level (that is what brings it up), so there is always a way on. */
+  get mustBuy(): boolean {
+    return !!this.on?.next && !!this.save && firstUpInReach(this.save);
   }
 
   show(save: Save, on: GarageActions): void {
     this.shownAt = performance.now();
     this.save = save;
     this.on = on;
-    if (!this.tabs(save).includes(this.tab)) this.tab = 'up';
+    if (!this.tabs(save).includes(this.tab) || this.mustBuy) this.tab = 'up';
     this.el.classList.remove('hidden');
     this.draw();
   }
@@ -169,15 +176,16 @@ export class Garage {
       : this.tab === 'rides' ? ridesHtml(save) : shopHtml(save);
     // on the stop before a race, the line says why the garage came up, and the upgrades in reach move
     const hint = on.next && firstUpInReach(save) ? `<div class="ghint">${t('firstUp')}</div>` : '';
-    const out = on.next ? `${t('nextRace')} ${icon('play')}` : `${icon('left')} ${t('back')}`;
+    const must = this.mustBuy;
+    const out = must ? t('buyFirst') : on.next ? `${t('nextRace')} ${icon('play')}` : `${icon('left')} ${t('back')}`;
     card.innerHTML = `<div class="ghead"><h2>${t('garage')}</h2><div class="cashline">${t('cash')} <b>${money(save.cash)}</b></div></div>
       ${hint}<div class="tabs">${tabs}</div>
       <div class="gbody${hint ? ' first' : ''}">${body}</div>
-      <button class="primary gback">${out}</button>`;
+      <button class="primary gback"${must ? ' disabled' : ''}>${out}</button>`;
     const pass = (f: () => void) => () => f();
     card.querySelectorAll<HTMLButtonElement>('.up button').forEach((b) => { b.onclick = () => on.buy(b.dataset.k as UpKey); });
     card.querySelectorAll<HTMLButtonElement>('.ride').forEach((b) => { b.onclick = () => on.ride(Number(b.dataset.v)); });
     bindShop(card, pass, on);
-    (card.querySelector('.gback') as HTMLButtonElement).onclick = () => on.close();
+    (card.querySelector('.gback') as HTMLButtonElement).onclick = () => { if (!this.mustBuy) on.close(); };
   }
 }

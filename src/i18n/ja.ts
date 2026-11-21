@@ -8,6 +8,7 @@ export const JA: Table = {
   hint: 'ドラッグで操作 · タップでビンタ',
   hintKeys: '← → で操作 · スペースでビンタ',
   clickForKeys: '画面をクリックするとキー操作できます',
+  slapNow: "スペースでビンタ！",
   slap: 'ビンタ',
   watchAd: '広告を見る',
   paused: '一時停止',
@@ -290,5 +291,6 @@ export const JA: Table = {
   goalWin: "1位まであと{n}点",
   goalLead: "1位 · 死守",
   firstUp: "初めての強化が買える！",
+  buyFirst: "強化を1つ買って出発しよう",
   nothingToBuy: 'まだ買えるものはない',
 };
