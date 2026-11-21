@@ -54,7 +54,7 @@ export function compose({ seed, boss }: TuneOpts): Song {
   const loop = pick(LOOPS[mode]);
   const beat = pick(BEATS);
   const beatB = pick(BEATS);
-  const duty = pick([0.125, 0.25, 0.5]);
+  const duty = pick([0.25, 0.5]); // 3.3.67: 0.125 is the nasal one, and at this level it whistled
   const eighth = 30 / bpm;
   const bar = eighth * 8;
   const notes: Note[] = [];
@@ -105,16 +105,20 @@ export function compose({ seed, boss }: TuneOpts): Song {
       notes.push({ v: 'lead', at: t0 + i * eighth, len: (end ? 8 - i : j - i) * eighth * (end ? 0.9 : 0.82), midi: prev, vel: end ? 0.9 : i % 4 === 0 ? 1 : 0.8 });
       if (end) break;
     }
-    // bass: root on eighths, the octave on the off-beats, a fifth to walk into the next chord
+    // bass: the root, the octave on two off-beats, a fifth to walk into the next chord. 3.3.67 took two
+    // eighths out of the bar: eight in a row, for sixteen bars with no gap anywhere, is what made the loop
+    // tiring long before it made it loud.
     const low = ch > 4 ? ch - 7 : ch; // the chord's root within the bass's octave
-    for (let i = 0; i < 8; i++) {
+    for (const i of [0, 2, 3, 5, 6, 7]) {
       const walk = i === 7 && bi % 2 === 1;
+      if (i === 7 && !walk) continue;
       notes.push({ v: 'bass', at: t0 + i * eighth, len: eighth * 0.75, midi: deg(walk ? low + 4 : low, root - 12) + (i % 2 && !walk ? 12 : 0), vel: i % 2 ? 0.7 : 1 });
     }
-    // arpeggio in the second half: chord tones up in sixteenths
-    if (bi >= 8) for (let i = 0; i < 16; i++) {
+    // arpeggio over the climb: chord tones up in sixteenths. It used to run from bar 8, which put
+    // sixteenths under the lead for half of every loop; four bars make it the lift it was meant to be.
+    if (bi >= 12) for (let i = 0; i < 16; i++) {
       const d = ch + [0, 2, 4, 7][i % 4];
-      notes.push({ v: 'arp', at: t0 + (i * eighth) / 2, len: eighth * 0.4, midi: deg(d, root + 12), vel: 0.6 });
+      notes.push({ v: 'arp', at: t0 + (i * eighth) / 2, len: eighth * 0.4, midi: deg(d, root + 12), vel: 0.5 });
     }
     // drums: the second half's pattern from bar 8, a fill on each half's last bar
     const pat = bi >= 8 ? beatB : beat;
@@ -123,7 +127,7 @@ export function compose({ seed, boss }: TuneOpts): Song {
       const ch2 = bi % 8 === 7 && i >= 12 ? 's' : pat[i];
       if (ch2 === 'k') notes.push({ v: 'kick', at, len: 0.18, midi: 0, vel: 1 });
       if (ch2 === 's' || ch2 === 'x') notes.push({ v: 'snare', at, len: 0.14, midi: 0, vel: bi % 8 === 7 && i >= 12 ? 0.6 + 0.1 * (i - 12) : 1 });
-      if (ch2 === 'h' || ch2 === 'x') notes.push({ v: 'hat', at, len: 0.04, midi: 0, vel: 0.7 });
+      if (ch2 === 'h' || ch2 === 'x') notes.push({ v: 'hat', at, len: 0.04, midi: 0, vel: 0.55 });
     }
   }
   notes.sort((x, y) => x.at - y.at);
@@ -141,14 +145,30 @@ function blep(t: number, dt: number): number {
 
 const GAIN: Record<Voice, number> = { lead: 0.2, bass: 0.34, arp: 0.08, kick: 0.6, snare: 0.22, hat: 0.07 };
 
-/** The loudness the race's mp3 tracks sit at (RMS about 0.34): a made tune is brought up to it, so the music
- *  doesn't drop 5 dB when the cup moves from a file to a made track. */
-export const TARGET_RMS = 0.33;
+/** Straight through under 0.7, rounded over it towards a 0.94 ceiling: a peak limiter rather than a
+ *  shaper on everything. */
+const knee = (v: number): number => {
+  const a = Math.abs(v);
+  return a <= 0.7 ? v : Math.sign(v) * (0.7 + 0.24 * Math.tanh((a - 0.7) / 0.24));
+};
+
+/** One-pole coefficient for a cutoff of `fc` at `sr`. */
+const pole = (fc: number, sr: number): number => 1 - Math.exp((-2 * Math.PI * fc) / sr);
+
+/** What a made tune is rendered to. It used to be the mp3 tracks' own level (RMS about 0.34) so the music
+ *  wouldn't drop when the cup moved from a file to a made track -- but matching a mastered recording's RMS
+ *  with square waves is matching the wrong number: the same RMS from a mid-heavy pulse is a good deal louder
+ *  to the ear, and it left nothing between the loop and the ceiling. 3.3.67 sits about 2 dB under the files
+ *  on purpose. */
+export const TARGET_RMS = 0.27;
 const CHUNK = 4096;
 
 /** Turns a song into samples a bit per `step()`: the notes, then a pass that measures the loudness, then one
- *  that scales to `TARGET_RMS` through a soft clip (tanh) so the kick's peaks stay under 1. `done` after that.
- *  The loop wraps note tails. */
+ *  that scales to `TARGET_RMS` and rounds off whatever is left over 0.7 so the kick's peaks stay under 1.
+ *  `done` after that. The loop wraps note tails.
+ *  3.3.67: that last pass used to be `tanh` over the whole signal, which bends every sample, not just the
+ *  peaks -- at this level it was adding distortion to a square wave all the way through. The knee leaves
+ *  the 95% of samples under 0.7 exactly as they were played. */
 export class Renderer {
   readonly out: Float32Array;
   private i = 0;
@@ -177,12 +197,12 @@ export class Renderer {
     if (!this.gain) {
       for (; this.k < end; this.k++) this.sq += out[this.k] * out[this.k];
       if (this.k >= out.length) {
-        this.gain = TARGET_RMS / Math.max(1e-4, Math.sqrt(this.sq / out.length)) * 1.08; // tanh takes a little back
+        this.gain = TARGET_RMS / Math.max(1e-4, Math.sqrt(this.sq / out.length));
         this.k = 0;
       }
       return;
     }
-    for (; this.k < end; this.k++) out[this.k] = Math.tanh(out[this.k] * this.gain);
+    for (; this.k < end; this.k++) out[this.k] = knee(out[this.k] * this.gain);
   }
 
   private note(nt: Note): void {
@@ -194,6 +214,8 @@ export class Renderer {
     const g = GAIN[nt.v] * nt.vel;
     const f = hz(nt.midi);
     let ph = 0;
+    let lp1 = 0, lp2 = 0;
+    const a = pole(Math.min(3600, Math.max(1200, f * (nt.v === 'arp' ? 5.5 : 4.5))), sr);
     for (let k = 0; k < len; k++) {
       const t = k / sr;
       let v = 0;
@@ -204,6 +226,12 @@ export class Renderer {
           if (ph >= 1) ph -= 1;
           const duty = nt.v === 'arp' ? 0.25 : this.song.duty;
           v = (ph < duty ? 1 : -1) + blep(ph, dt) - blep((ph - duty + 1) % 1, dt);
+          // two poles a few harmonics up (3.3.67): a bare pulse carries its edges all the way to the top of
+          // the band, and over a two-minute race that edge is the part that wears. The filter follows the
+          // note, so the low ones keep their body and only the high ones are taken off the top.
+          lp1 += a * (v - lp1);
+          lp2 += a * (lp1 - lp2);
+          v = lp2;
           v *= Math.min(1, t / 0.004) * (t < nt.len ? 1 - 0.25 * (t / nt.len) : Math.max(0, 1 - (t - nt.len) / tail) * 0.75);
           break;
         }

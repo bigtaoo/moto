@@ -20,9 +20,11 @@ import { LAUNCH } from '../sim/launch';
 const launchButton = (save: Save): string =>
   save.races < LAUNCH.unlock ? '' : `<button class="shift launchgo"><span>${icon('burst')} ${t('launchGo')}</span><small>${save.launchBest ? t('launchBest', { n: save.launchBest }) : t('launchTip')}</small></button>`;
 
-/** Sound, graphics and how to play, off the road: the pause menu used to be the only way in. */
+/** Sound, graphics and how to play, off the road: the pause menu used to be the only way in.
+ *  3.3.67: a corner icon rather than a tile -- settings is not a place the player is meant to go next,
+ *  and as a tile it was the same size and weight as the garage. */
 const optsButton = (): string =>
-  `<button class="shift optsgo"><span>${icon('soundOn')} ${t('settings')}</span><small>${t('settingsTip')}</small></button>`;
+  `<button class="iconbtn optsgo" title="${t('settings')}" aria-label="${t('settings')}">${icon('soundOn')}</button>`;
 
 /** The next ride the player doesn't own, and how far off it is. */
 function nextRide(save: Save): string {
@@ -75,10 +77,14 @@ export function titleInfo(save: Save, fresh: Unlocked[] = [], ad = false): strin
   if (save.races === 0) return '';
   const d = dailyPage(save);
   const got = save.ach.length;
-  // where they stand, then where they can go: one tap each, instead of a column to scroll through
-  const tiles = garageButton(save) + (shiftOpen(save) ? shiftButton(save, 'shift shiftgo') : '')
-    + `<button class="shift dailygo${d.done < d.of ? '' : ' has'}"><span>${icon('bang')} ${t('daily')}</span><small>${d.done}/${d.of}</small></button>`
+  // where they stand, then where they can go: one tap each, instead of a column to scroll through.
+  // 3.3.67: in two ranks. The garage and the shift are what a race sends you to, so they are wide and
+  // come first; the four side screens are small tiles under them. One flat grid of six made every
+  // destination look as important as the next, and four of them could turn the same yellow as Race.
+  const dests = garageButton(save) + (shiftOpen(save) ? shiftButton(save, 'shift shiftgo') : '');
+  const side = `<button class="shift dailygo${d.done < d.of ? '' : ' has'}"><span>${icon('bang')} ${t('daily')}</span><small>${d.done}/${d.of}</small></button>`
     + `<button class="shift achsgo${fresh.length ? ' has' : ''}"><span>${icon('star')} ${t('achievements', { n: got, m: ACHIEVEMENTS.length })}</span><small>${fresh.length ? t('achNew', { n: fresh.length }) : t('achTip')}</small></button>`
-    + launchButton(save) + boardButton() + optsButton();
-  return streak(save, ad) + nextRide(save) + nemesis(save) + `<div class="tiles">${tiles}</div>`;
+    + boardButton() + launchButton(save);
+  return optsButton() + streak(save, ad) + nextRide(save) + nemesis(save)
+    + `<div class="tiles dests">${dests}</div><div class="tiles mini">${side}</div>`;
 }

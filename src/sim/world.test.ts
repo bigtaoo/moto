@@ -6,10 +6,13 @@ import { hashState } from './hash';
 import { Recorder, playReplay, type Replay } from './replay';
 import { World, type WorldOpts } from './world';
 
+// 3.3.67: the hashes moved but endTick did not. A bot race steers by targetX and never touches the keys,
+// so KEY_STEP changed nothing it does; what the hash picked up is the two fields the press budget keeps on
+// the World, since hashState walks every field there.
 // The golden hashes pin what a seed plus inputs produce. If one changes, either the change was meant
 // to alter the race (bump SIM_VERSION in config.ts and paste the new hashes here) or the sim lost
 // its determinism (find out why before touching anything).
-const GOLDEN = { version: 41, mid: '8c542759', end: '02dbdd25', endTick: 4241 };
+const GOLDEN = { version: 42, mid: '263f91a6', end: '5be16d26', endTick: 4241 };
 
 const OPTS: WorldOpts = { seed: 1, upgrades: { top: 2, steer: 2, hp: 2 }, div: 2, nemesis: 3, tier: 1, vehicle: 2 };
 const MID = 60 * TICK_HZ;
@@ -71,6 +74,42 @@ describe('sim determinism', () => {
 
   it('refuses a replay from another sim version', () => {
     expect(() => playReplay({ ...a.replay, v: SIM_VERSION + 1 })).toThrow(/sim v/);
+  });
+});
+
+describe('steering keys (3.3.67)', () => {
+  /** Roll out of the countdown on an empty road, then hold left for `ms` and let go. */
+  function press(ms: number, again = 0): number {
+    const w = new World({ seed: 7 });
+    for (let i = 0; i < TICK_HZ * 3; i++) w.step();
+    for (const r of w.riders) if (!r.isPlayer) r.z = w.player.z - 500; // nobody to rub along the way
+    const x0 = w.player.x;
+    const run = (steer: number, secs: number) => {
+      for (let i = 0; i < Math.round(secs * TICK_HZ); i++) {
+        w.cars.length = 0; // and no traffic to be shoved by: this is about the keys alone
+        w.input.steer = steer;
+        w.step();
+        w.events.length = 0;
+      }
+    };
+    run(-1, ms / 1000);
+    run(0, 0.2);
+    if (again) { run(-1, again / 1000); run(0, 0.2); }
+    return x0 - w.player.x;
+  }
+
+  it('spends one lane on a press, however long the key is held', () => {
+    // a firm press used to run on for as long as the finger did: 900 ms of it crossed two lanes
+    expect(press(500)).toBeCloseTo(C.KEY_STEP, 2);
+    expect(press(900)).toBeCloseTo(C.KEY_STEP, 2);
+    expect(press(2000)).toBeCloseTo(C.KEY_STEP, 2);
+  });
+
+  it('still answers a tap at once, and a second press buys the next lane', () => {
+    // dodging is untouched: the bike moves at the full steer speed from the tick the key goes down
+    expect(press(100)).toBeGreaterThan(0.6);
+    expect(press(100)).toBeLessThan(1.1);
+    expect(press(500, 500)).toBeGreaterThan(C.KEY_STEP * 1.8);
   });
 });
 

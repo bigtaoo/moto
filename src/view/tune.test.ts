@@ -35,7 +35,7 @@ describe('race tunes made in code', () => {
     }
   });
 
-  it('renders a slice at a time to finite samples, as loud as the mp3 tracks and never clipping', () => {
+  it('renders a slice at a time to finite samples, at the level it aims for and never clipping', () => {
     for (const boss of [false, true]) {
       const r = new Renderer(compose({ seed: 3, boss }), 22050);
       let slices = 0;
@@ -44,10 +44,25 @@ describe('race tunes made in code', () => {
       let m = 0;
       let sq = 0;
       let bad = 0;
-      for (const v of r.out) { if (!Number.isFinite(v)) bad++; m = Math.max(m, Math.abs(v)); sq += v * v; }
+      let hot = 0;
+      for (const v of r.out) { if (!Number.isFinite(v)) bad++; m = Math.max(m, Math.abs(v)); sq += v * v; if (Math.abs(v) > 0.7) hot++; }
       expect(bad).toBe(0);
-      expect(m).toBeLessThan(1);
+      expect(m).toBeLessThan(0.95);
       expect(Math.sqrt(sq / r.out.length)).toBeCloseTo(TARGET_RMS, 1);
+      // 3.3.67: only the peaks are rounded off. When the last pass was a tanh over everything, a twentieth
+      // of the track sat up in the bend; a loop that spends a whole race in there is the thing that grates.
+      expect(hot / r.out.length).toBeLessThan(0.05);
+    }
+  });
+
+  it('leaves the loop somewhere to go: the bass rests and the arp waits for the climb', () => {
+    for (let seed = 0; seed < 20; seed++) {
+      const s = compose({ seed });
+      const bars = Math.round(s.secs / (s.bpm ? (60 / s.bpm) * 4 : 1));
+      const bass = s.notes.filter((n) => n.v === 'bass');
+      expect(bass.length).toBeLessThan(bars * 7); // not all eight eighths of every bar
+      const arp = s.notes.filter((n) => n.v === 'arp');
+      expect(Math.min(...arp.map((n) => n.at))).toBeGreaterThan(s.secs * 0.6);
     }
   });
 });

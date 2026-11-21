@@ -5,14 +5,41 @@
 /* ---------- the lobby's destinations ---------- */
 /* Five stacked full-width buttons ran the title card 64 px past a 719 px phone. Two to a row,
    same height, so the fold falls under the grid instead of through it. */
+/* 3.3.67: the grid held six tiles of one size -- garage, shift, challenges, achievements, launch,
+   settings -- with the leaderboard as a seventh button of another shape underneath, and four of the
+   six could turn the same yellow as the Race button. Nothing on the card said what to look at first.
+   Three ranks now: Race (the only yellow slab), then the two places a race sends you to, then the
+   small side screens, with settings pushed out to a corner icon. Portrait stacks the ranks; the
+   landscape lobby is a layout of its own and lives in style.landscape.css. */
 .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 10px 0 8px; }
 .tiles .shift { width: 100%; margin: 0; justify-content: center; min-height: 52px; padding: 6px 8px; }
 .tiles .shift span { font-size: 15px; }
 .tiles .shift small { line-height: 1.15; }
-/* The garage with something affordable in it: the one tile that is worth a tap right now. */
-.shift.has { background: var(--yellow); box-shadow: 0 3px 0 var(--ink); }
-/* The first upgrade in reach (3.3.59): the tile bobs until the player has bought one. */
-.shift.nudge { animation: nudge 1.4s ease-in-out infinite; }
+/* rank 2: where a race sends you. A row each, the full width of the card -- side by side they would
+   read as two more tiles, which is the thing that went wrong. */
+.dests { grid-template-columns: 1fr; margin: 10px 0 0; }
+.dests .shift { min-height: 50px; border-width: 3px; box-shadow: 0 3px 0 var(--ink); }
+/* rank 3: the side screens, small enough that nobody takes them for the way on */
+.mini { grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); margin: 6px 0 8px; }
+.mini .shift { min-height: 42px; padding: 4px 6px; }
+.mini .shift span { font-size: 13px; }
+.mini .shift small { font-size: 10px; }
+/* Settings: a corner icon on the card, not a tile among the places to go. */
+#title .card { position: relative; }
+.iconbtn {
+  position: absolute; top: 10px; right: 10px; width: 40px; height: 40px; display: grid; place-items: center;
+  font: inherit; font-size: 22px; background: var(--paper); border: 2px solid var(--ink); border-radius: 10px; cursor: pointer;
+}
+/* Something worth a tap in there (an upgrade in reach, a challenge done): a dot. A yellow tile put it
+   level with the Race button, which is the one thing on the card that should be shouting. */
+.shift.has { position: relative; }
+.shift.has::after {
+  content: ''; position: absolute; top: 5px; right: 5px; width: 9px; height: 9px;
+  border-radius: 50%; background: var(--yellow); border: 2px solid var(--ink);
+}
+/* The first upgrade in reach (3.3.59): the tile bobs, and keeps its yellow -- 3.3.64 measured that this
+   one is worth shouting about (48/48 bought with it, against 1/10 without). */
+.shift.nudge { background: var(--yellow); box-shadow: 0 3px 0 var(--ink); animation: nudge 1.4s ease-in-out infinite; }
 @keyframes nudge { 0%, 70%, 100% { transform: none; } 78% { transform: scale(1.06) rotate(-2deg); } 86% { transform: scale(1.06) rotate(2deg); } }
 /* The garage stop before a race (3.3.62): what it is for, and the upgrades that can be bought bob too. */
 .ghint { margin-top: 6px; font-weight: 800; color: var(--ink); background: var(--yellow); border-radius: 8px; padding: 4px 8px; }
@@ -36,3 +63,12 @@
    from jumping up the screen when the player switches to a shorter one. */
 .gbody { min-height: 240px; }
 .gbody .garage, .gbody .shop { margin-top: 0; }
+
+/* A short phone held upright (a 360x640 one is still the commonest size the sandbox sees): the three
+   ranks fit, but only once the logo and the card's own padding stop taking 130 px of it. */
+@media (orientation: portrait) and (max-height: 700px) {
+  #title .logo { font-size: 36px; margin: 2px 0 8px; }
+  #title .logo .sym { width: 48px; height: 48px; margin-bottom: 6px; }
+  #title .card { padding: 12px 16px 14px; }
+  #title .card .primary { padding: 12px; margin-top: 8px; }
+}

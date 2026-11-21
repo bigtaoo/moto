@@ -39,3 +39,29 @@
   .logo { font-size: 34px; }
   .logo .sym { width: 44px; height: 44px; }
 }
+
+/* 3.3.67: the lobby's own landscape layout, and the reason this file is no longer only about short
+   screens. Portrait stacks the card -- logo, Race, standing, then the places to go. Landscape has width
+   and no height, so the left half carries the logo, where the player stands and the Race button, and the
+   right half carries everything they can go to. The gate is width, not height: a desktop window is
+   landscape too, and it had been served the phone's single 400 px column down the middle of a 1280 px
+   screen, which is how the lobby came to look like a list with no first line. */
+@media (orientation: landscape) and (min-width: 560px) {
+  #title .card {
+    display: grid; columns: initial; grid-template-columns: 1fr 1.25fr; gap: 0 18px;
+    max-width: 700px; align-items: start; text-align: left; padding: 12px 16px;
+  }
+  #title .card > .logo, #title .card > p, #title .card > .primary, #title .card > .sub { grid-column: 1; }
+  /* the right-hand column stops short of the corner: that corner is the settings icon's, and in portrait
+     it sits over nothing, while here it would land on the streak's double-up button */
+  #title .card > #titleinfo { grid-column: 2; grid-row: 1 / span 6; margin: 2px 38px 0 0; }
+  #title .card .logo { margin-top: 0; }
+  #title .card .logo .sym { margin-left: 0; }
+  #title .card .primary { margin-top: 14px; }
+  #title .card .dests { grid-template-columns: 1fr; margin-top: 0; }
+  #title .card .dests .shift { min-height: 46px; }
+  #title .card .mini { grid-template-columns: 1fr 1fr; }
+  #title .card .mini .shift { min-height: 38px; }
+  #title .card .mini .shift span { font-size: 12px; }
+  #title .card .mini .shift small { font-size: 10px; }
+}

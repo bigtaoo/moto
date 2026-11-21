@@ -61,6 +61,9 @@ export class World {
   readonly events: SimEvent[] = [];
   readonly grudges: Set<number>;
   readonly input: Input = { targetX: null, steer: 0, brake: false, attack: false, charge: false, taunt: false };
+  /** Steering keys last tick, and the spot the press that is down now aims at (3.3.67, C.KEY_STEP). */
+  private steerWas = 0;
+  private keyTo = 0;
   /** The nemesis' rider id, or -1. */
   readonly nemesis: number;
   /** Times the player knocked the nemesis off this race. */
@@ -300,7 +303,14 @@ export class World {
     const [lo, hiB] = this.road.bounds(p.x, p.z);
     const hi = hiB === this.road.worksHi(p.z) ? C.EDGE : hiB;
     if (inp.targetX !== null) p.wantX = clamp(inp.targetX, lo, hi);
-    else p.wantX = clamp(p.x + inp.steer * 3, lo, hi);
+    else if (inp.steer === 0) p.wantX = clamp(p.x, lo, hi);
+    else {
+      // a press is worth one lane (C.KEY_STEP): the spot it aims at is fixed when the key goes down, so
+      // holding on longer does not carry the bike further and letting go leaves it where it is
+      if (inp.steer !== this.steerWas) this.keyTo = p.x + inp.steer * C.KEY_STEP;
+      p.wantX = clamp(this.keyTo, lo, hi);
+    }
+    this.steerWas = inp.steer;
     p.braking = inp.brake || (this.chase && this.time < C.CHASE.hold);
     playerAttack(this, p);
     taunt(this, p);

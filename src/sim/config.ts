@@ -4,7 +4,7 @@
  * Bump on any change to the race rules that alters what a seed plus inputs produce, and record the new
  * golden hash in world.test.ts. Replays and (later) online rooms only mix the same version.
  */
-export const SIM_VERSION = 41;
+export const SIM_VERSION = 42;
 
 export const TICK_HZ = 30;
 export const DT = 1 / TICK_HZ;
@@ -25,6 +25,17 @@ export const PICKUP_AT = [0.08, 0.22, 0.36, 0.5, 0.64, 0.78, 0.9];
 export const COUNTDOWN_S = 2;
 
 export const PLAYER_BASE = { top: 28.6, accel: 7, steer: 8.5, hp: 3 };
+/**
+ * What one press of a steering key is worth, in metres: a lane, and no more, however long the key is held
+ * down. 3.3.67: before this a held key moved the line at the full `steer` speed for as long as it was down,
+ * so a 300 ms press -- what a new player gives a key when they mean it -- slid the bike 2.55 m, three
+ * quarters of a lane, and half a second of it crossed a whole lane into the next one's traffic. Watched over
+ * a player's shoulder, that is what the crashes looked like: not a missed dodge, an overshot one. A press
+ * now aims at a fixed spot one lane over and stops there; letting go stops where the bike is, and pressing
+ * again buys the next lane. Nothing about how fast the bike gets there has changed, so dodging is as quick
+ * as it ever was -- it is only the end of the slide that moved.
+ */
+export const KEY_STEP = 3.5;
 /**
  * How the engine's pull falls off near the bike's own top speed. Below `knee` of it the full `accel` is
  * there, so getting back up after a fall is as quick as it ever was; over the knee the pull slides down to

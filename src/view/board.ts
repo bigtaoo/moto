@@ -10,7 +10,9 @@ import * as funnel from '../funnel';
 /** The title card's button, or nothing where there's no board the game can open. */
 export function boardButton(): string {
   const ty = platform.boardType();
-  return ty === 'in_game' || ty === 'native_popup' ? `<button class="board">${icon('star')} ${t('board')}</button>` : '';
+  // 3.3.67: a tile like the ones beside it. It used to be a bare centred button under the grid, the one
+  // thing on the lobby that matched nothing else on it.
+  return ty === 'in_game' || ty === 'native_popup' ? `<button class="shift board"><span>${icon('star')} ${t('board')}</span></button>` : '';
 }
 
 function row(e: platform.BoardEntry): HTMLElement {
