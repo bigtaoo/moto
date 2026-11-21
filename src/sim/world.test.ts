@@ -6,13 +6,13 @@ import { hashState } from './hash';
 import { Recorder, playReplay, type Replay } from './replay';
 import { World, type WorldOpts } from './world';
 
-// 3.3.67: the hashes moved but endTick did not. A bot race steers by targetX and never touches the keys,
-// so KEY_STEP changed nothing it does; what the hash picked up is the two fields the press budget keeps on
-// the World, since hashState walks every field there.
+// 3.3.67/3.3.68: the hashes moved but endTick did not. A bot race steers by targetX and never touches the
+// keys, so the press budget changed nothing it does; what the hash picked up is the fields that budget keeps
+// on the World, since hashState walks every field there.
 // The golden hashes pin what a seed plus inputs produce. If one changes, either the change was meant
 // to alter the race (bump SIM_VERSION in config.ts and paste the new hashes here) or the sim lost
 // its determinism (find out why before touching anything).
-const GOLDEN = { version: 42, mid: '263f91a6', end: '5be16d26', endTick: 4241 };
+const GOLDEN = { version: 43, mid: '373a7dae', end: '8ed8415f', endTick: 4241 };
 
 const OPTS: WorldOpts = { seed: 1, upgrades: { top: 2, steer: 2, hp: 2 }, div: 2, nemesis: 3, tier: 1, vehicle: 2 };
 const MID = 60 * TICK_HZ;
@@ -98,18 +98,23 @@ describe('steering keys (3.3.67)', () => {
     return x0 - w.player.x;
   }
 
-  it('spends one lane on a press, however long the key is held', () => {
+  it('spends a lane at most, however long the key is held', () => {
     // a firm press used to run on for as long as the finger did: 900 ms of it crossed two lanes
-    expect(press(500)).toBeCloseTo(C.KEY_STEP, 2);
+    expect(press(700)).toBeCloseTo(C.KEY_STEP, 2);
     expect(press(900)).toBeCloseTo(C.KEY_STEP, 2);
     expect(press(2000)).toBeCloseTo(C.KEY_STEP, 2);
   });
 
-  it('still answers a tap at once, and a second press buys the next lane', () => {
-    // dodging is untouched: the bike moves at the full steer speed from the tick the key goes down
-    expect(press(100)).toBeGreaterThan(0.6);
-    expect(press(100)).toBeLessThan(1.1);
-    expect(press(500, 500)).toBeGreaterThan(C.KEY_STEP * 1.8);
+  it('reads press length as distance, so less than a lane is something a hand can aim (3.3.68)', () => {
+    // the whole point: a third of a second is about half a lane -- from the left of a lane to the middle --
+    // and the step from one press length to the next is small enough to be worth aiming at
+    for (const ms of [100, 200, 300, 500]) expect(press(ms)).toBeCloseTo((C.KEY_RATE * ms) / 1000, 1);
+    expect(press(350)).toBeGreaterThan(C.KEY_STEP * 0.4);
+    expect(press(350)).toBeLessThan(C.KEY_STEP * 0.6);
+  });
+
+  it('lets a second press buy the next lane', () => {
+    expect(press(700, 700)).toBeGreaterThan(C.KEY_STEP * 1.8);
   });
 });
 

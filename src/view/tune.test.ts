@@ -11,10 +11,10 @@ describe('race tunes made in code', () => {
     for (let seed = 0; seed < 60; seed++) {
       for (const boss of [false, true]) {
         const s = compose({ seed, boss });
-        expect(s.bpm).toBeGreaterThanOrEqual(boss ? 164 : 138);
-        expect(s.bpm).toBeLessThanOrEqual(boss ? 182 : 156);
-        expect(s.secs).toBeGreaterThan(20);
-        expect(s.secs).toBeLessThan(29);
+        expect(s.bpm).toBeGreaterThanOrEqual(boss ? 132 : 112);
+        expect(s.bpm).toBeLessThanOrEqual(boss ? 148 : 128);
+        expect(s.secs).toBeGreaterThan(25);
+        expect(s.secs).toBeLessThan(36);
         const lead = s.notes.filter((n) => n.v === 'lead');
         expect(lead.length).toBeGreaterThan(60);
         for (const n of s.notes) {

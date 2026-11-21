@@ -63,7 +63,8 @@ export class World {
   readonly input: Input = { targetX: null, steer: 0, brake: false, attack: false, charge: false, taunt: false };
   /** Steering keys last tick, and the spot the press that is down now aims at (3.3.67, C.KEY_STEP). */
   private steerWas = 0;
-  private keyTo = 0;
+  private keyFrom = 0;
+  private keyHeld = 0;
   /** The nemesis' rider id, or -1. */
   readonly nemesis: number;
   /** Times the player knocked the nemesis off this race. */
@@ -305,10 +306,12 @@ export class World {
     if (inp.targetX !== null) p.wantX = clamp(inp.targetX, lo, hi);
     else if (inp.steer === 0) p.wantX = clamp(p.x, lo, hi);
     else {
-      // a press is worth one lane (C.KEY_STEP): the spot it aims at is fixed when the key goes down, so
-      // holding on longer does not carry the bike further and letting go leaves it where it is
-      if (inp.steer !== this.steerWas) this.keyTo = p.x + inp.steer * C.KEY_STEP;
-      p.wantX = clamp(this.keyTo, lo, hi);
+      // a press spends distance at C.KEY_RATE and is worth at most one lane (C.KEY_STEP), measured from
+      // where the bike stood when the key went down: so how long the key is held reads as how far the bike
+      // goes, holding on past the lane carries it no further, and letting go leaves it where it is
+      if (inp.steer !== this.steerWas) { this.keyFrom = p.x; this.keyHeld = 0; }
+      this.keyHeld += C.DT;
+      p.wantX = clamp(this.keyFrom + inp.steer * Math.min(C.KEY_STEP, C.KEY_RATE * this.keyHeld), lo, hi);
     }
     this.steerWas = inp.steer;
     p.braking = inp.brake || (this.chase && this.time < C.CHASE.hold);

@@ -35,8 +35,11 @@ const RHYTHMS = [
   [1, 1, 1, 0, 1, 0, 0, 0],
   [1, 0, 1, 0, 1, 1, 1, 1],
 ];
-/** Drum bars in sixteenths: k kick, s snare, h hat, x snare and hat. */
+/** Drum bars in sixteenths: k kick, s snare, h hat, x snare and hat. Sparse first, busy last: the loop's
+ *  first half draws from the calm end (3.3.68), so there is somewhere for the second half to go. */
 const BEATS = [
+  'k...s...k...s...',
+  'k.h.s...k.h.s.h.',
   'k.h.s.h.k.hkx.h.',
   'k.h.s.hkk.h.s.hh',
   'k.hhs.h.k.k.s.h.',
@@ -50,10 +53,13 @@ export function compose({ seed, boss }: TuneOpts): Song {
   const mode = boss || r() < 0.45 ? 'minor' : 'major';
   const scale = mode === 'major' ? MAJOR : MINOR;
   const root = 45 + Math.floor(r() * 8); // A2..E3
-  const bpm = Math.round((boss ? 164 : 138) + r() * 18);
+  // 3.3.68: 138-156 (boss 164-182) was a sprint, and a sprint is tiring to sit next to for a whole race.
+  // The loop is 16 bars either way, so slowing it also makes it 30-34 s instead of 23-27 and comes round
+  // fewer times.
+  const bpm = Math.round((boss ? 132 : 112) + r() * 16);
   const loop = pick(LOOPS[mode]);
-  const beat = pick(BEATS);
-  const beatB = pick(BEATS);
+  const beat = pick(BEATS.slice(0, 3));
+  const beatB = pick(BEATS.slice(1));
   const duty = pick([0.25, 0.5]); // 3.3.67: 0.125 is the nasal one, and at this level it whistled
   const eighth = 30 / bpm;
   const bar = eighth * 8;

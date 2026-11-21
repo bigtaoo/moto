@@ -4,7 +4,7 @@
  * Bump on any change to the race rules that alters what a seed plus inputs produce, and record the new
  * golden hash in world.test.ts. Replays and (later) online rooms only mix the same version.
  */
-export const SIM_VERSION = 42;
+export const SIM_VERSION = 43;
 
 export const TICK_HZ = 30;
 export const DT = 1 / TICK_HZ;
@@ -32,10 +32,20 @@ export const PLAYER_BASE = { top: 28.6, accel: 7, steer: 8.5, hp: 3 };
  * quarters of a lane, and half a second of it crossed a whole lane into the next one's traffic. Watched over
  * a player's shoulder, that is what the crashes looked like: not a missed dodge, an overshot one. A press
  * now aims at a fixed spot one lane over and stops there; letting go stops where the bike is, and pressing
- * again buys the next lane. Nothing about how fast the bike gets there has changed, so dodging is as quick
- * as it ever was -- it is only the end of the slide that moved.
+ * again buys the next lane.
+ *
+ * 3.3.68 slowed what a held key spends. Capping the press at a lane was not enough on its own: the bike
+ * still crossed that lane at the full 8.5 m/s, so the whole budget was gone in 0.41 s and anything smaller
+ * than a lane -- sliding from the left of a lane to the middle, leaning towards the centre line -- needed a
+ * press under 150 ms, which is not something a hand can aim. `KEY_RATE` is how fast the spot the bike is
+ * steering for travels while the key is down, so press length now reads as distance: 100 ms is 0.5 m, a
+ * third of a second is half a lane, 0.7 s spends the whole lane and anything longer spends nothing more.
+ * The bike's own `steer` speed is untouched, so the touch drag, and steering back after a shove, are as
+ * quick as they ever were.
  */
 export const KEY_STEP = 3.5;
+/** How fast the spot a held key is steering for travels, in m/s. See `KEY_STEP`. */
+export const KEY_RATE = 5;
 /**
  * How the engine's pull falls off near the bike's own top speed. Below `knee` of it the full `accel` is
  * there, so getting back up after a fall is as quick as it ever was; over the knee the pull slides down to
