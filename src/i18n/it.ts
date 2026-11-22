@@ -306,6 +306,12 @@ export const IT: Table = {
   goalLead: "1º · tieni duro",
   firstUp: "Primo potenziamento alla portata!",
   buyFirst: "Compra un potenziamento per ripartire",
+  // 3.3.72: the stop after race 1 says what each level does and names the one to start with
+  upTopWhat: 'Riprende il gruppo in rettilineo',
+  upSteerWhat: 'Tiene la linea nel traffico',
+  upHpWhat: 'Incassa un colpo e resta in sella',
+  recUp: 'Comincia da qui',
+  firstBuy: 'Monta {s} · {n}',
   nothingToBuy: 'Niente che tu possa permetterti',
 
   // 3.3.69: the free race (pick a track, back yourself) and where the next cup runs

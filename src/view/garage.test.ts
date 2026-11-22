@@ -28,14 +28,19 @@ describe('the garage button', () => {
 // overlay is a stand-in with just enough of an element for the garage to draw into.
 function fakeOverlay() {
   const back = { onclick: null as null | (() => void) };
-  const card = { innerHTML: '', querySelectorAll: () => [], querySelector: () => back };
+  const first = { onclick: null as null | (() => void) };
+  const card = {
+    innerHTML: '', querySelectorAll: () => [],
+    // the stop's foot button is the purchase since 3.3.72, and `.gback` is what the other ways out use
+    querySelector: (q: string) => (q === '.gfirst' ? (card.innerHTML.includes('gfirst') ? first : null) : back),
+  };
   const shown = new Set<string>(['hidden']);
   const el = {
     addEventListener: () => {},
     querySelector: () => card,
     classList: { contains: (c: string) => shown.has(c), add: (c: string) => shown.add(c), remove: (c: string) => shown.delete(c) },
   };
-  return { el: el as unknown as HTMLElement, card, back };
+  return { el: el as unknown as HTMLElement, card, back, first };
 }
 
 describe('the garage stop before a race (3.3.64)', () => {
@@ -52,16 +57,57 @@ describe('the garage stop before a race (3.3.64)', () => {
     const closed: string[] = [];
     g.show(save, { ...acts(closed), next: true });
     expect(g.mustBuy).toBe(true);
-    expect(card.innerHTML).toMatch(/class="primary gback" disabled>/);
-    now.mockReturnValue(5000);
-    expect(g.continue()).toBe(true); // the key is taken, but the race waits
-    back.onclick!();
+    expect(card.innerHTML).not.toContain('class="back'); // no way out but the race
+    back.onclick!(); // the small button the other screens' Back uses
     expect(closed).toEqual([]);
     save.up.top = 1; // bought
     g.redraw();
     expect(g.mustBuy).toBe(false);
     expect(card.innerHTML).toMatch(/class="primary gback">/);
+    now.mockReturnValue(5000);
     g.continue();
+    expect(closed).toEqual(['close']);
+    now.mockRestore();
+  });
+
+  // 3.3.72: the stop used to be three rows at one price with nothing to tell them apart and a disabled
+  // button at the foot. 16 of 126 new players left on it. Now the foot button is the purchase.
+  it('fits the level it recommends and goes racing in one tap', () => {
+    const now = vi.spyOn(performance, 'now').mockReturnValue(0);
+    const { el, card, first } = fakeOverlay();
+    const g = new Garage(el);
+    const save = parseSave(null);
+    save.cash = upgradePrice(save, 'hp')!;
+    const closed: string[] = [];
+    const bought: string[] = [];
+    g.show(save, {
+      ...acts(closed), next: true,
+      buy: (k) => { bought.push(k); save.up[k] = 1; save.cash = 0; g.redraw(); },
+    });
+    expect(card.innerHTML).toContain('class="primary gfirst"');
+    expect(card.innerHTML).toContain('Takes a hit and stays on'); // every row says what it does
+    expect(card.innerHTML).toContain('class="up rec"');
+    expect(card.innerHTML).not.toContain('class="tabs"'); // one tab is not a choice
+    first.onclick!();
+    expect(bought).toEqual(['hp']);
+    expect(closed).toEqual(['close']);
+    now.mockRestore();
+  });
+
+  it('takes Enter on the stop as that same one tap', () => {
+    const now = vi.spyOn(performance, 'now').mockReturnValue(0);
+    const { el } = fakeOverlay();
+    const g = new Garage(el);
+    const save = parseSave(null);
+    save.cash = upgradePrice(save, 'hp')!;
+    const closed: string[] = [];
+    const bought: string[] = [];
+    g.show(save, { ...acts(closed), next: true, buy: (k) => { bought.push(k); save.up[k] = 1; g.redraw(); } });
+    expect(g.continue()).toBe(true); // too soon: the screen has not been up long enough to read
+    expect(bought).toEqual([]);
+    now.mockReturnValue(5000);
+    expect(g.continue()).toBe(true);
+    expect(bought).toEqual(['hp']);
     expect(closed).toEqual(['close']);
     now.mockRestore();
   });

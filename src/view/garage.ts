@@ -33,6 +33,15 @@ export interface GarageActions {
 }
 
 const UP_NAMES: Record<UpKey, Key> = { top: 'upTop', steer: 'upSteer', hp: 'upHp' };
+/** What each level does, in the player's words. Only the race-1 stop shows these (3.3.72). */
+const UP_WHAT: Record<UpKey, Key> = { top: 'upTopWhat', steer: 'upSteerWhat', hp: 'upHpWhat' };
+/**
+ * The level the race-1 stop recommends and its button fits. 3.3.72: the stop put three rows at the same
+ * price in front of a player who had ridden once, named them and nothing else, and left the only button at
+ * the foot disabled until one was picked -- 16 of 126 new players left on it. Toughness is the honest pick:
+ * a race-1 loser falls seven times, and it is the one level that answers that.
+ */
+const FIRST_PICK: UpKey = 'hp';
 const locked = (what: string) => `${icon('lock')} ${t('unlocks', { s: what })}`;
 
 /** A ride's name in the player's language. */
@@ -102,7 +111,7 @@ function statLine(v: Vehicle): string {
  * The tune-up sits here rather than on a tab of its own because this is where the player meets the wall
  * -- the row that says "unlocks: Pro" is the row that can also say "$600, just for this race".
  */
-function upsHtml(save: Save): string {
+function upsHtml(save: Save, what: boolean): string {
   return (Object.keys(UP_NAMES) as UpKey[]).map((k) => {
     const lvl = save.up[k];
     const cost = upgradePrice(save, k);
@@ -115,7 +124,9 @@ function upsHtml(save: Save): string {
     const tp = tunePrice(save, k);
     const tune = !tuneOpen(save) ? ''
       : `<button class="tune${fit ? ' on' : ''}" data-t="${k}"${fit || save.cash < tp ? ' disabled' : ''}>${fit ? t('tuneOn') : `+1 · ${money(tp)}`}</button>`;
-    return `<div class="up"><div class="upname">${t(UP_NAMES[k])}<div class="pips">${pips}</div></div>
+    const first = what && k === FIRST_PICK;
+    const rec = first ? ` <em class="rec">${t('recUp')}</em>` : '';
+    return `<div class="up${first ? ' rec' : ''}"><div class="upname">${t(UP_NAMES[k])}${rec}<div class="pips">${pips}</div>${what ? `<small class="what">${t(UP_WHAT[k])}</small>` : ''}</div>
       ${tune}<button data-k="${k}" ${cost === null || save.cash < cost ? 'disabled' : ''}>${label}</button></div>`;
   }).join('');
 }
@@ -168,7 +179,9 @@ export class Garage {
    *  (the same 600 ms as the results, or the key that went on from the results would skip it). */
   continue(): boolean {
     if (!this.open || !this.on?.next) return false;
-    if (performance.now() - this.shownAt >= 600 && !this.mustBuy) this.on.close();
+    if (performance.now() - this.shownAt < 600) return true;
+    if (this.mustBuy) this.firstBuy();
+    else this.on.close();
     return true;
   }
 
@@ -177,6 +190,17 @@ export class Garage {
    *  meets the stop can afford a level (that is what brings it up), so there is always a way on. */
   get mustBuy(): boolean {
     return !!this.on?.next && !!this.save && firstUpInReach(this.save);
+  }
+
+  /** The stop's one tap (3.3.72): fit the level it recommends, and on to the race. */
+  private firstBuy(): void {
+    const save = this.save;
+    const on = this.on;
+    if (!save || !on) return;
+    const cost = upgradePrice(save, FIRST_PICK);
+    if (cost === null || save.cash < cost) return;
+    on.buy(FIRST_PICK);
+    on.close();
   }
 
   show(save: Save, on: GarageActions): void {
@@ -212,21 +236,29 @@ export class Garage {
     if (!save || !on) return;
     const card = this.el.querySelector('.card') as HTMLElement;
     const names: Record<Tab, Key> = { up: 'upgrades', rides: 'rides', looks: 'looks' };
-    const tabs = this.tabs(save).map((x) => `<button class="tab ${x === this.tab ? 'on' : ''}" data-tab="${x}">${t(names[x])}</button>`).join('');
-    const body = this.tab === 'up' ? `<div class="ups">${upsHtml(save)}${condHtml(save)}${tuneOpen(save) ? `<small class="tip">${t('tuneTip')}</small>` : ''}</div>`
+    // one tab is not a choice: on the race-1 stop the lone "Upgrades" tab was a 60 px black slab above
+    // the three rows it labelled, on the one screen that should read as a single step (3.3.72)
+    const open = this.tabs(save);
+    const tabs = open.length < 2 ? '' : open.map((x) => `<button class="tab ${x === this.tab ? 'on' : ''}" data-tab="${x}">${t(names[x])}</button>`).join('');
+    const must = this.mustBuy;
+    const body = this.tab === 'up' ? `<div class="ups">${upsHtml(save, must)}${condHtml(save)}${tuneOpen(save) ? `<small class="tip">${t('tuneTip')}</small>` : ''}</div>`
       : this.tab === 'rides' ? ridesHtml(save) : shopHtml(save);
     // on the stop before a race, the line says why the garage came up, and the upgrades in reach move
     const hint = on.next && firstUpInReach(save) ? `<div class="ghint">${t('firstUp')}</div>` : '';
-    const must = this.mustBuy;
     // 3.3.66: leaving is not what this screen is for, so Back is a small white button at the top, where
     // every second-level page keeps it. The big yellow button at the foot is left for the one case where
     // going on IS the point: the stop that stands between the results and the next race.
     const back = on.next ? '' : `<button class="back gback">${icon('left')} ${t('back')}</button>`;
-    const go = on.next
-      ? `<button class="primary gback"${must ? ' disabled' : ''}>${must ? t('buyFirst') : `${t('nextRace')} ${icon('play')}`}</button>`
-      : '';
+    // 3.3.72: while the stop is waiting for that first level, the foot button is the purchase itself --
+    // one tap fits the recommended level and goes racing. A disabled button at the foot of a screen with no
+    // way back is what 3.3.64 watched ten of eleven players tap once and leave.
+    const pick = must ? upgradePrice(save, FIRST_PICK) : null;
+    const one = pick !== null && save.cash >= pick;
+    const go = !on.next ? ''
+      : one ? `<button class="primary gfirst">${t('firstBuy', { s: t(UP_NAMES[FIRST_PICK]), n: money(pick as number) })}</button>`
+      : `<button class="primary gback"${must ? ' disabled' : ''}>${must ? t('buyFirst') : `${t('nextRace')} ${icon('play')}`}</button>`;
     card.innerHTML = `<div class="ghead"><h2>${t('garage')}</h2>${back}<div class="cashline">${t('cash')} <b>${money(save.cash)}</b></div></div>
-      ${hint}<div class="tabs">${tabs}</div>
+      ${hint}${tabs ? `<div class="tabs">${tabs}</div>` : ''}
       <div class="gbody${hint ? ' first' : ''}">${body}</div>
       ${go}`;
     const pass = (f: () => void) => () => f();
@@ -235,6 +267,9 @@ export class Garage {
     });
     card.querySelectorAll<HTMLButtonElement>('.ride').forEach((b) => { b.onclick = () => on.ride(Number(b.dataset.v)); });
     bindShop(card, pass, on);
-    (card.querySelector('.gback') as HTMLButtonElement).onclick = () => { if (!this.mustBuy) on.close(); };
+    const gb = card.querySelector<HTMLButtonElement>('.gback');
+    if (gb) gb.onclick = () => { if (!this.mustBuy) on.close(); };
+    const gf = card.querySelector<HTMLButtonElement>('.gfirst');
+    if (gf) gf.onclick = () => this.firstBuy();
   }
 }

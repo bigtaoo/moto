@@ -306,6 +306,12 @@ export const TR: Table = {
   goalLead: "1. · dayan",
   firstUp: "İlk yükseltmeye paran yetiyor!",
   buyFirst: "Devam etmek için bir yükseltme al",
+  // 3.3.72: the stop after race 1 says what each level does and names the one to start with
+  upTopWhat: 'Düzlükte grubu yakalar',
+  upSteerWhat: 'Trafikte çizgisini korur',
+  upHpWhat: 'Darbeyi yer, devrilmez',
+  recUp: 'Buradan başla',
+  firstBuy: '{s} tak · {n}',
   nothingToBuy: "Henüz paran hiçbirine yetmiyor",
 
   // 3.3.69: the free race (pick a track, back yourself) and where the next cup runs

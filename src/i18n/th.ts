@@ -306,6 +306,12 @@ export const TH: Table = {
   goalLead: "อันดับ 1 · รักษาไว้",
   firstUp: "ซื้ออัปเกรดแรกได้แล้ว!",
   buyFirst: "ซื้ออัปเกรดก่อนแล้วค่อยไปต่อ",
+  // 3.3.72: the stop after race 1 says what each level does and names the one to start with
+  upTopWhat: 'ไล่กลุ่มหน้าทันในทางตรง',
+  upSteerWhat: 'คุมเส้นได้ท่ามกลางรถ',
+  upHpWhat: 'โดนชนแล้วไม่ล้ม',
+  recUp: 'เริ่มจากอันนี้',
+  firstBuy: 'ติดตั้ง{s} · {n}',
   nothingToBuy: 'ยังซื้ออะไรไม่ไหว',
 
   // 3.3.69: the free race (pick a track, back yourself) and where the next cup runs

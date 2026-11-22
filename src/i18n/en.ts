@@ -312,6 +312,12 @@ export const EN = {
   goalLead: "1st · hold on",
   firstUp: "First upgrade in reach!",
   buyFirst: "Buy an upgrade to ride on",
+  // 3.3.72: the stop after race 1 says what each level does and names the one to start with
+  upTopWhat: 'Catches the pack on the straights',
+  upSteerWhat: 'Holds its line through traffic',
+  upHpWhat: 'Takes a hit and stays on',
+  recUp: 'Start here',
+  firstBuy: 'Fit {s} · {n}',
   nothingToBuy: "Nothing you can afford yet",
 
   // 3.3.69: the free race (pick a track, back yourself) and where the next cup runs

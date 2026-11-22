@@ -306,6 +306,13 @@ export const KO: Table = {
   goalLead: "1위 · 버텨",
   firstUp: "첫 업그레이드를 살 수 있어!",
   buyFirst: "업그레이드를 하나 사고 출발하자",
+
+  // 3.3.72: the stop after race 1 says what each level does and names the one to start with
+  upTopWhat: '직선에서 선두를 따라잡는다',
+  upSteerWhat: '차 사이에서도 선을 지킨다',
+  upHpWhat: '한 방 맞아도 안 넘어진다',
+  recUp: '이것부터',
+  firstBuy: '{s} 장착 · {n}',
   nothingToBuy: '아직 살 수 있는 게 없다',
 
   // 3.3.69: the free race (pick a track, back yourself) and where the next cup runs

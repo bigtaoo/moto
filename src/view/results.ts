@@ -225,7 +225,7 @@ export class Results {
         ${d.firstWin ? row(t('firstWin'), '+' + money(d.firstWin), 'good') : ''}
         ${res.ach.map((a) => row(`${icon('star')} ${t(`a_${a.id}` as Key)}`, '+' + money(a.pay), 'good')).join('')}
       </div>
-      ${res.double > 0 && !res.doubled ? `<button class="double"><span>${icon('play')} ${t('double', { n: res.double })}</span><small>${t('watchAd')}</small></button>` : ''}
+      ${n >= NEW.double && res.double > 0 && !res.doubled ? `<button class="double"><span>${icon('play')} ${t('double', { n: res.double })}</span><small>${t('watchAd')}</small></button>` : ''}
       ${more(res, d, n)}
       <div class="cashline">${t('cash')} <b>${money(save.cash)}</b></div>
       <button class="primary again">${againLabel(res.league)}</button>
@@ -281,8 +281,12 @@ export function freeHtml(r: FreeResult, save: Save, again: boolean): string {
       <button class="shift home">${t('toMenu')}</button></div>`;
 }
 
-/** From which race's results each part of the card shows (a new player's first results stay short). */
-export const NEW = { daily: 2, home: 2 };
+/**
+ * From which race's results each part of the card shows (a new player's first results stay short).
+ * 3.3.72: the rewarded ad that doubles the pay joins them. It was the first button a new player met after
+ * their first race, sitting above the one that starts the second -- and 14 of 126 of them never started it.
+ */
+export const NEW = { daily: 2, home: 2, double: 2 };
 
 function feudRows(res: RaceResult): string {
   const o = res.feud.out;

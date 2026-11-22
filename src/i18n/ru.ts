@@ -306,6 +306,12 @@ export const RU: Table = {
   goalLead: "1-е место · держись",
   firstUp: "Первое улучшение по карману!",
   buyFirst: "Купи улучшение, чтобы ехать дальше",
+  // 3.3.72: the stop after race 1 says what each level does and names the one to start with
+  upTopWhat: 'Догоняет пелотон на прямых',
+  upSteerWhat: 'Держит линию в потоке',
+  upHpWhat: 'Держит удар и не падает',
+  recUp: 'Начни с этого',
+  firstBuy: 'Поставить {s} · {n}',
   nothingToBuy: "Пока ничего по карману",
 
   // 3.3.69: the free race (pick a track, back yourself) and where the next cup runs

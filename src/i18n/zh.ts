@@ -306,6 +306,12 @@ export const ZH: Table = {
   goalLead: "第一 · 守住",
   firstUp: "第一个升级买得起了！",
   buyFirst: "先买一个升级再出发",
+  // 3.3.72: the stop after race 1 says what each level does and names the one to start with
+  upTopWhat: '直道上追得上前面的车',
+  upSteerWhat: '车流里不容易被带偏',
+  upHpWhat: '挨一下不容易摔下来',
+  recUp: '先买这个',
+  firstBuy: '装上{s} · {n}',
   nothingToBuy: '暂时还买不起新东西',
 
   // 3.3.69: the free race (pick a track, back yourself) and where the next cup runs

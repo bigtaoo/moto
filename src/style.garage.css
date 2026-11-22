@@ -43,9 +43,16 @@
 @keyframes nudge { 0%, 70%, 100% { transform: none; } 78% { transform: scale(1.06) rotate(-2deg); } 86% { transform: scale(1.06) rotate(2deg); } }
 /* The garage stop before a race (3.3.62): what it is for, and the upgrades that can be bought bob too. */
 .ghint { margin-top: 6px; font-weight: 800; color: var(--ink); background: var(--yellow); border-radius: 8px; padding: 4px 8px; }
-.gbody.first .up button:not(:disabled) { animation: nudge 1.4s ease-in-out infinite; }
+.gbody.first .up.rec button:not(:disabled) { animation: nudge 1.4s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .shift.nudge, .gbody.first .up button { animation: none; } }
 .calm .shift.nudge, .calm .gbody.first .up button { animation: none; }
+/* 3.3.72: on the race-1 stop every row says what the level does, and one of them is the one to start
+   with -- the same level the button at the foot fits. */
+.upname .what { display: block; font-weight: 600; font-size: 12px; line-height: 1.25; opacity: 0.75; margin-top: 3px; }
+.upname .rec {
+  font-style: normal; font-size: 11px; font-weight: 800; vertical-align: 2px; white-space: nowrap;
+  background: var(--yellow); border: 2px solid var(--ink); border-radius: 6px; padding: 0 4px; margin-left: 4px;
+}
 
 .card p.gone { display: none; }
 

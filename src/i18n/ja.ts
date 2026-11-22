@@ -306,6 +306,12 @@ export const JA: Table = {
   goalLead: "1位 · 死守",
   firstUp: "初めての強化が買える！",
   buyFirst: "強化を1つ買って出発しよう",
+  // 3.3.72: the stop after race 1 says what each level does and names the one to start with
+  upTopWhat: '直線で先頭集団に追いつく',
+  upSteerWhat: '車の間でも線を外さない',
+  upHpWhat: '一発もらっても倒れない',
+  recUp: 'まずはこれ',
+  firstBuy: '{s}を装着 · {n}',
   nothingToBuy: 'まだ買えるものはない',
 
   // 3.3.69: the free race (pick a track, back yourself) and where the next cup runs
