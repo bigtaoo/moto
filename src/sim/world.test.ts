@@ -6,13 +6,13 @@ import { hashState } from './hash';
 import { Recorder, playReplay, type Replay } from './replay';
 import { World, type WorldOpts } from './world';
 
-// 3.3.67/3.3.68: the hashes moved but endTick did not. A bot race steers by targetX and never touches the
-// keys, so the press budget changed nothing it does; what the hash picked up is the fields that budget keeps
-// on the World, since hashState walks every field there.
+// 3.3.67/3.3.68/3.3.73: the hashes moved but endTick did not. A bot race steers by targetX and never touches
+// the keys, so what a press is worth changes nothing it does; what the hash picked up is the fields the key
+// handling keeps on the World, since hashState walks every field there -- 3.3.73 is two of them going away.
 // The golden hashes pin what a seed plus inputs produce. If one changes, either the change was meant
 // to alter the race (bump SIM_VERSION in config.ts and paste the new hashes here) or the sim lost
 // its determinism (find out why before touching anything).
-const GOLDEN = { version: 44, mid: '373a7dae', end: '8ed8415f', endTick: 4241 };
+const GOLDEN = { version: 45, mid: '9523e064', end: '858a9d3d', endTick: 4241 };
 
 const OPTS: WorldOpts = { seed: 1, upgrades: { top: 2, steer: 2, hp: 2 }, div: 2, nemesis: 3, tier: 1, vehicle: 2 };
 const MID = 60 * TICK_HZ;
@@ -77,10 +77,10 @@ describe('sim determinism', () => {
   });
 });
 
-describe('steering keys (3.3.67)', () => {
+describe('steering keys (3.3.67, 3.3.73)', () => {
   /** Roll out of the countdown on an empty road, then hold left for `ms` and let go. */
-  function press(ms: number, again = 0): number {
-    const w = new World({ seed: 7 });
+  function press(ms: number, again = 0, opts: WorldOpts = { seed: 7 }): number {
+    const w = new World(opts);
     for (let i = 0; i < TICK_HZ * 3; i++) w.step();
     for (const r of w.riders) if (!r.isPlayer) r.z = w.player.z - 500; // nobody to rub along the way
     const x0 = w.player.x;
@@ -97,24 +97,37 @@ describe('steering keys (3.3.67)', () => {
     if (again) { run(-1, again / 1000); run(0, 0.2); }
     return x0 - w.player.x;
   }
+  /** Metres a second of holding the key is worth on the bike `press` rides. */
+  const RATE = new World({ seed: 7 }).player.steer * C.KEY_RATE;
+  const LANE = C.LANE_X[1] - C.LANE_X[0];
 
-  it('spends a lane at most, however long the key is held', () => {
-    // a firm press used to run on for as long as the finger did: 900 ms of it crossed two lanes
-    expect(press(700)).toBeCloseTo(C.KEY_STEP, 2);
-    expect(press(900)).toBeCloseTo(C.KEY_STEP, 2);
-    expect(press(2000)).toBeCloseTo(C.KEY_STEP, 2);
+  it('keeps going for as long as the key is held: a lane, then two, then the road (3.3.73)', () => {
+    // 3.3.67 capped a press at one lane, and holding on past it did nothing at all -- the player kept
+    // pressing and the bike kept sitting there. How long the key is down is now how far the bike goes.
+    expect(press(700)).toBeCloseTo(LANE, 0);
+    expect(press(1400)).toBeCloseTo(2 * LANE, 0);
+    // and on past two, until the road's own edge is what stops it rather than the budget
+    expect(press(2500)).toBeGreaterThan(2.3 * LANE);
   });
 
   it('reads press length as distance, so less than a lane is something a hand can aim (3.3.68)', () => {
     // the whole point: a third of a second is about half a lane -- from the left of a lane to the middle --
     // and the step from one press length to the next is small enough to be worth aiming at
-    for (const ms of [100, 200, 300, 500]) expect(press(ms)).toBeCloseTo((C.KEY_RATE * ms) / 1000, 1);
-    expect(press(350)).toBeGreaterThan(C.KEY_STEP * 0.4);
-    expect(press(350)).toBeLessThan(C.KEY_STEP * 0.6);
+    for (const ms of [100, 200, 300, 500]) expect(press(ms)).toBeCloseTo((RATE * ms) / 1000, 1);
+    expect(press(350)).toBeGreaterThan(LANE * 0.4);
+    expect(press(350)).toBeLessThan(LANE * 0.6);
   });
 
-  it('lets a second press buy the next lane', () => {
-    expect(press(700, 700)).toBeGreaterThan(C.KEY_STEP * 1.8);
+  it('stops at the road, however long the key is held', () => {
+    const far = press(6000);
+    expect(far).toBeLessThan(2 * C.EDGE + 0.5);
+    expect(press(9000)).toBeCloseTo(far, 1);
+  });
+
+  it('lets a nimbler bike spend the same press on more road (3.3.73)', () => {
+    // the old flat rate meant a keyboard player got nothing from the steer upgrades; only the drag felt them
+    const up = press(600, 0, { seed: 7, upgrades: { top: 0, steer: 8, hp: 0 } });
+    expect(up).toBeGreaterThan(press(600) * 1.4);
   });
 });
 

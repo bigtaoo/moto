@@ -4,7 +4,7 @@
  * Bump on any change to the race rules that alters what a seed plus inputs produce, and record the new
  * golden hash in world.test.ts. Replays and (later) online rooms only mix the same version.
  */
-export const SIM_VERSION = 44;
+export const SIM_VERSION = 45;
 
 export const TICK_HZ = 30;
 export const DT = 1 / TICK_HZ;
@@ -26,26 +26,25 @@ export const COUNTDOWN_S = 2;
 
 export const PLAYER_BASE = { top: 28.6, accel: 7, steer: 8.5, hp: 3 };
 /**
- * What one press of a steering key is worth, in metres: a lane, and no more, however long the key is held
- * down. 3.3.67: before this a held key moved the line at the full `steer` speed for as long as it was down,
- * so a 300 ms press -- what a new player gives a key when they mean it -- slid the bike 2.55 m, three
- * quarters of a lane, and half a second of it crossed a whole lane into the next one's traffic. Watched over
- * a player's shoulder, that is what the crashes looked like: not a missed dodge, an overshot one. A press
- * now aims at a fixed spot one lane over and stops there; letting go stops where the bike is, and pressing
- * again buys the next lane.
+ * How fast the spot a held key is steering for travels, as a fraction of the bike's own `steer` speed.
+ * Hold the key and it keeps going; only the road's edges stop it, so press length reads as distance all the
+ * way across: 0.1 s is half a metre, 0.7 s is a lane, 1.4 s is two of them, 2.5 s is the whole road.
  *
- * 3.3.68 slowed what a held key spends. Capping the press at a lane was not enough on its own: the bike
- * still crossed that lane at the full 8.5 m/s, so the whole budget was gone in 0.41 s and anything smaller
- * than a lane -- sliding from the left of a lane to the middle, leaning towards the centre line -- needed a
- * press under 150 ms, which is not something a hand can aim. `KEY_RATE` is how fast the spot the bike is
- * steering for travels while the key is down, so press length now reads as distance: 100 ms is 0.5 m, a
- * third of a second is half a lane, 0.7 s spends the whole lane and anything longer spends nothing more.
- * The bike's own `steer` speed is untouched, so the touch drag, and steering back after a shove, are as
- * quick as they ever were.
+ * 3.3.67 found the crashes a new player makes are overshot dodges, not missed ones: a held key moved the
+ * line at the full 8.5 m/s, so a 300 ms press slid 2.55 m and half a second crossed a lane into oncoming
+ * traffic. The fix was two things at once -- a `KEY_RATE` of 5 m/s to slow what a press spends (3.3.68),
+ * and a `KEY_STEP` cap of one lane. 3.3.73 found only the first was doing the work: at 5 m/s a 300 ms press
+ * is 1.5 m, well short of the 2.55 m that caused the crashes, while the cap meant a key held down went dead
+ * after one lane -- the player kept pressing and the bike kept not moving. The cap is gone.
+ *
+ * A fraction rather than a speed because the old flat 5 m/s meant a keyboard player got nothing at all from
+ * the steer upgrades or a nimbler ride; only the touch drag ever felt them. 0.6 leaves the base bike at
+ * about 5.1 m/s, which is what 3.3.68 measured the hand against, and an upgraded one finally steers faster.
  */
-export const KEY_STEP = 3.5;
-/** How fast the spot a held key is steering for travels, in m/s. See `KEY_STEP`. */
-export const KEY_RATE = 5;
+export const KEY_RATE = 0.6;
+/** How far ahead of the bike the steered-for spot may get. Shoved off line or held against the barrier, a
+ *  press cannot run up a debt of metres that snaps back the moment the bike is free. */
+export const KEY_LEASH = 2.5;
 /**
  * How the engine's pull falls off near the bike's own top speed. Below `knee` of it the full `accel` is
  * there, so getting back up after a fall is as quick as it ever was; over the knee the pull slides down to
