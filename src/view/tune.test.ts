@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { compose, Renderer, TARGET_RMS } from './tune';
+import { compose, Renderer, TARGET_RMS, PEAK_CEIL } from './tune';
 
 describe('race tunes made in code', () => {
   it('is the same tune for the same seed, and a different one for another', () => {
@@ -47,11 +47,17 @@ describe('race tunes made in code', () => {
       let hot = 0;
       for (const v of r.out) { if (!Number.isFinite(v)) bad++; m = Math.max(m, Math.abs(v)); sq += v * v; if (Math.abs(v) > 0.7) hot++; }
       expect(bad).toBe(0);
-      expect(m).toBeLessThan(0.95);
-      expect(Math.sqrt(sq / r.out.length)).toBeCloseTo(TARGET_RMS, 1);
+      expect(m).toBeLessThanOrEqual(PEAK_CEIL + 0.01);
+      // 3.3.73: the level is whichever of the two limits bites first, and for a band with this crest factor
+      // it is the ceiling -- so the RMS lands well under TARGET_RMS, and that is the point. Loud enough to
+      // carry (MUSIC_VOL makes up the rest), not so loud that the peaks have to be squashed to fit.
+      const rms = Math.sqrt(sq / r.out.length);
+      expect(rms).toBeGreaterThan(0.1);
+      expect(rms).toBeLessThanOrEqual(TARGET_RMS + 0.01);
       // 3.3.67: only the peaks are rounded off. When the last pass was a tanh over everything, a twentieth
       // of the track sat up in the bend; a loop that spends a whole race in there is the thing that grates.
-      expect(hot / r.out.length).toBeLessThan(0.05);
+      // With the ceiling in the gain there is now next to nothing for the knee to catch at all.
+      expect(hot / r.out.length).toBeLessThan(0.005);
     }
   });
 

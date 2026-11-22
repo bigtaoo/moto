@@ -1,8 +1,11 @@
-// Race music made in code: a 16-bar chiptune loop per seed (a lead, a bass, an arpeggio and drums), so a
-// three-hour career doesn't run on three tracks and nothing more is downloaded. Built from safe parts: a
-// known chord loop, a lead that lands on chord tones on the beat and steps through the scale between, a
-// motif that comes back, and a second half that climbs. `compose` is the score; `Renderer` turns it into
-// samples a slice at a time, so the race's countdown doesn't stall while it is made.
+// Race music made in code: a 16-bar loop per seed (a lead, a bass, an arpeggio and drums), so a three-hour
+// career doesn't run on three tracks and nothing more is downloaded. Built from safe parts: a known chord
+// loop, a lead that lands on chord tones on the beat and steps through the scale between, a motif that comes
+// back, and a second half that climbs. `compose` is the score; `Renderer` turns it into samples a slice at a
+// time, so the race's countdown doesn't stall while it is made.
+// 3.3.73: the band is a circus band now -- piccolo, tuba, banjo, marching snare, woodblock -- not a chiptune
+// one. The score barely changed; what wore a listener down was the timbre (a pulse wave's edge for two
+// minutes) and the groove (a bass on six of eight eighths). The tuba plays oom-pah on the quarters instead.
 
 /** A small seeded generator (mulberry32): the same seed, the same tune. */
 function rng(seed: number): () => number {
@@ -18,7 +21,7 @@ function rng(seed: number): () => number {
 
 type Voice = 'lead' | 'bass' | 'arp' | 'kick' | 'snare' | 'hat';
 export interface Note { v: Voice; at: number; len: number; midi: number; vel: number }
-export interface Song { bpm: number; secs: number; notes: Note[]; duty: number }
+export interface Song { bpm: number; secs: number; notes: Note[] }
 
 const MAJOR = [0, 2, 4, 5, 7, 9, 11];
 const MINOR = [0, 2, 3, 5, 7, 8, 10];
@@ -60,7 +63,6 @@ export function compose({ seed, boss }: TuneOpts): Song {
   const loop = pick(LOOPS[mode]);
   const beat = pick(BEATS.slice(0, 3));
   const beatB = pick(BEATS.slice(1));
-  const duty = pick([0.25, 0.5]); // 3.3.67: 0.125 is the nasal one, and at this level it whistled
   const eighth = 30 / bpm;
   const bar = eighth * 8;
   const notes: Note[] = [];
@@ -111,14 +113,15 @@ export function compose({ seed, boss }: TuneOpts): Song {
       notes.push({ v: 'lead', at: t0 + i * eighth, len: (end ? 8 - i : j - i) * eighth * (end ? 0.9 : 0.82), midi: prev, vel: end ? 0.9 : i % 4 === 0 ? 1 : 0.8 });
       if (end) break;
     }
-    // bass: the root, the octave on two off-beats, a fifth to walk into the next chord. 3.3.67 took two
-    // eighths out of the bar: eight in a row, for sixteen bars with no gap anywhere, is what made the loop
-    // tiring long before it made it loud.
+    // bass: oom-pah, the thing a circus band runs on. The root low and loud on the beat, the fifth above it
+    // short and soft on the off-beat, and a step into the next chord on the last pah of an odd bar. Four
+    // notes a bar where 3.3.67 left six: the gap between them is what the ear rests in, and both rounds of
+    // the complaint ("tiring") were about a bass that never stopped.
     const low = ch > 4 ? ch - 7 : ch; // the chord's root within the bass's octave
-    for (const i of [0, 2, 3, 5, 6, 7]) {
-      const walk = i === 7 && bi % 2 === 1;
-      if (i === 7 && !walk) continue;
-      notes.push({ v: 'bass', at: t0 + i * eighth, len: eighth * 0.75, midi: deg(walk ? low + 4 : low, root - 12) + (i % 2 && !walk ? 12 : 0), vel: i % 2 ? 0.7 : 1 });
+    for (const i of [0, 2, 4, 6]) {
+      const oom = i % 4 === 0;
+      const walk = i === 6 && bi % 2 === 1;
+      notes.push({ v: 'bass', at: t0 + i * eighth, len: eighth * (oom ? 0.55 : 0.38), midi: deg(walk ? low + 4 : low, root - 12) + (oom ? 0 : 7), vel: oom ? 1 : 0.6 });
     }
     // arpeggio over the climb: chord tones up in sixteenths. It used to run from bar 8, which put
     // sixteenths under the lead for half of every loop; four bars make it the lift it was meant to be.
@@ -133,23 +136,19 @@ export function compose({ seed, boss }: TuneOpts): Song {
       const ch2 = bi % 8 === 7 && i >= 12 ? 's' : pat[i];
       if (ch2 === 'k') notes.push({ v: 'kick', at, len: 0.18, midi: 0, vel: 1 });
       if (ch2 === 's' || ch2 === 'x') notes.push({ v: 'snare', at, len: 0.14, midi: 0, vel: bi % 8 === 7 && i >= 12 ? 0.6 + 0.1 * (i - 12) : 1 });
-      if (ch2 === 'h' || ch2 === 'x') notes.push({ v: 'hat', at, len: 0.04, midi: 0, vel: 0.55 });
+      // the hat is a woodblock now, and a woodblock on the sixteenth off-beats is a rattle: only on eighths.
+      if ((ch2 === 'h' || ch2 === 'x') && i % 2 === 0) notes.push({ v: 'hat', at, len: 0.04, midi: 0, vel: 0.55 });
     }
   }
   notes.sort((x, y) => x.at - y.at);
-  return { bpm, secs: bar * 16, notes, duty };
+  return { bpm, secs: bar * 16, notes };
 }
 
 const hz = (m: number) => 440 * 2 ** ((m - 69) / 12);
 
-/** PolyBLEP: rounds a waveform's jump so the square doesn't alias into a hiss. */
-function blep(t: number, dt: number): number {
-  if (t < dt) { t /= dt; return t + t - t * t - 1; }
-  if (t > 1 - dt) { t = (t - 1) / dt; return t * t + t + t + 1; }
-  return 0;
-}
-
-const GAIN: Record<Voice, number> = { lead: 0.2, bass: 0.34, arp: 0.08, kick: 0.6, snare: 0.22, hat: 0.07 };
+/** The band: a piccolo on the lead, a tuba on the bass, a banjo on the arpeggio, a marching snare and a
+ *  woodblock. The tuba carries the loop, so it is the loudest thing that isn't the kick. */
+const GAIN: Record<Voice, number> = { lead: 0.2, bass: 0.42, arp: 0.12, kick: 0.6, snare: 0.3, hat: 0.15 };
 
 /** Straight through under 0.7, rounded over it towards a 0.94 ceiling: a peak limiter rather than a
  *  shaper on everything. */
@@ -167,22 +166,26 @@ const pole = (fc: number, sr: number): number => 1 - Math.exp((-2 * Math.PI * fc
  *  to the ear, and it left nothing between the loop and the ceiling. 3.3.67 sits about 2 dB under the files
  *  on purpose. */
 export const TARGET_RMS = 0.27;
+/** 3.3.73: and what it is never allowed past. A circus band has a crest factor around 5 -- a tuba note and a
+ *  woodblock tick are not the same size -- so lifting it to an RMS of 0.27 meant pushing 2.4% of the samples
+ *  into the knee, which is the "over-compressed, sounds odd" the player heard. Whichever of the two limits
+ *  bites first wins; for this band it is the ceiling, costing about 4.5 dB that `MUSIC_VOL` gives back. */
+export const PEAK_CEIL = 0.82;
 const CHUNK = 4096;
 
-/** Turns a song into samples a bit per `step()`: the notes, then a pass that measures the loudness, then one
- *  that scales to `TARGET_RMS` and rounds off whatever is left over 0.7 so the kick's peaks stay under 1.
- *  `done` after that. The loop wraps note tails.
- *  3.3.67: that last pass used to be `tanh` over the whole signal, which bends every sample, not just the
- *  peaks -- at this level it was adding distortion to a square wave all the way through. The knee leaves
- *  the 95% of samples under 0.7 exactly as they were played. */
+/** Turns a song into samples a bit per `step()`: the notes, then a pass that measures the loudness and the
+ *  loudest sample, then one that scales by whichever of `TARGET_RMS` and `PEAK_CEIL` allows less and rounds
+ *  off anything still over 0.7. `done` after that. The loop wraps note tails.
+ *  3.3.67 made that last pass a knee instead of a `tanh` over everything; 3.3.73 made it a safety net rather
+ *  than the plan, because with the ceiling in the gain there is almost nothing left for it to catch. */
 export class Renderer {
   readonly out: Float32Array;
   private i = 0;
   private k = 0;
   private sq = 0;
+  private pk = 0;
   private gain = 0;
   private noise = rng(7);
-  private hp = 0;
   constructor(private readonly song: Song, private readonly sr: number) {
     this.out = new Float32Array(Math.round(song.secs * sr));
   }
@@ -201,9 +204,14 @@ export class Renderer {
     }
     const end = Math.min(out.length, this.k + n * CHUNK);
     if (!this.gain) {
-      for (; this.k < end; this.k++) this.sq += out[this.k] * out[this.k];
+      for (; this.k < end; this.k++) {
+        const v = out[this.k];
+        this.sq += v * v;
+        this.pk = Math.max(this.pk, Math.abs(v));
+      }
       if (this.k >= out.length) {
-        this.gain = TARGET_RMS / Math.max(1e-4, Math.sqrt(this.sq / out.length));
+        const rms = Math.max(1e-4, Math.sqrt(this.sq / out.length));
+        this.gain = Math.min(TARGET_RMS / rms, PEAK_CEIL / Math.max(1e-4, this.pk));
         this.k = 0;
       }
       return;
@@ -211,41 +219,55 @@ export class Renderer {
     for (; this.k < end; this.k++) out[this.k] = knee(out[this.k] * this.gain);
   }
 
+  /** How long a voice sounds past the note it was written: a plucked string rings, a struck thing is over
+   *  almost at once, a blown one stops when the player stops. */
+  private span(nt: Note): number {
+    if (nt.v === 'arp') return Math.max(nt.len, 0.38); // the banjo rings past the note it was written
+    // each drum runs until its own decay is 40 dB down; a flat 0.2 s spent a third of the render on a
+    // woodblock that had been silent for 120 ms of it
+    if (nt.v === 'kick') return 0.2;
+    if (nt.v === 'snare') return 0.14;
+    if (nt.v === 'hat') return 0.08;
+    return nt.len + 0.06;
+  }
+
   private note(nt: Note): void {
     const { sr, out } = this;
     const L = out.length;
     const s0 = Math.round(nt.at * sr);
-    const tail = nt.v === 'kick' || nt.v === 'snare' || nt.v === 'hat' ? 0 : 0.03;
-    const len = Math.round((nt.len + tail) * sr);
+    const len = Math.round(this.span(nt) * sr);
     const g = GAIN[nt.v] * nt.vel;
     const f = hz(nt.midi);
     let ph = 0;
-    let lp1 = 0, lp2 = 0;
-    const a = pole(Math.min(3600, Math.max(1200, f * (nt.v === 'arp' ? 5.5 : 4.5))), sr);
+    let lp1 = 0, lp2 = 0, hp = 0;
+    const a = pole(Math.min(4000, Math.max(900, f * 4)), sr);
     for (let k = 0; k < len; k++) {
       const t = k / sr;
       let v = 0;
       switch (nt.v) {
-        case 'lead': case 'arp': {
-          const dt = (f * (1 + (nt.v === 'lead' && t > 0.12 ? 0.004 * Math.sin(2 * Math.PI * 6 * t) : 0))) / sr;
-          ph += dt;
-          if (ph >= 1) ph -= 1;
-          const duty = nt.v === 'arp' ? 0.25 : this.song.duty;
-          v = (ph < duty ? 1 : -1) + blep(ph, dt) - blep((ph - duty + 1) % 1, dt);
-          // two poles a few harmonics up (3.3.67): a bare pulse carries its edges all the way to the top of
-          // the band, and over a two-minute race that edge is the part that wears. The filter follows the
-          // note, so the low ones keep their body and only the high ones are taken off the top.
-          lp1 += a * (v - lp1);
-          lp2 += a * (lp1 - lp2);
-          v = lp2;
-          v *= Math.min(1, t / 0.004) * (t < nt.len ? 1 - 0.25 * (t / nt.len) : Math.max(0, 1 - (t - nt.len) / tail) * 0.75);
+        case 'lead': { // piccolo: a bright pipe with a little breath on top and a late vibrato
+          const vib = t > 0.09 ? 0.006 * Math.sin(2 * Math.PI * 5.5 * t) : 0;
+          v = Math.sin(2 * Math.PI * f * t * (1 + vib)) + 0.18 * Math.sin(4 * Math.PI * f * t) + (this.noise() * 2 - 1) * 0.05;
+          v *= Math.min(1, t / 0.02) * (t < nt.len ? 1 : Math.max(0, 1 - (t - nt.len) / 0.05));
           break;
         }
-        case 'bass': {
+        case 'bass': { // tuba: a saw with its edge filtered off, so what is left is round and low
           ph += f / sr;
           if (ph >= 1) ph -= 1;
-          v = 1 - 4 * Math.abs(ph - 0.5); // triangle
-          v *= Math.min(1, t / 0.003) * (t < nt.len ? 1 : Math.max(0, 1 - (t - nt.len) / tail));
+          v = 2 * ph - 1;
+          lp1 += a * (v - lp1);
+          lp2 += a * (lp1 - lp2);
+          v = lp2 * 1.6;
+          v *= Math.min(1, t / 0.012) * (t < nt.len ? 1 : Math.max(0, 1 - (t - nt.len) / 0.05));
+          break;
+        }
+        case 'arp': { // banjo: a plucked string whose filter closes as it dies
+          ph += f / sr;
+          if (ph >= 1) ph -= 1;
+          v = 2 * ph - 1;
+          const b = pole(Math.max(600, f * 7) * Math.exp(-t * 3), sr);
+          lp1 += b * (v - lp1);
+          v = lp1 * 1.4 * Math.exp(-t * 9) * Math.min(1, t / 0.001);
           break;
         }
         case 'kick': {
@@ -253,16 +275,15 @@ export class Renderer {
           v = Math.sin(2 * Math.PI * ph) * Math.exp(-t * 14) * Math.min(1, t / 0.002);
           break;
         }
-        case 'snare': {
+        case 'snare': { // a marching snare: tighter and drier than the kit one it replaces
           const n0 = this.noise() * 2 - 1;
-          this.hp += 0.5 * (n0 - this.hp);
-          v = ((n0 - this.hp) * 0.8 + Math.sin(2 * Math.PI * 190 * t) * 0.35) * Math.exp(-t * 22);
+          hp += 0.65 * (n0 - hp);
+          v = ((n0 - hp) + Math.sin(2 * Math.PI * 240 * t) * 0.3) * Math.exp(-t * 30);
           break;
         }
-        case 'hat': {
-          const n0 = this.noise() * 2 - 1;
-          this.hp += 0.8 * (n0 - this.hp);
-          v = (n0 - this.hp) * Math.exp(-t * 90);
+        case 'hat': { // woodblock: the cartoon tick
+          v = (Math.sin(2 * Math.PI * 1150 * t) + 0.5 * Math.sin(2 * Math.PI * 2300 * t)) * Math.exp(-t * 75);
+          v += (this.noise() * 2 - 1) * Math.exp(-t * 300) * 0.4;
           break;
         }
       }

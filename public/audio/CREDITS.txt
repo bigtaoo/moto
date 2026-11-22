@@ -1,7 +1,6 @@
 Dummy Brawl - audio credits. Every file here is CC0 (public domain): no attribution required, credited anyway.
 
-Music (race1-3, title): Juhani Junkala, "5 Chiptunes (Action)" / Retro Game Music Pack
-  https://opengameart.org/content/5-chiptunes-action
+Music: none here. Every tune is composed and synthesised in code at runtime (src/view/tune.ts).
 thunk1-3, thunk_big: rubberduck, "75 CC0 breaking/falling/hit sfx"
   https://opengameart.org/content/75-cc0-breaking-falling-hit-sfx
 crash: qubodup, "Crash Collision"  https://opengameart.org/content/crash-collision

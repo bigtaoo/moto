@@ -1,21 +1,28 @@
-// Sound: recorded effects and chiptune music from public/audio (all CC0, see public/audio/CREDITS.txt),
-// played through one Web Audio context, plus the round-4 effects made from code (./synth). The files are fetched at boot and decoded once the first tap or
-// key has unlocked audio. Anything that should silence the game (the host's pause or mute, the player's
-// pause or mute button, a hidden page, an ad) goes through `hold`/`setMuted`, so the rules live here.
+// Sound: recorded effects from public/audio (all CC0, see public/audio/CREDITS.txt) and music made in code
+// (./tune), played through one Web Audio context, plus the round-4 effects made from code (./synth). The
+// files are fetched at boot and decoded once the first tap or key has unlocked audio. Anything that should
+// silence the game (the host's pause or mute, the player's pause or mute button, a hidden page, an ad) goes
+// through `hold`/`setMuted`, so the rules live here.
+// 3.3.73: the four music mp3s are gone. Every track is composed from a seed now, which is 2.4 MB less to
+// download and means no screen is on the same loop twice in a career.
 
 import { SYNTHS, type SynthName } from './synth';
 import { compose, Renderer } from './tune';
 
-type FileTrack = 'title' | 'race1' | 'race2' | 'race3';
-/** A file, or a tune made in code (./tune) from a seed: `gen12`, or a boss race's faster minor one, `boss12`. */
-type Track = FileTrack | `gen${number}` | `boss${number}`;
+/** A tune made in code (./tune) from a seed: `gen12`, or a boss race's faster minor one, `boss12`. */
+type Track = `gen${number}` | `boss${number}`;
+/** The lobby's tune: one seed, so it is the same each time the player comes back to it. */
+export const TITLE_TRACK: Track = 'gen777';
 const SFX = ['thunk1', 'thunk2', 'thunk3', 'thunk_big', 'scrape', 'whoosh1', 'whoosh2', 'dodge', 'crash', 'siren',
   'alarm', 'tell', 'pickup', 'count', 'go', 'cash', 'click'] as const;
 type Name = (typeof SFX)[number] | Track | SynthName;
-const isMade = (t: Track): t is `gen${number}` | `boss${number}` => t.startsWith('gen') || t.startsWith('boss');
+const isMade = (n: Name): n is Track => n.startsWith('gen') || n.startsWith('boss');
 
 const url = (n: Name) => `${import.meta.env.BASE_URL}audio/${n}.mp3`;
-const MUSIC_VOL = 0.32;
+/** 3.3.73: 0.32 was set against a tune squashed to an RMS of 0.27. The circus band is normalised to a peak
+ *  instead, which leaves it about 5.6 dB quieter on the bus, so the bus gives that back. Same loudness as
+ *  before, dynamics kept: the music peaks near 0.49 here, well under the master limiter's -3 dBFS. */
+const MUSIC_VOL = 0.6;
 const SFX_VOL = 0.75;
 /** Effects sounding at once. A race fires 300-450 of them and they were piling up 8 deep (doc 3.3.29). */
 const MAX_VOICES = 6;
@@ -104,8 +111,8 @@ function made(t: `gen${number}` | `boss${number}`): Promise<AudioBuffer | null> 
 
 function decode(n: Name): Promise<AudioBuffer | null> {
   let p = decoding.get(n);
-  if (!p && isMade(n as Track)) {
-    p = made(n as `gen${number}`);
+  if (!p && isMade(n)) {
+    p = made(n);
     decoding.set(n, p);
   }
   if (!p) {
@@ -207,7 +214,7 @@ export function music(track: Track | null): void {
       old.gain.gain.setTargetAtTime(0, ctx.currentTime, 0.15);
       old.src.stop(ctx.currentTime + 0.8);
     }
-    // a decoded track is ~13 MB of samples: only the one playing stays decoded (its mp3 stays, to decode again)
+    // a decoded track is ~13 MB of samples: only the one playing stays decoded (the seed makes it again)
     buffers.delete(old.track);
     decoding.delete(old.track);
   }
@@ -227,15 +234,13 @@ export function music(track: Track | null): void {
 }
 
 /**
- * The music for a race: the cup's first race keeps the division's file (and in the first season its third
- * too), the others get a tune made for that division and season, and the boss race a faster minor one. So a
- * career hears 3 files and some 40 tunes, not the same 3 files for three hours.
+ * The music for a race: its own tune per division, season and race within the cup, and a faster minor one
+ * for the boss race. 3.3.73: the three mp3s used to take the cup's first race, so a career heard those same
+ * three for a third of its races; now every rung of the ladder has four tunes nobody has heard before.
  */
 export function raceTrack(div: number, tier = 0, race = 0, boss = false): Track {
   const id = div * 3 + tier;
-  if (boss) return `boss${id}`;
-  if (race === 0 || (race === 2 && tier === 0)) return (['race1', 'race2', 'race3'] as const)[div % 3];
-  return `gen${id * 2 + (race === 2 ? 1 : 0)}`;
+  return boss ? `boss${id}` : `gen${id * 4 + race}`;
 }
 
 /** A security shift's music: a tune of its own per shift. */

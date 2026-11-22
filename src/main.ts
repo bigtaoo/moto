@@ -13,7 +13,7 @@ import { Hud } from './view/hud';
 import { drawTitle } from './view/titleCard';
 import { openGarage, garageStop } from './view/garageOpen';
 import { wireMenu, wireChrome, menuSettings, type Wiring } from './view/wiring';
-import { sfx, unlockAudio, hold, setMuted, setChannel, music, raceTrack, shiftTrack, preloadAudio } from './view/audio';
+import { sfx, unlockAudio, hold, setMuted, setChannel, music, raceTrack, shiftTrack, preloadAudio, TITLE_TRACK } from './view/audio';
 import { installIconCss } from './view/icons';
 import { statsOverlay } from './view/stats';
 import * as funnel from './funnel';
@@ -85,7 +85,7 @@ function setState(s: typeof state): void {
   if (s === 'results') coach.stop(); // not on 'title': the boot's newRace() armed it for the race behind the card
   funnel.setScreen(s);
   app.classList.toggle('racing', s === 'race');
-  music(s !== 'race' ? 'title' : chase ? shiftTrack(shifts) : raceTrack(save.div, save.tier, save.cup.race, isFinale(save.cup)));
+  music(s !== 'race' ? TITLE_TRACK : chase ? shiftTrack(shifts) : raceTrack(save.div, save.tier, save.cup.race, isFinale(save.cup)));
 }
 let paused = false;
 /** The host (or an ad) has the game paused; separate from the player's own pause menu. */

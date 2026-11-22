@@ -10,7 +10,7 @@ import { ENVS } from './view/env';
 import type { Stage } from './view/stage';
 import { PAINTS, HATS } from './shop';
 import { type Save, storeSave } from './meta';
-import { sfx, music, raceTrack } from './view/audio';
+import { sfx, music, raceTrack, TITLE_TRACK } from './view/audio';
 import { buzz } from './haptics';
 import { t, money } from './i18n';
 import { icon } from './view/icons';
@@ -220,7 +220,7 @@ export class LaunchMode {
     this.stage.setEnv(this.env0);
     this.titleEl?.classList.remove('hidden');
     this.hudEl?.classList.remove('away');
-    music('title');
+    music(TITLE_TRACK);
     this.done();
   }
 }
