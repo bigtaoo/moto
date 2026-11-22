@@ -38,6 +38,13 @@ const LIMBS: [number, number, number, number][] = [
 ];
 const GRAVITY = -20;
 const STEP = 1 / 60;
+/**
+ * How far past the road's own edge a limb may flop: out onto the shoulder, never as far as the barrier.
+ * The sprawl is the joke, so the body is let over the paint -- but it climbs to its feet and runs back
+ * from wherever it lands, and a dummy getting up out on the verge read as the player having been thrown
+ * clean off the track, which the sim itself never does (it clamps every downed rider to the road).
+ */
+const SPILL = 0.8;
 
 const dist = (i: number, j: number) => Math.hypot(REST[i][0] - REST[j][0], REST[i][1] - REST[j][1], REST[i][2] - REST[j][2]);
 const LEN = [dist(SH_L, EL_L), dist(EL_L, HAND_L), dist(PELVIS, KNEE_L), dist(KNEE_L, FOOT_L)];
@@ -134,6 +141,9 @@ export class Ragdoll {
   private sx = 0;
   private sz = 0;
   private simD0 = 0;
+  /** Where the body may be, in sim x: the road under it widened by SPILL (see `band`). */
+  private lo = -(ROAD_HALF + 1.4);
+  private hi = ROAD_HALF + 1.4;
   active = false;
   /** Seconds since the throw. */
   age = 0;
@@ -233,6 +243,20 @@ export class Ragdoll {
     }
   }
 
+  /**
+   * The sim's own bounds for the road the body is over, handed in by the view as the body moves (the
+   * launch mode's open field keeps the default). Only the tumble is held to them; the limbs still spill.
+   */
+  band(lo: number, hi: number): void {
+    this.lo = lo - SPILL;
+    this.hi = hi + SPILL;
+  }
+
+  /** The get-up and the run back both start from where the body came to rest, so that spot has to be on the road. */
+  private onRoad(x: number): number {
+    return x < this.lo ? this.lo : x > this.hi ? this.hi : x;
+  }
+
   hide(): void {
     this.active = false;
     this.shown(false);
@@ -281,7 +305,7 @@ export class Ragdoll {
       this.stride = 0;
       nextRun(this.run_);
       for (let i = 0; i < p.length; i++) this.from[i].copy(p[i]);
-      this.sx = p[PELVIS].x;
+      this.sx = this.onRoad(p[PELVIS].x);
       this.sz = p[PELVIS].z;
       this.simD0 = Math.max(simD, reach + 0.01);
     }
@@ -345,7 +369,7 @@ export class Ragdoll {
     if (this.mode !== 'up') {
       this.mode = 'up';
       for (let i = 0; i < p.length; i++) this.from[i].copy(p[i]);
-      this.sx = p[PELVIS].x;
+      this.sx = this.onRoad(p[PELVIS].x);
       this.sz = p[PELVIS].z;
       // the scooter slid on ahead: face up the road, turned a little towards it
       const fx = tx - this.sx;
@@ -401,9 +425,11 @@ export class Ragdoll {
         q[i].x += (pt.x - q[i].x) * 0.15; // friction
         q[i].z += (pt.z - q[i].z) * 0.15;
       }
-      const wall = ROAD_HALF + 1.4;
-      if (Math.abs(pt.x) > wall) {
-        pt.x = Math.sign(pt.x) * wall;
+      // The road under the body rather than one pair of fixed walls: a trail is wider than the road and a
+      // works zone narrower, and the old wall stood out at the barrier, two metres past anywhere the sim
+      // would put a rider -- which is how a fall ended with the dummy getting up off the track.
+      if (pt.x < this.lo || pt.x > this.hi) {
+        pt.x = pt.x < this.lo ? this.lo : this.hi;
         q[i].x = pt.x + (pt.x - q[i].x) * 0.4;
       }
     }

@@ -109,6 +109,7 @@ html, body {
   font-size: 12px; font-weight: 800; letter-spacing: 0.02em;
   background: rgba(22, 22, 26, 0.75); color: var(--paper);
   padding: 2px 6px; border-radius: 6px; white-space: nowrap; will-change: transform;
+  transform-origin: 50% 100%; /* a shrinking far tag stays put over its rider's head */
 }
 .tag.on { opacity: 1; }
 .tag.boss { background: var(--yellow); color: var(--ink); --ic: var(--ic-star); }
