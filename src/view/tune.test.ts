@@ -48,7 +48,7 @@ describe('race tunes made in code', () => {
       for (const v of r.out) { if (!Number.isFinite(v)) bad++; m = Math.max(m, Math.abs(v)); sq += v * v; if (Math.abs(v) > 0.7) hot++; }
       expect(bad).toBe(0);
       expect(m).toBeLessThanOrEqual(PEAK_CEIL + 0.01);
-      // 3.3.73: the level is whichever of the two limits bites first, and for a band with this crest factor
+      // 3.3.74: the level is whichever of the two limits bites first, and for a band with this crest factor
       // it is the ceiling -- so the RMS lands well under TARGET_RMS, and that is the point. Loud enough to
       // carry (MUSIC_VOL makes up the rest), not so loud that the peaks have to be squashed to fit.
       const rms = Math.sqrt(sq / r.out.length);

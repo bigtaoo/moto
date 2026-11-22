@@ -3,9 +3,14 @@
 // loop, a lead that lands on chord tones on the beat and steps through the scale between, a motif that comes
 // back, and a second half that climbs. `compose` is the score; `Renderer` turns it into samples a slice at a
 // time, so the race's countdown doesn't stall while it is made.
-// 3.3.73: the band is a circus band now -- piccolo, tuba, banjo, marching snare, woodblock -- not a chiptune
+// 3.3.74: the band is a circus band now -- piccolo, tuba, banjo, marching snare, woodblock -- not a chiptune
 // one. The score barely changed; what wore a listener down was the timbre (a pulse wave's edge for two
 // minutes) and the groove (a bass on six of eight eighths). The tuba plays oom-pah on the quarters instead.
+// Then: "the accent is too strong". It was measurable -- beats 1 and 3 peaked 6 dB above 2 and 4, because
+// the kick pattern and the tuba's oom land on the same two beats and every accented voice piled onto them.
+// Each of the three gave a little back (kick gain, kick attack, and the velocity gap on bass and lead), and
+// the downbeat went from 3.4 dB over the rest to 1.9. Lower peaks mean a higher normaliser gain, so
+// `MUSIC_VOL` came down to match -- the bus RMS is the number held still, not anything inside here.
 
 /** A small seeded generator (mulberry32): the same seed, the same tune. */
 function rng(seed: number): () => number {
@@ -110,7 +115,7 @@ export function compose({ seed, boss }: TuneOpts): Song {
       }
       d = best;
       prev = deg(d);
-      notes.push({ v: 'lead', at: t0 + i * eighth, len: (end ? 8 - i : j - i) * eighth * (end ? 0.9 : 0.82), midi: prev, vel: end ? 0.9 : i % 4 === 0 ? 1 : 0.8 });
+      notes.push({ v: 'lead', at: t0 + i * eighth, len: (end ? 8 - i : j - i) * eighth * (end ? 0.9 : 0.82), midi: prev, vel: end ? 0.88 : i % 4 === 0 ? 0.9 : 0.82 });
       if (end) break;
     }
     // bass: oom-pah, the thing a circus band runs on. The root low and loud on the beat, the fifth above it
@@ -121,7 +126,7 @@ export function compose({ seed, boss }: TuneOpts): Song {
     for (const i of [0, 2, 4, 6]) {
       const oom = i % 4 === 0;
       const walk = i === 6 && bi % 2 === 1;
-      notes.push({ v: 'bass', at: t0 + i * eighth, len: eighth * (oom ? 0.55 : 0.38), midi: deg(walk ? low + 4 : low, root - 12) + (oom ? 0 : 7), vel: oom ? 1 : 0.6 });
+      notes.push({ v: 'bass', at: t0 + i * eighth, len: eighth * (oom ? 0.55 : 0.38), midi: deg(walk ? low + 4 : low, root - 12) + (oom ? 0 : 7), vel: oom ? 0.85 : 0.74 });
     }
     // arpeggio over the climb: chord tones up in sixteenths. It used to run from bar 8, which put
     // sixteenths under the lead for half of every loop; four bars make it the lift it was meant to be.
@@ -147,8 +152,9 @@ export function compose({ seed, boss }: TuneOpts): Song {
 const hz = (m: number) => 440 * 2 ** ((m - 69) / 12);
 
 /** The band: a piccolo on the lead, a tuba on the bass, a banjo on the arpeggio, a marching snare and a
- *  woodblock. The tuba carries the loop, so it is the loudest thing that isn't the kick. */
-const GAIN: Record<Voice, number> = { lead: 0.2, bass: 0.42, arp: 0.12, kick: 0.6, snare: 0.3, hat: 0.15 };
+ *  woodblock. The tuba carries the loop, so it is the loudest of them. The kick sat at 0.6 and landed on
+ *  the same two beats as the tuba's oom, which is what made the pulse 6 dB deep: see `vel` in `compose`. */
+const GAIN: Record<Voice, number> = { lead: 0.2, bass: 0.42, arp: 0.12, kick: 0.4, snare: 0.26, hat: 0.15 };
 
 /** Straight through under 0.7, rounded over it towards a 0.94 ceiling: a peak limiter rather than a
  *  shaper on everything. */
@@ -166,7 +172,7 @@ const pole = (fc: number, sr: number): number => 1 - Math.exp((-2 * Math.PI * fc
  *  to the ear, and it left nothing between the loop and the ceiling. 3.3.67 sits about 2 dB under the files
  *  on purpose. */
 export const TARGET_RMS = 0.27;
-/** 3.3.73: and what it is never allowed past. A circus band has a crest factor around 5 -- a tuba note and a
+/** 3.3.74: and what it is never allowed past. A circus band has a crest factor around 5 -- a tuba note and a
  *  woodblock tick are not the same size -- so lifting it to an RMS of 0.27 meant pushing 2.4% of the samples
  *  into the knee, which is the "over-compressed, sounds odd" the player heard. Whichever of the two limits
  *  bites first wins; for this band it is the ceiling, costing about 4.5 dB that `MUSIC_VOL` gives back. */
@@ -176,7 +182,7 @@ const CHUNK = 4096;
 /** Turns a song into samples a bit per `step()`: the notes, then a pass that measures the loudness and the
  *  loudest sample, then one that scales by whichever of `TARGET_RMS` and `PEAK_CEIL` allows less and rounds
  *  off anything still over 0.7. `done` after that. The loop wraps note tails.
- *  3.3.67 made that last pass a knee instead of a `tanh` over everything; 3.3.73 made it a safety net rather
+ *  3.3.67 made that last pass a knee instead of a `tanh` over everything; 3.3.74 made it a safety net rather
  *  than the plan, because with the ceiling in the gain there is almost nothing left for it to catch. */
 export class Renderer {
   readonly out: Float32Array;
@@ -270,9 +276,9 @@ export class Renderer {
           v = lp1 * 1.4 * Math.exp(-t * 9) * Math.min(1, t / 0.001);
           break;
         }
-        case 'kick': {
+        case 'kick': { // the 6 ms fade in is the click taken off the front: a band's drum, not a machine's
           ph += (45 + 110 * Math.exp(-t * 28)) / sr;
-          v = Math.sin(2 * Math.PI * ph) * Math.exp(-t * 14) * Math.min(1, t / 0.002);
+          v = Math.sin(2 * Math.PI * ph) * Math.exp(-t * 14) * Math.min(1, t / 0.006);
           break;
         }
         case 'snare': { // a marching snare: tighter and drier than the kit one it replaces
