@@ -296,6 +296,13 @@ export class RaceView {
       // the player leaning the tumbling body (bowling): the ragdoll moves with the sim's slide
       if (down) rd.nudge(r.slide - (this.slid[i] ?? 0));
       this.slid[i] = down ? r.slide : 0;
+      // The body sprawls wherever the physics throws it, but it has to get up and ride on from where it
+      // stops, so it is held to the road the sim would have allowed it there (ragdoll.ts adds the spill).
+      if (rd.active) {
+        rd.centre(this.v2);
+        const [lo, hi] = w.road.bounds(this.v2.x, this.v2.z);
+        rd.band(lo, hi);
+      }
       const stand = standTicks();
       if (down && r.runT > 0 && r.runT <= stand) {
         // getting up (the sim keeps it where it lay): the time since, between ticks
