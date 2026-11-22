@@ -7,6 +7,7 @@ import { t, money, type Key } from '../i18n';
 import { UPGRADE_MAX, UPGRADE_CAP, VEHICLES, DIVISIONS, stage, type Vehicle, type WeaponKind } from '../sim/config';
 import { rideState, upgradeLock, upgradePrice, type UpKey } from '../career';
 import { PAINTS, HATS, wearState, wearPrice } from '../shop';
+import { tunePrice, repairPrice, WEAR_AT } from '../tune';
 import { shopHtml, bindShop } from './shop';
 import { rideThumb } from './thumbs';
 import type { Save } from '../meta';
@@ -22,6 +23,9 @@ export interface GarageActions {
   paint: (i: number) => void;
   hat: (i: number) => void;
   carry: (k: WeaponKind) => void;
+  /** One race's levels, and beating the dents out of the ride (3.3.70). */
+  tune: (k: UpKey) => void;
+  repair: () => void;
   /** Leave: back to wherever the garage was opened from. */
   close: () => void;
   /** The garage stands between the results and the next race (3.3.62): its way out is the race. */
@@ -36,7 +40,12 @@ export const rideName = (i: number): string => t(`ride${i}` as Key);
 
 /** How many things on the three tabs the player can afford right now (the badge on the way in). */
 export function buyable(save: Save): number {
+  // 3.3.70: the tune-up and the repair count too. They are what the badge is mostly lit by from the
+  // middle of a season on, which is the point of them -- before this round 51 of a career's 63 races had
+  // nothing on sale but paint.
   let n = upgradesBuyable(save);
+  if (tuneOpen(save)) n += (Object.keys(UP_NAMES) as UpKey[]).filter((k) => !save.tune[k] && save.cash >= tunePrice(save, k)).length;
+  if (save.wear > 0 && save.cash >= repairPrice(save)) n++;
   if (save.races >= TAB_AT.rides) VEHICLES.forEach((v, i) => { if (rideState(save, i) === 'buy' && save.cash >= v.price) n++; });
   if (save.races >= TAB_AT.looks) {
     PAINTS.forEach((_, i) => { if (wearState(save, 'paint', i) === 'buy' && save.cash >= wearPrice('paint', i)) n++; });
@@ -44,6 +53,14 @@ export function buyable(save: Save): number {
   }
   return n;
 }
+
+/**
+ * The tune-up (3.3.70) waits until the player owns a level outright. Race 1 has a garage that holds the
+ * race back until the first upgrade is bought (3.3.64), and a second, cheaper-looking button on those rows
+ * could take the money that stop is waiting for -- and would be the second new idea on a screen that is
+ * teaching its first.
+ */
+const tuneOpen = (save: Save): boolean => upLevels(save) > 0;
 
 /** How many upgrade levels the player can pay for right now. */
 const upgradesBuyable = (save: Save) =>
@@ -63,8 +80,11 @@ export function garageButton(save: Save, cls = 'shift garagego'): string {
   // So the first time an upgrade is in reach, the tile says so outright and draws the eye to itself.
   // Only an upgrade counts: a paint or a ride in reach is not what the line promises (3.3.60).
   const first = firstUpInReach(save);
+  // 3.3.70: a ride dented past half has lost a level of everything, and nothing else on the lobby says so.
+  // It goes above the count, because it is the one thing here that is costing the player a race.
+  const hurt = save.wear >= 0.5 ? `${t('cond')} ${Math.round((1 - save.wear) * 100)}%` : '';
   return `<button class="${cls}${n ? ' has' : ''}${first ? ' nudge' : ''}"><span>${icon('wrench')} ${t('garage')}</span>
-    <small>${first ? t('firstUp') : n ? t('canBuy', { n }) : t('garageTip')}</small></button>`;
+    <small>${first ? t('firstUp') : hurt || (n ? t('canBuy', { n }) : t('garageTip'))}</small></button>`;
 }
 
 /** What a vehicle adds over the scooter, in the player's words. */
@@ -77,18 +97,36 @@ function statLine(v: Vehicle): string {
   ].filter(Boolean).join(' · ');
 }
 
-/** The three stats, their pips and what the next level costs. */
+/**
+ * The three stats: pips, what the next level costs, and beside it what one race of it costs (3.3.70).
+ * The tune-up sits here rather than on a tab of its own because this is where the player meets the wall
+ * -- the row that says "unlocks: Pro" is the row that can also say "$600, just for this race".
+ */
 function upsHtml(save: Save): string {
   return (Object.keys(UP_NAMES) as UpKey[]).map((k) => {
     const lvl = save.up[k];
     const cost = upgradePrice(save, k);
     const lock = upgradeLock(save, k);
     const cap = UPGRADE_CAP[save.tier][k];
-    const pips = Array.from({ length: UPGRADE_MAX[k] }, (_, i) => `<i class="${i < lvl ? 'on' : i >= cap ? 'lock' : ''}"></i>`).join('');
+    const pips = Array.from({ length: UPGRADE_MAX[k] }, (_, i) => `<i class="${i < lvl ? 'on' : i >= cap ? 'lock' : ''}"></i>`).join('')
+      + (save.tune[k] ? '<i class="fit"></i>' : '');
     const label = cost !== null ? money(cost) : lock ? locked(lock) : t('max');
+    const fit = save.tune[k] > 0;
+    const tp = tunePrice(save, k);
+    const tune = !tuneOpen(save) ? ''
+      : `<button class="tune${fit ? ' on' : ''}" data-t="${k}"${fit || save.cash < tp ? ' disabled' : ''}>${fit ? t('tuneOn') : `+1 · ${money(tp)}`}</button>`;
     return `<div class="up"><div class="upname">${t(UP_NAMES[k])}<div class="pips">${pips}</div></div>
-      <button data-k="${k}" ${cost === null || save.cash < cost ? 'disabled' : ''}>${label}</button></div>`;
+      ${tune}<button data-k="${k}" ${cost === null || save.cash < cost ? 'disabled' : ''}>${label}</button></div>`;
   }).join('');
+}
+
+/** How dented the ride is and what beating it out costs; it only starts marking in the second season. */
+function condHtml(save: Save): string {
+  if (save.tier < WEAR_AT && save.wear === 0) return '';
+  const price = repairPrice(save);
+  const mint = save.wear <= 0;
+  return `<div class="up cond"><div class="upname">${t('cond')}<div class="bar"><i style="width:${Math.round((1 - save.wear) * 100)}%"></i></div></div>
+    <button class="fix" data-r="1"${mint || save.cash < price ? ' disabled' : ''}>${mint ? t('mint') : `${t('repair')} · ${money(price)}`}</button></div>`;
 }
 
 /** The rides: the one being ridden, the others owned, the next to buy, and what is still locked. */
@@ -175,7 +213,7 @@ export class Garage {
     const card = this.el.querySelector('.card') as HTMLElement;
     const names: Record<Tab, Key> = { up: 'upgrades', rides: 'rides', looks: 'looks' };
     const tabs = this.tabs(save).map((x) => `<button class="tab ${x === this.tab ? 'on' : ''}" data-tab="${x}">${t(names[x])}</button>`).join('');
-    const body = this.tab === 'up' ? `<div class="ups">${upsHtml(save)}</div>`
+    const body = this.tab === 'up' ? `<div class="ups">${upsHtml(save)}${condHtml(save)}${tuneOpen(save) ? `<small class="tip">${t('tuneTip')}</small>` : ''}</div>`
       : this.tab === 'rides' ? ridesHtml(save) : shopHtml(save);
     // on the stop before a race, the line says why the garage came up, and the upgrades in reach move
     const hint = on.next && firstUpInReach(save) ? `<div class="ghint">${t('firstUp')}</div>` : '';
@@ -192,7 +230,9 @@ export class Garage {
       <div class="gbody${hint ? ' first' : ''}">${body}</div>
       ${go}`;
     const pass = (f: () => void) => () => f();
-    card.querySelectorAll<HTMLButtonElement>('.up button').forEach((b) => { b.onclick = () => on.buy(b.dataset.k as UpKey); });
+    card.querySelectorAll<HTMLButtonElement>('.up button').forEach((b) => {
+      b.onclick = b.dataset.t ? () => on.tune(b.dataset.t as UpKey) : b.dataset.r ? () => on.repair() : () => on.buy(b.dataset.k as UpKey);
+    });
     card.querySelectorAll<HTMLButtonElement>('.ride').forEach((b) => { b.onclick = () => on.ride(Number(b.dataset.v)); });
     bindShop(card, pass, on);
     (card.querySelector('.gback') as HTMLButtonElement).onclick = () => { if (!this.mustBuy) on.close(); };

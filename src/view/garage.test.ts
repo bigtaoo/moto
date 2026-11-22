@@ -40,7 +40,7 @@ function fakeOverlay() {
 
 describe('the garage stop before a race (3.3.64)', () => {
   const acts = (closed: string[]) => ({
-    buy: () => {}, ride: () => {}, paint: () => {}, hat: () => {}, carry: () => {}, close: () => closed.push('close'),
+    buy: () => {}, ride: () => {}, paint: () => {}, hat: () => {}, carry: () => {}, tune: () => {}, repair: () => {}, close: () => closed.push('close'),
   });
 
   it('will not go on to the race until the first upgrade is bought', () => {

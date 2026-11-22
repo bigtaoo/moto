@@ -3,6 +3,7 @@
 
 import { buyUpgrade, chooseRide, type UpKey } from './career';
 import { choosePaint, chooseHat, buyCarry } from './shop';
+import { buyTune, repair } from './tune';
 import { storeSave, type Save } from './meta';
 import { unlock, type Unlocked } from './rewards';
 import type { WeaponKind } from './sim/config';
@@ -54,5 +55,7 @@ export function shopActions(save: Save, redraw: () => void, got: (u: Unlocked[])
     paint: (i: number) => spend('paint_chosen', () => choosePaint(save, i), (p) => ({ paint: i, bought: p > 0 })),
     hat: (i: number) => spend('hat_chosen', () => chooseHat(save, i), (p) => ({ hat: i, bought: p > 0 })),
     carry: (k: WeaponKind) => spend('weapon_bought', () => buyCarry(save, k), () => ({ weapon: k })),
+    tune: (k: UpKey) => spend('tune_bought', () => buyTune(save, k), () => ({ upgrade_id: k, level: save.up[k] })),
+    repair: () => spend('repair_bought', () => repair(save), () => ({ wear: 0 })),
   };
 }

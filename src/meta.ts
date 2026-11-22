@@ -41,6 +41,10 @@ export interface Save {
   launchBest: number;
   /** A weapon bought for the next race (src/shop.ts), spent when that race pays out. */
   carry: WeaponKind | null;
+  /** Levels fitted for the next race only (src/tune.ts), spent when that race pays out. */
+  tune: { top: number; steer: number; hp: number };
+  /** How dented the ride is, 0 (mint) to 1 (a wreck); it costs levels until it is repaired (src/tune.ts). */
+  wear: number;
   /** The player's own sound switch (the host's is separate and not saved). */
   muted: boolean;
   /** Sessions started (analytics: the session number) and the day (UTC days since 1970) of the first one. */
@@ -84,7 +88,7 @@ const WAS: Record<string, string> = { koRace: 'kos25', koLife: 'kos1000' };
 
 const fresh: Save = {
     cash: 0, up: { top: 0, steer: 0, hp: 0 }, grudges: [], races: 0, best: 0, div: 0, reach: 0, cup: newCup(FIRST_CUP), titles: 0, gate: 0, endless: 0, feud: newFeud(), tier: 0,
-    garage: { cur: 0, owned: [0] }, paint: { cur: 0, owned: [0] }, hat: { cur: 0, owned: [0] }, launchBest: 0, carry: null, muted: false, sessions: 0, firstDay: 0, musicOff: false, sfxOff: false, hapticsOff: false, quality: 'auto', lang: null, calm: null, daily: readDaily(null, today()),
+    garage: { cur: 0, owned: [0] }, paint: { cur: 0, owned: [0] }, hat: { cur: 0, owned: [0] }, launchBest: 0, carry: null, tune: { top: 0, steer: 0, hp: 0 }, wear: 0, muted: false, sessions: 0, firstDay: 0, musicOff: false, sfxOff: false, hapticsOff: false, quality: 'auto', lang: null, calm: null, daily: readDaily(null, today()),
     streak: newStreak(), ach: [], life: { kos: 0, wins: 0 },
   };
   try {
@@ -143,6 +147,8 @@ const fresh: Save = {
       hat: kept(s.hat, HATS.length),
       launchBest: count(s.launchBest),
       carry: typeof s.carry === 'string' && Object.keys(WEAPON).includes(s.carry) ? s.carry : null,
+      tune: { top: lvl(s.tune?.top, 1), steer: lvl(s.tune?.steer, 1), hp: lvl(s.tune?.hp, 1) },
+      wear: Math.max(0, Math.min(1, num(s.wear))),
       muted: s.muted === true,
       sessions: count(s.sessions),
       firstDay: count(s.firstDay),

@@ -3,6 +3,7 @@
 // main.ts in 3.3.69, where the three modes no longer fitted on one line each.
 
 import { isFinale } from './career';
+import { fitted } from './tune';
 import { raceMutator } from './sim/fun';
 import type { WorldOpts } from './sim/types';
 import type { Save } from './meta';
@@ -24,7 +25,7 @@ export function raceOpts(save: Save, m: RaceMode): WorldOpts {
   const nem = side ? null : save.feud.nemesis;
   return {
     seed: m.chase ? seed + 5003 * m.n : m.free ? seed + 7919 * m.n : seed,
-    chase: m.chase, upgrades: save.up, grudges: side ? [] : save.grudges, length: m.length,
+    chase: m.chase, upgrades: fitted(save, side), grudges: side ? [] : save.grudges, length: m.length,
     div: m.free ? m.free.div : save.div, tier: m.free ? m.free.tier : save.tier,
     // the "+N" levels past the career belong to its own top stage, not to a season ridden back through
     endless: m.free && m.free.tier < save.tier ? 0 : save.endless,

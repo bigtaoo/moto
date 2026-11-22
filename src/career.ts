@@ -5,6 +5,7 @@ import * as C from './sim/config';
 import { MUTATOR } from './sim/fun';
 import type { Save } from './meta';
 import { t } from './i18n';
+import { dent } from './tune';
 
 export const CUP_RACES = 4;
 /**
@@ -217,6 +218,9 @@ export function settleRace(save: Save, s: RaceSummary): Settlement {
   if (save.best === 0 || s.place < save.best) save.best = s.place;
   save.grudges = [...s.grudges];
   save.carry = null;
+  // the tune-up rode in this race and the ride took what it took: both are settled here, with the money
+  dent(save, s.koPlayer.reduce((a, b) => a + b, 0));
+  save.tune = { top: 0, steer: 0, hp: 0 };
   return { prize, koBonus, grudgeBonus, shoveBonus, nearPay: s.nearPay, chainPay: s.chainPay, stuntPay, fines: s.fines, feud, cupRace, cupOf, div, tier, table, end, earned };
 }
 
