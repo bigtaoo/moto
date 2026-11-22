@@ -222,3 +222,20 @@ describe('traffic', () => {
     expect(crashes).toBeGreaterThan(0); // but traffic still bites
   }, 30_000);
 });
+
+describe('the first race eases off the rivals ahead of a new player (3.3.71)', () => {
+  /** pace / top of the first rival after one tick with it `ahead` metres in front of the player. */
+  function paceRatio(rookie: number, ahead: number): number {
+    const w = new World({ seed: 1, rookie });
+    while (w.countdown > 0) w.step();
+    const r = w.riders.find((x) => !x.isPlayer)!;
+    r.z = w.player.z + ahead;
+    w.step();
+    return r.pace / r.top;
+  }
+  it('slows a rival 40 m ahead more in race 1 than in race 2, and the same one 40 m behind', () => {
+    expect(paceRatio(0, 40)).toBeCloseTo(1 - C.AI.firstRaceBand.dropBack, 1);
+    expect(paceRatio(1, 40)).toBeGreaterThan(paceRatio(0, 40) + 0.2);
+    expect(paceRatio(0, -40)).toBeCloseTo(paceRatio(1, -40), 1);
+  });
+});

@@ -177,9 +177,12 @@ function clampEdge(x: number): number {
 function rubber(w: World, r: Rider): number {
   const gap = w.player.z - r.z;
   const B = C.AI.band;
+  const first = w.rookie === 0 && !w.chase; // a new player's first race: harder on the way down (3.3.71)
+  const dropBack = first ? C.AI.firstRaceBand.dropBack : B.dropBack;
+  const per = first ? C.AI.firstRaceBand.per : B.per;
   // just off the tarmac: no catch-up, so the fall actually costs them the road they lost
   const up = r.bandT > 0 ? 0 : B.catchUp;
-  return r.top * (1 + Math.max(-B.dropBack, Math.min(up, gap / B.per)));
+  return r.top * (1 + Math.max(-dropBack, Math.min(up, gap / per)));
 }
 
 /**

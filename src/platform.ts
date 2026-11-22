@@ -163,10 +163,42 @@ async function drain(): Promise<void> {
 
 // ---- ads ---------------------------------------------------------------------------------------
 
+// The between-races ad's own analytics (3.3.71). r46-r48 lost 32 of 151 race starts from the 4th race on
+// right on the countdown (0 of 347 before it), where the first interstitial is asked for, and nothing said
+// whether an ad was on screen. `ad_interstitial{placement, state, sec}` follows one ask: `asked`, then the
+// Bridge's own states (`loading`, `opened`, `closed`, `failed`), or `quiet` when it said nothing for QUIET_MS
+// (no ad was due). `sec` counts from the ask. session_end carries `ad_open` when the page went with one open.
+const QUIET_MS = 3000;
+let adAsk: { placement: string; at: number; heard: boolean } | null = null;
+let adState = '';
+let adWatched = false;
+const adSec = (): number => (adAsk ? Math.round((performance.now() - adAsk.at) / 100) / 10 : 0);
+
+/** An interstitial is loading or on screen now (the page leaving then is the ad's doing, or the player's escape from it). */
+export const interstitialOpen = (): boolean => adState === 'loading' || adState === 'opened';
+
+function watchInterstitial(): void {
+  if (adWatched) return;
+  adWatched = true;
+  try {
+    bridge.advertisement.on(bridge.EVENT_NAME.INTERSTITIAL_STATE_CHANGED, (s: string) => {
+      adState = String(s);
+      if (!adAsk) return; // an ad the game did not ask for (the one at start is platform.ts's own)
+      adAsk.heard = true;
+      track('ad_interstitial', { placement: adAsk.placement, state: adState, sec: adSec() });
+    });
+  } catch { adWatched = false; /* old Bridge: the asks still count */ }
+}
+
 /** A between-races ad; the Bridge decides whether one is due. */
 export function interstitial(placement: string): void {
   if (fake || !bridge) return;
-  try { bridge.advertisement.showInterstitial(placement); } catch { /* none */ }
+  watchInterstitial();
+  const ask = { placement, at: performance.now(), heard: false };
+  adAsk = ask;
+  track('ad_interstitial', { placement, state: 'asked', sec: 0 });
+  try { bridge.advertisement.showInterstitial(placement); } catch { track('ad_interstitial', { placement, state: 'error', sec: 0 }); }
+  setTimeout(() => { if (adAsk === ask && !ask.heard) track('ad_interstitial', { placement, state: 'quiet', sec: adSec() }); }, QUIET_MS);
 }
 
 export const rewardedReady = (): boolean => !rewardedBusy && (fake || !!bridge?.advertisement.isRewardedSupported);

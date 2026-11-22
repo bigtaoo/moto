@@ -4,7 +4,7 @@
  * Bump on any change to the race rules that alters what a seed plus inputs produce, and record the new
  * golden hash in world.test.ts. Replays and (later) online rooms only mix the same version.
  */
-export const SIM_VERSION = 43;
+export const SIM_VERSION = 44;
 
 export const TICK_HZ = 30;
 export const DT = 1 / TICK_HZ;
@@ -414,6 +414,13 @@ export const AI = {
    * rides `downSecs` with no catch-up: the ground they lost is theirs to make up.
    */
   band: { catchUp: 0.2, dropBack: 0.22, per: 100, downSecs: 20 },
+  /**
+   * 3.3.71: a new player's first race rubber-bands harder on the way down only: a rival ahead of them
+   * eases off up to `dropBack` over `per` metres (live data: 30 of the 46 who quit race 1 mid-race were in
+   * 6th-8th, median 29 s in). Headless beginner (follows the road, reads no traffic), 300 races: 6th or
+   * worse at 15 s 44% -> 14%, top three at the line 56% -> 81%. The catch-up side is untouched.
+   */
+  firstRaceBand: { dropBack: 0.5, per: 40 },
   calmStart: 3, // seconds after the start with no picking fights
   /** Ticks of the others' past positions each rider remembers (longest reaction it can have). */
   memory: 24,

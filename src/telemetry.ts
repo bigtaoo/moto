@@ -7,7 +7,8 @@
 // - `error_report{kind}` (js_error, unhandled_rejection, webgl_lost, no_webgl, save_read, stall, boot_fail,
 //   boot_slow), 3 a kind
 // - the boot's stages on `game_loaded`, `boot_left{stage}` for a page left before it was up
-// - `idle{screen}` when nobody has touched anything for a while, `ad_offer` for the rewarded offers
+// - `idle{screen}` when nobody has touched anything for a while, `ad_offer` for the rewarded offers,
+//   `ad_interstitial{state}` for the between-races ad (platform.ts), `ad_open` on session_end
 // - common fields on every event: device, orientation, language, build, career bucket, session number,
 //   days since the first session, whether the game has the keyboard
 // Bridge counts sessions, playtime, ads and purchases itself; none of that is repeated. No messages, URLs,
@@ -17,7 +18,7 @@ import * as C from './sim/config';
 import type { World, CrashCause } from './sim/world';
 import type { Save } from './meta';
 import { CUP_RACES, upgradePrice, type Settlement, type UpKey } from './career';
-import { track, setCommonFields, flushEarly, deviceType } from './platform';
+import { track, setCommonFields, flushEarly, deviceType, interstitialOpen } from './platform';
 import * as funnel from './funnel';
 import { getLang } from './i18n';
 import { loadErrors } from './view/audio';
@@ -342,6 +343,7 @@ funnel.onLeave(() => {
   const s = save;
   if (!s) return {};
   const out: Props = { cash: s.cash };
+  if (interstitialOpen()) out.ad_open = true; // gone with an ad on screen (3.3.71)
   const scr = funnel.currentScreen();
   if (scr === 'results') out.can_buy = (['top', 'steer', 'hp'] as UpKey[]).some((k) => { const p = upgradePrice(s, k); return p !== null && p <= s.cash; });
   if (race && scr === 'race') {
