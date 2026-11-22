@@ -30,6 +30,10 @@ const TAG_H = 20;
 const TAG_NEAR = 14;
 const TAG_FAR = 45;
 const TAG_FAINT = 0.28;
+/** A tag at TAG_FAINT is drawn this much of full size, so distance thins the names instead of only dimming them. */
+const TAG_SMALL = 0.72;
+/** Rows a tag may be lifted to clear one already placed; one that still lands on a name is dropped instead. */
+const TAG_ROWS = 2;
 
 export class Hud {
   readonly root: HTMLElement;
@@ -357,7 +361,16 @@ export class Hud {
       const r = w.riders[i];
       const l = this.labels[i];
       const dz = r.z - p.z;
-      const show = r.state === 'ride' && dz > -6 && dz < 45 && view.projectRider(i, 2.55, this.pt);
+      const nem = r.id === w.nemesis;
+      const grudge = !nem && w.grudges.has(r.id);
+      const hunt = r.huntT > 0;
+      const tell = this.tellT[i] > 0;
+      const open = r.openT > 0 && !tell;
+      // Past arm's reach a name is worth no more than the road it covers, and the road up there is where
+      // the player reads their lane and the traffic coming down it. Out of reach only the rivals carrying
+      // something to act on keep a tag; the rest of the pack rides anonymously and the lane stays clear.
+      const worth = dz <= TAG_NEAR || nem || grudge || hunt || tell || open || r.boss;
+      const show = worth && r.state === 'ride' && dz > -6 && dz < 45 && view.projectRider(i, 2.55, this.pt);
       l.classList.toggle('on', show);
       if (!show) {
         // the inline fade would otherwise keep a hidden tag visible: `.tag` hides by opacity
@@ -370,16 +383,12 @@ export class Hud {
       const fade = dz <= TAG_NEAR ? 1 : Math.max(TAG_FAINT, 1 - ((dz - TAG_NEAR) / (TAG_FAR - TAG_NEAR)) * (1 - TAG_FAINT));
       // quantized, so a tag rewrites its opacity about twenty times over the whole fade, not every frame
       const step = Math.round(fade * 20);
-      if (step !== this.tagA[i]) { this.tagA[i] = step; l.style.opacity = String(step / 20); }
-      const nem = r.id === w.nemesis;
+      const refade = step !== this.tagA[i];
+      if (refade) { this.tagA[i] = step; l.style.opacity = String(step / 20); }
       cls(l, 'nem', nem);
-      const grudge = !nem && w.grudges.has(r.id);
       cls(l, 'grudge', grudge);
-      const hunt = r.huntT > 0;
       cls(l, 'hunt', hunt);
-      const tell = this.tellT[i] > 0;
       cls(l, 'tell', tell);
-      const open = r.openT > 0 && !tell;
       cls(l, 'open', open);
       // an icon class adds its 1em badge in front of the name, which the measured width predates
       const half = (this.tagW[i] + (nem || grudge || hunt || tell || open ? 15 : 0)) / 2 + 3;
@@ -388,7 +397,8 @@ export class Hud {
       // edge. Clamped before the stacking pass, so two tags pushed to the same corner still part vertically.
       const lo = half + 4, hi = this.roomW - half - 4;
       let x = hi > lo ? Math.max(lo, Math.min(hi, this.pt.x)) : this.pt.x, y = this.pt.y;
-      for (let pass = 0; pass < 4; pass++) {
+      let rows = 0;
+      for (; rows <= TAG_ROWS; rows++) {
         let hit = false;
         for (let k = 0; k < placed.length; k += 3) {
           if (Math.abs(x - placed[k]) < half + placed[k + 2] && Math.abs(y - placed[k + 1]) < TAG_H) {
@@ -398,12 +408,22 @@ export class Hud {
         }
         if (!hit) break;
       }
+      if (rows > TAG_ROWS) {
+        // A third row would put the name a quarter of the screen above its rider, out over the road the
+        // player is reading. The road is worth more than the name: this one stands down for the frame.
+        l.classList.remove('on');
+        if (this.tagA[i] !== -1) { this.tagA[i] = -1; l.style.opacity = ''; }
+        continue;
+      }
       placed.push(x, y, half);
       const tx = Math.round(x * 10), ty = Math.round(y * 10);
-      if (tx === this.tagX[i] && ty === this.tagY[i]) continue;
+      if (!refade && tx === this.tagX[i] && ty === this.tagY[i]) continue;
       this.tagX[i] = tx;
       this.tagY[i] = ty;
-      l.style.transform = `translate(${tx / 10}px, ${ty / 10}px) translate(-50%, -100%)`;
+      // The far ones shrink as well as fade: eight chips of one size read as a row of buttons pasted over
+      // the road, where a name that is both smaller and fainter falls back into the distance with its rider.
+      const s = TAG_SMALL + (1 - TAG_SMALL) * fade;
+      l.style.transform = `translate(${tx / 10}px, ${ty / 10}px) translate(-50%, -100%) scale(${s.toFixed(2)})`;
     }
     // slap reach indicators
     let left = false;

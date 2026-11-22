@@ -12,6 +12,8 @@ import { Wobble } from './hats';
 export const JOINT = 0x34343c;
 export const TARGET = 0xf4d23c;
 export const INK_W = 0.024;
+/** How far `RiderView.ghost` may thin a rider out: see-through, never gone -- the player still has to see who is there. */
+const GHOST = 0.7;
 
 export const rbox = (w: number, h: number, d: number, r = Math.min(w, h, d) * 0.3) => prim(`rb:${w},${h},${d},${r}`, () => roundedBox(w, h, d, r));
 export const ball = (r: number, seg = 8) => new THREE.SphereGeometry(r, seg, Math.round(seg * 0.75));
@@ -162,7 +164,10 @@ export class RiderView {
 
   /** `vehicle`: C.VEHICLES index of the ride drawn; `mark`: the colour of the target marks. */
   constructor(readonly body: number, readonly ride: number, readonly vehicle = 0, readonly mark = TARGET) {
-    this.mat = toonMaterial({ vertexColors: true, emissive: 0xffffff, emissiveIntensity: 0 });
+    // Transparent from the start although it is drawn solid: `ghost` thins a rider standing between the
+    // player and the road, and turning the flag on there instead would rebuild the shader mid-race --
+    // exactly the stall prewarm exists to keep out of a crash.
+    this.mat = toonMaterial({ vertexColors: true, emissive: 0xffffff, emissiveIntensity: 0, transparent: true });
     const p = riderParts(vehicle, body, ride, mark);
     this.torsoY = p.torsoY;
 
@@ -254,6 +259,16 @@ export class RiderView {
     this.dummy.visible = !down; // the hat, weapon and swoosh; the body's own parts fold away in update
     if (down) this.dummy.scale.setScalar(0);
     if (!down) this.tip = this.yaw = 0;
+  }
+
+  /**
+   * Drawn `a` (0..1) of the way to see-through, for a rider standing in the player's view of the road
+   * (scene.ts works out how much of it this one takes). Its ragdoll shares the material, so a body
+   * tumbling across the camera thins out with it.
+   */
+  ghost(a: number): void {
+    const o = 1 - a * GHOST;
+    if (Math.abs(o - this.mat.opacity) > 0.004) this.mat.opacity = o;
   }
 
   /** `rub` is the side (-1/1) of a rider being pressed shoulder to shoulder, 0 when clear. */

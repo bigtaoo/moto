@@ -38,6 +38,14 @@ const CAM = {
   landscape: { fov: 54, h: 3.8, back: 6.6, look: 12, lookY: 0.8, follow: 0.6 },
 };
 
+/**
+ * A rival is only in the way while it is within BLOCK_W metres of the player's own line across the road;
+ * further over it stands beside the lane, not on it. BLOCK_T is how near the camera one has to be to blank
+ * the view outright -- how much of the screen it eats goes as one over its distance from the camera.
+ */
+const BLOCK_W = 1.6;
+const BLOCK_T = 2.6;
+
 
 /**
  * Degrees the camera widens by at `speed`. The old single slope (0.55 deg per m/s, capped at 10) ran out at
@@ -269,6 +277,7 @@ export class RaceView {
 
   update(dt: number, alpha: number): void {
     const w = this.w;
+    const pz = lerp(w.player.pz, w.player.z, alpha);
     this.shadows.begin();
     for (let i = 0; i < w.riders.length; i++) {
       const r = w.riders[i];
@@ -290,6 +299,7 @@ export class RaceView {
       rv.update(dt, r.speed, this.drawVx[i], r.rubT > 0 ? r.rubSide : 0);
       // Blink while invulnerable after getting back up; while hidden its bones leave the matrix walk too.
       rv.root.matrixWorldAutoUpdate = rv.root.visible = r.invT <= 0 || Math.floor(r.invT / 3) % 2 === 0;
+      rv.ghost(i === 0 ? 0 : this.blocking(x, z, pz));
       if (r.state === 'ride') this.shadows.add(x, z, 0.5, 0.75);
       else this.shadows.add(x, z, 0.6, 0.6);
       const rd = this.ragdolls[i];
@@ -328,6 +338,19 @@ export class RaceView {
     this.fx.update(dt, this.stage.camera);
     this.updateCamera(dt, alpha);
     this.stage.render();
+  }
+
+  /**
+   * How much of the player's view of the road a rival at (x, z) takes up, 0 to 1. What the player has to
+   * see is their own lane and the cars coming up it; a rival between them and the camera fills the screen
+   * with its back, and one sitting in their lane a few metres ahead hides the car they are about to run
+   * into. Both are drawn that much see-through instead, so the road reads through them.
+   */
+  private blocking(x: number, z: number, pz: number): number {
+    const t = z - pz + (this.stage.portrait ? CAM.portrait : CAM.landscape).back; // metres in front of the camera
+    if (t < 0.3) return 0;
+    const side = 1 - Math.abs(x - this.drawX[0]) / BLOCK_W; // the player's own drawn line: rider 0 goes first
+    return side <= 0 ? 0 : side * Math.min(1, BLOCK_T / t);
   }
 
   /**
