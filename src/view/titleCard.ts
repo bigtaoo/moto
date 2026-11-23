@@ -22,6 +22,8 @@ export interface TitleCardActions {
   /** False once the player has left the title: the card's buttons go dead rather than firing into a race. */
   onTitle: () => boolean;
   shift: () => void;
+  /** Today's challenge race: the same race for everybody who rides it today (src/dailyRace.ts). */
+  dailyRace: () => void;
   /** The free race: a stage the player picks, for a stake (3.3.69). */
   free: () => void;
   /** Where the next cup runs (3.3.69). */
@@ -67,7 +69,12 @@ export function drawTitle(save: Save, on: TitleCardActions): void {
   if (og) og.onclick = () => { if (on.onTitle()) on.opts(); };
   // 3.3.66: the two folds are pages of their own now, so the card itself stays one screen
   const dl = info.querySelector<HTMLButtonElement>('.dailygo');
-  if (dl) dl.onclick = () => { if (on.onTitle()) openPage(on.app, t('daily'), dailyPage(save).body); };
+  if (dl) dl.onclick = () => {
+    if (!on.onTitle()) return;
+    const page = openPage(on.app, t('daily'), dailyPage(save).body);
+    const dr = page.el.querySelector<HTMLButtonElement>('.dracego');
+    if (dr) dr.onclick = () => { page.close(); if (on.onTitle()) on.dailyRace(); };
+  };
   const ac = info.querySelector<HTMLButtonElement>('.achsgo');
   if (ac) ac.onclick = () => {
     if (on.onTitle()) openPage(on.app, t('achievements', { n: save.ach.length, m: ACHIEVEMENTS.length }), achHtml(save, on.ach));

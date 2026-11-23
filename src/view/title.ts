@@ -13,6 +13,7 @@ import { t, money, type Key } from '../i18n';
 import { ACHIEVEMENTS, dayMult, type Unlocked } from '../rewards';
 import { shiftOpen } from '../shift';
 import { freeOpen } from '../free';
+import { dailyRaceOpen } from '../dailyRace';
 import { shiftButton } from './results';
 import { boardButton } from './board';
 import { LAUNCH } from '../sim/launch';
@@ -76,12 +77,26 @@ export function achHtml(save: Save, fresh: Unlocked[]): string {
   }).join('');
 }
 
+/**
+ * Today's challenge race, at the foot of the day's page: the same race, on the same bike, for everyone who
+ * rides it today. `race`: today's best is still 0, so the tile on the card can say there is one to ride.
+ * 3.3.76 put it here rather than on a tile of its own -- everything that turns over at midnight is on one
+ * page, and the card's grid of six stays six.
+ */
+function dailyRaceBox(save: Save): { race: boolean; html: string } {
+  if (!dailyRaceOpen(save)) return { race: false, html: '' };
+  const d = save.drace;
+  const best = d.runs ? `<small>${t('dRaceBest', { n: d.best })}</small>` : `<small>${t('dRaceTip')}</small>`;
+  return { race: d.runs === 0, html: `<button class="shift dracego"><span>${icon('flag')} ${t('dRace')}</span>${best}</button>` };
+}
+
 /** Today's challenges: how many are done (for the tile) and the list (for the page). */
-export function dailyPage(save: Save): { done: number; of: number; body: string } {
+export function dailyPage(save: Save): { done: number; of: number; race: boolean; body: string } {
   const rs = rows(save.daily);
   const mult = dayMult(stage(save.div, save.tier, save.endless).prize);
   const win = save.daily.won ? '' : `<div class="dc"><span>${t('firstWin')}</span><b>+${money(Math.round(FIRST_WIN_PAY * mult))}</b></div>`;
-  return { done: rs.filter((r) => r.done).length, of: rs.length, body: dailyHtml(rs, [], 0, win) };
+  const dr = dailyRaceBox(save);
+  return { done: rs.filter((r) => r.done).length, of: rs.length, race: dr.race, body: dailyHtml(rs, [], 0, win) + dr.html };
 }
 
 /** The returning player's goals, as HTML for the title card; `ad`: the streak's doubling ad is on offer. */
@@ -94,7 +109,7 @@ export function titleInfo(save: Save, fresh: Unlocked[] = [], ad = false): strin
   // come first; the four side screens are small tiles under them. One flat grid of six made every
   // destination look as important as the next, and four of them could turn the same yellow as Race.
   const dests = garageButton(save) + (shiftOpen(save) ? shiftButton(save, 'shift shiftgo') : '');
-  const side = `<button class="shift dailygo${d.done < d.of ? '' : ' has'}"><span>${icon('bang')} ${t('daily')}</span><small>${d.done}/${d.of}</small></button>`
+  const side = `<button class="shift dailygo${d.done < d.of ? '' : ' has'}"><span>${icon('bang')} ${t('daily')}</span><small>${d.done}/${d.of}${d.race ? ` · ${t('dRace')}` : ''}</small></button>`
     + `<button class="shift achsgo${fresh.length ? ' has' : ''}"><span>${icon('star')} ${t('achievements', { n: got, m: ACHIEVEMENTS.length })}</span><small>${fresh.length ? t('achNew', { n: fresh.length }) : t('achTip')}</small></button>`
     + boardButton() + launchButton(save) + freeTile(save);
   return optsButton() + streak(save, ad) + nextStop(save) + nextRide(save) + nemesis(save)

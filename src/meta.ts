@@ -7,6 +7,7 @@ import { PAINTS, HATS } from './shop';
 import { newCup, newFeud, GATE_AT, FIRST_CUP, CUP_RACES, type Cup, type Feud } from './career';
 import { saveData } from './platform';
 import { readDaily, today, type Daily } from './daily';
+import { newDailyRace, readDailyRace, type DailyRace } from './dailyRace';
 import type { QualityMode } from './view/quality';
 import { isLang, type Lang } from './i18n';
 import { newStreak, ACH_IDS, type Streak, type Life } from './rewards';
@@ -62,6 +63,8 @@ export interface Save {
   calm: boolean | null;
   /** Today's challenges and first win (src/daily.ts). */
   daily: Daily;
+  /** The daily challenge race: today's best score and runs (src/dailyRace.ts). */
+  drace: DailyRace;
   /** Days in a row the game was opened, and what today's visit paid (src/rewards.ts). */
   streak: Streak;
   /** Achievements won (src/rewards.ts ids) and the lifetime counts they need. */
@@ -88,7 +91,7 @@ const WAS: Record<string, string> = { koRace: 'kos25', koLife: 'kos1000' };
 
 const fresh: Save = {
     cash: 0, up: { top: 0, steer: 0, hp: 0 }, grudges: [], races: 0, best: 0, div: 0, reach: 0, cup: newCup(FIRST_CUP), titles: 0, gate: 0, endless: 0, feud: newFeud(), tier: 0,
-    garage: { cur: 0, owned: [0] }, paint: { cur: 0, owned: [0] }, hat: { cur: 0, owned: [0] }, launchBest: 0, carry: null, tune: { top: 0, steer: 0, hp: 0 }, wear: 0, muted: false, sessions: 0, firstDay: 0, musicOff: false, sfxOff: false, hapticsOff: false, quality: 'auto', lang: null, calm: null, daily: readDaily(null, today()),
+    garage: { cur: 0, owned: [0] }, paint: { cur: 0, owned: [0] }, hat: { cur: 0, owned: [0] }, launchBest: 0, carry: null, tune: { top: 0, steer: 0, hp: 0 }, wear: 0, muted: false, sessions: 0, firstDay: 0, musicOff: false, sfxOff: false, hapticsOff: false, quality: 'auto', lang: null, calm: null, daily: readDaily(null, today()), drace: newDailyRace(today()),
     streak: newStreak(), ach: [], life: { kos: 0, wins: 0 },
   };
   try {
@@ -159,6 +162,7 @@ const fresh: Save = {
       lang: isLang(s.lang) ? s.lang : null,
       calm: typeof s.calm === 'boolean' ? s.calm : null,
       daily: readDaily(s.daily, today()),
+      drace: readDailyRace(s.drace, today()),
       streak: { day: count(s.streak?.day), n: count(s.streak?.n), pay: count(s.streak?.pay), doubled: s.streak?.doubled === true },
       ach: Array.isArray(s.ach) ? ACH_IDS.filter((id) => s.ach!.includes(id) || s.ach!.includes(WAS[id])) : [],
       life: { kos: count(s.life?.kos), wins: count(s.life?.wins) },

@@ -31,8 +31,8 @@ import { setHaptics } from './haptics';
 import { MOTION, setCalm } from './view/motion';
 import { PAINTS, HATS } from './shop';
 import { shopActions, counted } from './shopping';
-import { settleShift } from './shift';
-import { settleFree, type Free } from './free';
+import { finishFree, finishShift, finishDaily, type SideCtx } from './sideRaces';
+import type { Free } from './free';
 import { raceOpts } from './raceOpts';
 import { openFree, openStop } from './view/scenes';
 import { blocker } from './view/blocker';
@@ -78,6 +78,8 @@ let shifts = 0;
 /** This race is the free one the player picked, and what they staked on it (src/free.ts). */
 let free: Free | null = null;
 let frees = 0;
+/** This race is today's daily challenge (src/dailyRace.ts), which is the same race for everybody. */
+let dayRace = false;
 
 /** Change screens: the HUD layout and the music follow. */
 function setState(s: typeof state): void {
@@ -119,7 +121,7 @@ const controls = new Controls(canvas, () => (world ? world.player.x : 0),
 
 function newRace(): void {
   view?.dispose();
-  const opts = raceOpts(save, { chase, free, n: chase ? ++shifts : free ? ++frees : 0, length: LEN });
+  const opts = raceOpts(save, { chase, free, daily: dayRace, n: chase ? ++shifts : free ? ++frees : 0, length: LEN });
   world = new World(opts);
   recorder = new Recorder(opts);
   moments = new Moments();
@@ -139,10 +141,13 @@ function newRace(): void {
 
 /** The division pill and the nemesis card, over the countdown. */
 function intro(): void {
-  const nem = world.chase || free ? null : save.feud.nemesis;
-  const extra = world.mutator ? t('mutPill', { name: t(`mut_${world.mutator}`) }) : world.boss >= 0 ? `${t('bossPill', { n: Math.round(BOSS.pay * world.div.prize) })} · ${t('x2pts')}` : '';
+  const nem = world.chase || free || dayRace ? null : save.feud.nemesis;
+  // the daily's twist is the day's, and it pays no purse: "this week · prize ×1.25" would be two lies
+  const extra = dayRace ? (world.mutator ? t('dRaceMut', { name: t(`mut_${world.mutator}`) }) : '')
+    : world.mutator ? t('mutPill', { name: t(`mut_${world.mutator}`) }) : world.boss >= 0 ? `${t('bossPill', { n: Math.round(BOSS.pay * world.div.prize) })} · ${t('x2pts')}` : '';
   // a free race is nobody's cup: the stage's name and the stake, not "race 1 of 4" (3.3.69)
   const league = world.chase ? t('shiftPill')
+    : dayRace ? `${world.div.name} · ${t('dRace')}`
     : free ? `${world.div.name} · ${t('freeStake')} ${money(free.stake)}`
     : t('pill', { div: world.div.name, n: save.cup.race + 1, m: cupRaces(save.cup) });
   hud.setLeague(league, extra);
@@ -157,7 +162,7 @@ function startRace(): void {
   unlockAudio();
   titleEl.classList.add('hidden');
   setState('race');
-  if (chase || free) return;
+  if (chase || free || dayRace) return;
   platform.lifecycle('level_started', { world: world.div.name, level: String(save.cup.race + 1) });
   if (!BOT) tele.raceStart(world);
 }
@@ -170,7 +175,7 @@ function nextRace(placement: string, shift = false): void {
   newRace();
   stage.raceStart();
   setState('race');
-  if (chase || free) return;
+  if (chase || free || dayRace) return;
   platform.lifecycle('level_started', { world: world.div.name, level: String(save.cup.race + 1) });
   tele.raceStart(world);
 }
@@ -182,6 +187,7 @@ function backToTitle(): void {
   setPaused(false);
   chase = false;
   free = null;
+  dayRace = false;
   newRace(); // the next race waits behind the card, as it does on a boot
   setState('title');
   titleEl.classList.remove('hidden');
@@ -196,8 +202,9 @@ function finishRace(): void {
   const w = world;
   if (settled === w) return;
   settled = w;
-  if (free) return finishFree(w, free);
-  if (w.chase) return finishShift(w);
+  if (free) return finishFree(side(), w, free);
+  if (dayRace) return finishDaily(side(), w, falls);
+  if (w.chase) return finishShift(side(), w);
   const res = settleWorld(save, w, falls);
   const place = res.place;
   setState('results');
@@ -241,27 +248,8 @@ function startFree(f: Free): void {
   funnel.event('free_start', { div: f.div, tier: f.tier, stake: f.stake, cash: save.cash });
 }
 
-/** A free race is over: the stake pays by place, and nothing in the career has moved. */
-function finishFree(w: World, f: Free): void {
-  const r = settleFree(save, w, f);
-  storeSave(save);
-  funnel.event('free_end', { place: r.place, stake: r.stake, paid: r.paid, div: f.div, tier: f.tier });
-  setState('results');
-  hud.results.showFree(r, save, {
-    again: () => { if (save.cash >= f.stake) { startFree(f); nextRace('free_end'); } },
-    pick: () => openFree(app, save, (n) => { startFree(n); nextRace('free_end'); }),
-    home: backToTitle,
-  });
-}
-
-/** A security shift is over: its bounty, then back to the cup or another shift. */
-function finishShift(w: World): void {
-  const r = settleShift(save, w);
-  storeSave(save);
-  funnel.event('shift_end', { caught: r.caught, of: r.of, cash: r.earned, n: shifts });
-  setState('results');
-  hud.results.showShift(r, save, { again: () => nextRace('shift_end'), shift: () => nextRace('shift_end', true), home: backToTitle });
-}
+/** What the side races are settled with (src/sideRaces.ts). */
+const side = (): SideCtx => ({ save, app, results: hud.results, shown: () => setState('results'), next: nextRace, home: backToTitle, stake: startFree, shifts });
 
 function tick(): void {
   const inp = world.input;
@@ -337,7 +325,7 @@ const wiring: Wiring = {
   relocalize: () => { localize(); if (state === 'title' && !launch) showTitle(); },
   restart: () => {
     if (state !== 'race') return;
-    if (!world.chase) {
+    if (!world.chase && !free && !dayRace) {
       tele.raceRestart();
       platform.lifecycle('level_failed', { world: world.div.name, level: String(save.cup.race + 1) });
     }
@@ -409,6 +397,7 @@ const showTitle = (): void => drawTitle(save, {
     garage(acts, () => { titleEl.classList.remove('hidden'); showTitle(); }, 'title');
   },
   shift: () => { chase = true; newRace(); startRace(); },
+  dailyRace: () => { dayRace = true; newRace(); startRace(); funnel.event('drace_start', { day: today() }); },
   free: () => openFree(app, save, (f) => { startFree(f); newRace(); startRace(); }),
   stop: () => openStop(app, save, (d) => { if (pickDiv(save, d)) { storeSave(save); newRace(); } showTitle(); }),
   launch: () => { if (!launch) launch = new LaunchMode(stage, view.group, save, app, () => { launch = null; showTitle(); }); },

@@ -11,11 +11,12 @@ import { BREAK_AT, type CupEnd, type FeudOutcome, type Nemesis } from '../career
 import type { DailyOutcome, DailyRow, Kind } from '../daily';
 import type { Flair } from '../sim/flair';
 import type { Mutator } from '../sim/fun';
-import { t, ord, money, type Key } from '../i18n';
+import { t, ord, money, num, type Key } from '../i18n';
 import { garageButton } from './garage';
 import type { Unlocked } from '../rewards';
 import { shiftOpen, type ShiftResult } from '../shift';
 import type { FreeResult } from '../free';
+import type { DailyRaceResult } from '../dailyRace';
 
 export interface League {
   /** The division this race was in. */
@@ -87,6 +88,13 @@ export interface FreeActions {
   again: () => void;
   /** Pick another track. */
   pick: () => void;
+  home: () => void;
+}
+
+/** A finished daily challenge's buttons. */
+export interface DailyRaceActions {
+  /** Ride today's race again, for a better score. */
+  again: () => void;
   home: () => void;
 }
 
@@ -197,6 +205,18 @@ export class Results {
     this.el.classList.remove('hidden');
   }
 
+  /** A finished daily challenge. */
+  showDailyRace(r: DailyRaceResult, save: Save, on: DailyRaceActions): void {
+    this.shownAt = performance.now();
+    const card = this.el.querySelector('.card') as HTMLElement;
+    card.innerHTML = dailyRaceHtml(r, save);
+    const guard = (f: () => void) => () => { if (this.armed) f(); };
+    this.again = on.again;
+    (card.querySelector('.again') as HTMLButtonElement).onclick = guard(on.again);
+    (card.querySelector('.home') as HTMLButtonElement).onclick = guard(on.home);
+    this.el.classList.remove('hidden');
+  }
+
   /** Show (or redraw, after a purchase) the screen; a redraw keeps the time it came up. */
   show(res: RaceResult, save: Save, on: ResultActions): void {
     if (!this.open) this.shownAt = performance.now();
@@ -279,6 +299,33 @@ export function freeHtml(r: FreeResult, save: Save, again: boolean): string {
     <button class="primary again"${again ? '' : ' disabled'}>${r.stake === 0 ? t('freeAgainFree') : t('freeAgain', { n: money(r.stake) })}</button>
     <div class="tiles"><button class="shift freego">${icon('flag')} ${t('freeRace')}</button>
       <button class="shift home">${t('toMenu')}</button></div>`;
+}
+
+/**
+ * A finished daily challenge: where every point came from, and whether it beat today's best. The card is
+ * the whole scoring rule written out -- there is nowhere else to read it, and a player who cannot see
+ * where the points went cannot ride the day any better tomorrow (3.3.76).
+ */
+export function dailyRaceHtml(r: DailyRaceResult, save: Save): string {
+  const s = r.score;
+  const pts = (n: number) => (n < 0 ? '−' : '') + num(Math.abs(n));
+  return `
+    <h2 class="${r.best ? 'win' : ''}">${num(s.total)}</h2>
+    <div class="sub">${r.best ? t('dRaceBeat') : t('dRaceBest', { n: num(r.was) })} · ${r.name}${r.mutator ? ` · ${t(`mut_${r.mutator}`)}` : ''}</div>
+    <div class="rows">
+      ${row(t('place', { o: ord(s.place) }), pts(s.placePts))}
+      ${s.kos ? row(t('kos', { n: s.kos }), pts(s.koPts), 'good') : ''}
+      ${s.shoves ? row(t('shoves', { n: s.shoves }), pts(s.shovePts), 'good') : ''}
+      ${s.near ? row(t('nearMisses', { n: s.near }), pts(s.nearPts), 'good') : ''}
+      ${s.chain ? row(t('koChains', { n: s.chain + 1 }), pts(s.chainPts), 'good') : ''}
+      ${s.falls ? row(t('dRaceFalls', { n: s.falls }), pts(s.fallPts), 'bad') : ''}
+      ${row(t('dRaceTime', { n: s.time.toFixed(1) }), pts(s.timePts), 'bad')}
+      ${row(t('dRaceScore'), num(s.total), 'total')}
+    </div>
+    ${r.paid ? `<div class="rows">${row(t('dRacePay'), money(r.paid), 'good')}</div>` : ''}
+    <div class="cashline">${t('cash')} <b>${money(save.cash)}</b></div>
+    <button class="primary again">${t('dRaceAgain')}</button>
+    <button class="shift home">${t('toMenu')}</button>`;
 }
 
 /**
