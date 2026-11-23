@@ -39,7 +39,7 @@ export function settleWorld(save: Save, w: World, falls: number): RaceResult {
   const table = s.table.map((r) => ({ name: riderName(r.id), pts: r.pts, rank: r.rank, me: r.id === 0 }));
   const res: RaceResult = {
     place, total: w.racers, prize: s.prize, kos: w.kos, koBonus: s.koBonus, grudgeKos: w.grudgeKos, grudgeBonus: s.grudgeBonus,
-    shoves: w.shoves, shoveBonus: s.shoveBonus, flair: { ...w.flair }, fines: s.fines, earned: s.earned, time: w.time, grudges: save.grudges.map((id) => w.riders[id].name),
+    shoves: w.shoves, shoveBonus: s.shoveBonus, flair: { ...w.flair }, fines: s.fines, earned: s.earned, show: s.show, time: w.time, grudges: save.grudges.map((id) => w.riders[id].name),
     league: { div: w.div.name, race: s.cupRace, races: s.cupOf, table, end: s.end, goal: s.end ? undefined : goalOf(save), next: C.stage(save.div, save.tier, save.endless).name, season: C.TIERS[save.tier].name },
     feud: { out: s.feud, nemesis: save.feud.nemesis, name: riderName },
     daily,

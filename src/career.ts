@@ -166,6 +166,8 @@ export interface Settlement {
   nearPay: number;
   chainPay: number;
   stuntPay: number;
+  /** What the showing off paid into the wardrobe's own purse: near misses, chains, stunts (3.3.79). */
+  show: number;
   fines: number;
   feud: FeudOutcome;
   /** The race of the cup this was (1-based), the races the cup ran to, and the cup's division and tier. */
@@ -190,7 +192,14 @@ export function settleRace(save: Save, s: RaceSummary): Settlement {
   const koBonus = s.kos * C.KO_BONUS;
   const grudgeBonus = s.grudgeKos * C.GRUDGE_BONUS;
   const shoveBonus = s.shoves * C.SHOVE_BONUS;
-  let earned = Math.max(0, prize + koBonus + grudgeBonus + shoveBonus + s.nearPay + s.chainPay + stuntPay - s.fines);
+  /**
+   * 3.3.79: the showing off is paid into a purse of its own. Near misses, KO chains, riders bowled over,
+   * taunts and the boss' bounty are the only money paints and hats take, and they are no longer part of
+   * the race's own pay -- so the purse the tune-up is bleeding is about a tenth lighter than it was, and
+   * the one thing on sale that a player can show anyone is bought by playing to the crowd.
+   */
+  const show = s.nearPay + s.chainPay + stuntPay;
+  let earned = Math.max(0, prize + koBonus + grudgeBonus + shoveBonus - s.fines);
   scoreRace(save.cup, s.places);
   const table = standings(save.cup);
   const feud = settleFeud(save.feud, s, st.prize);
@@ -214,6 +223,7 @@ export function settleRace(save: Save, s: RaceSummary): Settlement {
     save.cup = newCup();
   }
   save.cash += earned;
+  save.show += show;
   save.races++;
   if (save.best === 0 || s.place < save.best) save.best = s.place;
   save.grudges = [...s.grudges];
@@ -221,7 +231,7 @@ export function settleRace(save: Save, s: RaceSummary): Settlement {
   // the tune-up rode in this race and the ride took what it took: both are settled here, with the money
   dent(save, s.koPlayer.reduce((a, b) => a + b, 0));
   save.tune = { top: 0, steer: 0, hp: 0 };
-  return { prize, koBonus, grudgeBonus, shoveBonus, nearPay: s.nearPay, chainPay: s.chainPay, stuntPay, fines: s.fines, feud, cupRace, cupOf, div, tier, table, end, earned };
+  return { prize, koBonus, grudgeBonus, shoveBonus, nearPay: s.nearPay, chainPay: s.chainPay, stuntPay, show, fines: s.fines, feud, cupRace, cupOf, div, tier, table, end, earned };
 }
 
 // ---- the garage --------------------------------------------------------------------------------

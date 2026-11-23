@@ -4,8 +4,9 @@
 // countdown, results and shop).
 // Everything a race pays in the game is paid here too (raceEnd.ts): stunts, the boss on a cup's last race,
 // the mutator on its 2nd, the day's challenges and first win, achievements, and the login streak (a day is
-// `races a day` races). At the end: what was earned, by source, and when the spare cash would have bought
-// every paint and hat.
+// `races a day` races). At the end: what was earned, by source, and -- counted apart, because only paint
+// and hats can spend it -- what the showing off paid into the show purse and how much of the wardrobe it
+// bought.
 // Usage: npx tsx scripts/career.ts [careers] [skill 0..1] [fight|race] [max races] [races a day]
 
 import { World } from '../src/sim/world';
@@ -17,7 +18,7 @@ import { stuntPay } from '../src/sim/flair';
 import { MUTATOR, MUTATORS } from '../src/sim/fun';
 import { dailyFor, scoreDaily } from '../src/daily';
 import { afterRace, unlock, visit, dayMult } from '../src/rewards';
-import { PAINTS, HAT_PRICE, PAINT_TIER, HAT_TIER } from '../src/shop';
+import { PAINTS, HATS, HAT_PRICE, wear, wearState, wearPrice } from '../src/shop';
 import { buyTune, tunePrice, repair, repairPrice, TUNE_MAX, OVER_WEAR, REPAIR_FULL, TUNE_CURVE, fitted } from '../src/tune';
 
 const careers = Number(process.argv[2] ?? 3);
@@ -28,9 +29,16 @@ const perDay = Number(process.argv[6] ?? 6);
 const OVERHEAD_S = 20;
 /** Every paint and hat. */
 const WARDROBE = PAINTS.reduce((a, p) => a + p.price, 0) + HAT_PRICE.reduce((a, p) => a + p, 0);
+/** Everything on sale in the looks tab, cheapest first: what the show purse is for (3.3.79). */
+const LOOKS: readonly (readonly ['paint' | 'hat', number])[] = [
+  ...PAINTS.map((_, i) => ['paint', i] as const), ...HATS.map((_, i) => ['hat', i] as const),
+].filter(([, i]) => i > 0).sort((a, b) => wearPrice(a[0], a[1]) - wearPrice(b[0], b[1]));
 
 const src: Record<string, number> = {};
 const add = (k: string, v: number) => (src[k] = (src[k] ?? 0) + v);
+/** 3.3.79: the show purse is counted on its own -- it is not race money and cannot buy anything else. */
+const shown: Record<string, number> = {};
+const show = (k: string, v: number) => (shown[k] = (shown[k] ?? 0) + v);
 
 const totals: number[] = [];
 for (let run = 0; run < careers; run++) {
@@ -42,7 +50,7 @@ for (let run = 0; run < careers; run++) {
   let raceSecs = 0;
   let done = false;
   let day = 1000;
-  let wardrobeAt = '';
+  let looks = 0;
   console.log(`--- career ${run + 1}`);
   while (!done && save.races < maxRaces) {
     if (save.races % perDay === 0) {
@@ -79,10 +87,10 @@ for (let run = 0; run < careers; run++) {
     add('feud', s.feud.cash);
     add('cup', s.end?.bonus ?? 0);
     add('fines', -s.fines);
-    add('near+chain', s.nearPay + s.chainPay);
-    add('bowl', w.flair.bowlPay);
-    add('taunt', w.flair.tauntPay);
-    add('boss', w.flair.bossPay);
+    show('near+chain', s.nearPay + s.chainPay);
+    show('bowl', w.flair.bowlPay);
+    show('taunt', w.flair.tauntPay);
+    show('boss', w.flair.bossPay);
     save.daily = dailyFor(save.daily, day);
     const daily = scoreDaily(save.daily, { place: w.player.place, kos: w.kos, shoves: w.shoves, near: w.flair.near, chain: w.flair.best, grudge: w.grudgeKos + w.revenge }, dayMult(w.div.prize));
     save.cash += daily.cash + daily.firstWin;
@@ -121,8 +129,14 @@ for (let run = 0; run < careers; run++) {
       if (!k || save.cash - k[1] < keep + mend || !buyTune(save, k[0])) break;
       add('tune-ups', -k[1]);
     }
-    // the bot buys no paints or hats: the cash it sits on is what they could have had (once all are on sale)
-    if (!wardrobeAt && save.tier >= Math.max(...PAINT_TIER, ...HAT_TIER) && save.cash - keep >= WARDROBE) wardrobeAt = `${at}, race ${save.races}`;
+    // 3.3.79: the looks have a purse of their own now and nothing else can spend it, so the bot buys like a
+    // collector -- the cheapest thing on sale it can afford, every race, for as long as the purse reaches.
+    for (;;) {
+      const buy = LOOKS.find(([k, i]) => wearState(save, k, i) === 'buy' && save.show >= wearPrice(k, i));
+      if (!buy || !wear(save, buy[0], buy[1])) break;
+      show('spent on looks', -wearPrice(buy[0], buy[1]));
+      looks++;
+    }
     if (s.end) {
       const e = s.end;
       console.log(`${at.padEnd(22)} cup ${e.rank}${e.promoted ? ' ↑' : e.champion ? ' ★' : '  '} [${cupPlaces}] edge ${edge.toFixed(1).padStart(4)} max ${raceSecs.toFixed(0)}s ${cupMins.toFixed(0).padStart(3)} min | total ${save.races} races ${mins.toFixed(0)} min | $${save.cash} up ${save.up.top}/${save.up.steer}/${save.up.hp} ride ${C.VEHICLES[save.garage.cur].name} | nemeses broken ${save.feud.broken}`);
@@ -133,8 +147,10 @@ for (let run = 0; run < careers; run++) {
     }
   }
   totals.push(mins);
-  console.log(`career ${run + 1}: ${save.races} races, ${mins.toFixed(0)} min${done ? '' : ' (not finished)'}, ${day - 1000} days; every paint and hat ($${WARDROBE}) affordable from spare cash at: ${wardrobeAt || 'never'}`);
+  console.log(`career ${run + 1}: ${save.races} races, ${mins.toFixed(0)} min${done ? '' : ' (not finished)'}, ${day - 1000} days; looks bought ${looks}/${LOOKS.length} of the $${WARDROBE} wardrobe, $${save.show} show money left over`);
 }
 const all = Object.values(src).reduce((a, b) => a + b, 0);
 for (const [k, v] of Object.entries(src).sort((a, b) => b[1] - a[1])) console.log(`${k.padEnd(16)} ${String(Math.round(v / careers)).padStart(8)}  ${((v / all) * 100).toFixed(1).padStart(5)}%`);
+console.log('-- the show purse, which only paint and hats can spend:');
+for (const [k, v] of Object.entries(shown).sort((a, b) => b[1] - a[1])) console.log(`${k.padEnd(16)} ${String(Math.round(v / careers)).padStart(8)}`);
 console.log(`average ${(totals.reduce((a, b) => a + b, 0) / totals.length).toFixed(0)} min`);

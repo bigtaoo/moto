@@ -39,11 +39,14 @@ export function streakDouble(save: Save, btn: HTMLButtonElement, redraw: () => v
 
 /** The results screen's shop buttons; `got` hears of achievements a purchase won (owning every ride ..). */
 export function shopActions(save: Save, redraw: () => void, got: (u: Unlocked[]) => void) {
+  // 3.3.79: paints and hats come out of the show purse, so what a purchase cost is the drop across both
+  // purses -- measuring `cash` alone would have priced every paint at $0 and gone through without a coin
+  // sound or a `bought` of its own.
   const spend = (event: string, act: () => boolean, fields: (price: number) => Fields) => {
-    const had = save.cash;
+    const had = save.cash + save.show;
     if (!act()) return;
-    const price = had - save.cash;
-    funnel.event(event, { ...fields(price), price, cash: save.cash });
+    const price = had - save.cash - save.show;
+    funnel.event(event, { ...fields(price), price, cash: save.cash, show: save.show });
     if (price > 0) { tele.bought(); sfx.coin(); }
     got(counted(save, unlock(save)));
     storeSave(save);

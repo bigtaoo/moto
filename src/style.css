@@ -354,6 +354,10 @@ button.primary:disabled:active { transform: none; box-shadow: 0 5px 0 var(--ink)
 .league.show { animation: league 4.5s ease-out forwards; }
 @keyframes league { 0% { opacity: 0; } 8% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
 .cashline b { background: var(--yellow); padding: 0 6px; border-radius: 6px; }
+/* 3.3.79: the show purse stands beside the cash and must not read as more of it -- same chip, the taunt's
+   pink, because that is the family it comes from, so one glance says which $400 a $400 paint means. */
+.cashline em { font-style: normal; margin-left: 8px; }
+.cashline em b { background: var(--pink); color: var(--paper); }
 .ups { display: flex; flex-direction: column; gap: 6px; }
 .up { display: flex; align-items: center; justify-content: space-between; gap: 8px; text-align: left; }
 .upname { font-weight: 800; font-size: 15px; min-width: 0; }

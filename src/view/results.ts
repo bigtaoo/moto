@@ -48,6 +48,8 @@ export interface RaceResult {
   flair: Flair;
   fines: number;
   earned: number;
+  /** What the showing off paid into the show purse, which only the wardrobe spends (3.3.79). */
+  show: number;
   time: number;
   grudges: string[];
   league: League;
@@ -232,11 +234,6 @@ export class Results {
         ${row(t('prize', { o: ord(res.place) }) + (res.mutator ? ` · ${t('mutRow', { name: t(`mut_${res.mutator}`) })} ×1.25` : ''), money(res.prize))}
         ${row(t('kos', { n: res.kos }), money(res.koBonus))}
         ${res.shoves ? row(t('shoves', { n: res.shoves }), money(res.shoveBonus), 'good') : ''}
-        ${res.flair.near ? row(t('nearMisses', { n: res.flair.near }), money(res.flair.nearPay), 'good') : ''}
-        ${res.flair.chainPay ? row(t('koChains', { n: res.flair.best }), money(res.flair.chainPay), 'good') : ''}
-        ${res.flair.bowls ? row(t('bowlRow', { n: res.flair.bowls }), money(res.flair.bowlPay), 'good') : ''}
-        ${res.flair.taunts ? row(t('tauntRow', { n: res.flair.taunts }), money(res.flair.tauntPay), 'good') : ''}
-        ${res.flair.bossPay ? row(`${icon('star')} ${t('bossRow')}`, money(res.flair.bossPay), 'good') : ''}
         ${res.grudgeKos ? row(t('grudgeKos', { n: res.grudgeKos }), money(res.grudgeBonus), 'good') : ''}
         ${res.fines ? row(t('fines'), money(-res.fines), 'bad') : ''}
         ${feudRows(res)}
@@ -245,9 +242,10 @@ export class Results {
         ${d.firstWin ? row(t('firstWin'), '+' + money(d.firstWin), 'good') : ''}
         ${res.ach.map((a) => row(`${icon('star')} ${t(`a_${a.id}` as Key)}`, '+' + money(a.pay), 'good')).join('')}
       </div>
+      ${showRows(res)}
       ${n >= NEW.double && res.double > 0 && !res.doubled ? `<button class="double"><span>${icon('play')} ${t('double', { n: res.double })}</span><small>${t('watchAd')}</small></button>` : ''}
       ${more(res, d, n)}
-      <div class="cashline">${t('cash')} <b>${money(save.cash)}</b></div>
+      <div class="cashline">${t('cash')} <b>${money(save.cash)}</b>${save.show ? ` <em>${t('showCash')} <b>${money(save.show)}</b></em>` : ''}</div>
       <button class="primary again">${againLabel(res.league)}</button>
       <div class="tiles">${garageButton(save)}${shiftOpen(save) ? shiftButton(save, 'shift shiftgo') : ''}${n >= NEW.home ? `<button class="shift home">${t('toMenu')}</button>` : ''}</div>`;
     const guard = (f: () => void) => () => { if (this.armed) f(); };
@@ -334,6 +332,26 @@ export function dailyRaceHtml(r: DailyRaceResult, save: Save): string {
  * their first race, sitting above the one that starts the second -- and 14 of 126 of them never started it.
  */
 export const NEW = { daily: 2, home: 2, double: 2 };
+
+/**
+ * The show purse (3.3.79): the five rows the crowd paid for, under a total of their own, below the race's.
+ * They used to sit inside the race's rows and add into its total; they buy paint and hats now, and nothing
+ * else, so they are counted where that money actually goes. The block is only there when it earned
+ * something -- a clean, quiet race says nothing about a purse it did not pay into.
+ */
+function showRows(res: RaceResult): string {
+  if (res.show <= 0) return '';
+  const f = res.flair;
+  return `<div class="cuphead">${t('showHead')}</div>
+    <div class="rows">
+      ${f.near ? row(t('nearMisses', { n: f.near }), money(f.nearPay), 'good') : ''}
+      ${f.chainPay ? row(t('koChains', { n: f.best }), money(f.chainPay), 'good') : ''}
+      ${f.bowls ? row(t('bowlRow', { n: f.bowls }), money(f.bowlPay), 'good') : ''}
+      ${f.taunts ? row(t('tauntRow', { n: f.taunts }), money(f.tauntPay), 'good') : ''}
+      ${f.bossPay ? row(`${icon('star')} ${t('bossRow')}`, money(f.bossPay), 'good') : ''}
+      ${row(t('showCash'), money(res.show), 'total')}
+    </div>`;
+}
 
 function feudRows(res: RaceResult): string {
   const o = res.feud.out;

@@ -12,20 +12,26 @@ export interface Paint {
   price: number;
 }
 
-/** Index 0 is the stock paint every save starts with. Names are i18n keys `paint0`.. */
+/**
+ * Index 0 is the stock paint every save starts with. Names are i18n keys `paint0`..
+ *
+ * 3.3.79: priced in show money (`save.show`), not cash -- see `wear` below for why. A career that never
+ * plays to the crowd takes about $41k into that purse, so the whole wardrobe ($61,700) is out of reach on
+ * race pay alone and the two trophies are what a showman has over a racer.
+ */
 export const PAINTS: readonly Paint[] = [
   { body: C.PLAYER_BODY, ride: C.PLAYER_RIDE, mark: 0xf4d23c, price: 0 },
-  { body: 0xd83a2e, ride: 0xf2f2f2, mark: 0xffd23c, price: 800 },
-  { body: 0x7fd6b4, ride: 0x2b2b33, mark: 0xff6fa8, price: 1500 },
-  { body: 0x3c3f58, ride: 0xe0602a, mark: 0x5fe0ff, price: 2500 },
-  { body: 0xff8fc8, ride: 0x7a3cff, mark: 0xffffff, price: 9000 },
-  { body: 0xd9b45a, ride: 0x1c1c22, mark: 0xe23b3b, price: 50000 },
+  { body: 0xd83a2e, ride: 0xf2f2f2, mark: 0xffd23c, price: 400 },
+  { body: 0x7fd6b4, ride: 0x2b2b33, mark: 0xff6fa8, price: 900 },
+  { body: 0x3c3f58, ride: 0xe0602a, mark: 0x5fe0ff, price: 1600 },
+  { body: 0xff8fc8, ride: 0x7a3cff, mark: 0xffffff, price: 5000 },
+  { body: 0xd9b45a, ride: 0x1c1c22, mark: 0xe23b3b, price: 20000 },
 ];
 
 /** Hats for the dummy (looks only, they wobble), bought once and kept. 0 is bare-headed. Names: `hat0`.. */
 export const HATS = ['none', 'cap', 'party', 'top', 'cowboy', 'viking', 'cone'] as const;
 export type Hat = (typeof HATS)[number];
-export const HAT_PRICE = [0, 600, 1000, 1800, 5000, 12000, 55000];
+export const HAT_PRICE = [0, 300, 600, 1100, 2800, 7000, 22000];
 
 /**
  * The season (`save.tier`) each paint and hat goes on sale in. Once the upgrades are capped the later seasons
@@ -40,6 +46,10 @@ export const HAT_PRICE = [0, 600, 1000, 1800, 5000, 12000, 55000];
  * 3.3.33: priced off what Legend actually pays, not what it looked like it might. At $110k and $120k the two
  * tier-2 goods were never bought in any run of scripts/career.ts -- a career ends around $60-100k spare, so
  * the collector's goal was not a long save, it was unreachable. They now land inside the last season.
+ *
+ * 3.3.79: and then they were never bought anyway, at any price, because cash has somewhere better to be
+ * every single race (the tune-up). The gate stays -- it is what spaces the wardrobe over the seasons -- but
+ * the money is the show purse now, which nothing else can spend.
  */
 export const PAINT_TIER = [0, 0, 0, 0, 1, 2];
 export const HAT_TIER = [0, 0, 0, 0, 1, 1, 2];
@@ -55,14 +65,19 @@ export function wearState(save: Save, k: Wardrobe, i: number): PaintState {
   if (save[k].owned.includes(i)) return 'owned';
   return save.tier >= wearTier(k, i) ? 'buy' : 'locked';
 }
-/** Buy (if need be, and affordable) and wear paint or hat `i`. */
+/**
+ * Buy (if need be, and affordable) and wear paint or hat `i`. Paid out of the show purse (`save.show`),
+ * which only the looks tab can spend: 3.3.79's answer to a wardrobe that no probe career ever bought a
+ * thing from. Against a tune-up that is worth a place next race, a paint job never wins an argument about
+ * cash, so it stopped having that argument -- showing off pays for it instead (src/career.ts settleRace).
+ */
 export function wear(save: Save, k: Wardrobe, i: number): boolean {
   if (!Number.isInteger(i) || i < 0 || i >= (k === 'paint' ? PAINTS.length : HATS.length)) return false;
   const st = wearState(save, k, i);
   if (st === 'locked') return false;
   if (st === 'buy') {
-    if (save.cash < wearPrice(k, i)) return false;
-    save.cash -= wearPrice(k, i);
+    if (save.show < wearPrice(k, i)) return false;
+    save.show -= wearPrice(k, i);
     save[k].owned.push(i);
   }
   save[k].cur = i;

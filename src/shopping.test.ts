@@ -33,6 +33,8 @@ const click = (btn: HTMLButtonElement) => (btn.onclick as unknown as () => void)
 function shop(cash = 10_000) {
   const save: Save = parseSave(null);
   save.cash = cash;
+  // the looks are priced in show money (3.3.79); the same amount, so the buttons have something to spend
+  save.show = cash;
   let redraws = 0;
   const won: { id: string; pay: number }[] = [];
   const act = shopActions(save, () => { redraws++; }, (u) => won.push(...u));

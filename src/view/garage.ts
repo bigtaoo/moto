@@ -56,9 +56,10 @@ export function buyable(save: Save): number {
   if (tuneOpen(save)) n += (Object.keys(UP_NAMES) as UpKey[]).filter((k) => save.tune[k] < TUNE_MAX && save.cash >= tunePrice(save, k)).length;
   if (save.wear > 0 && save.cash >= repairPrice(save)) n++;
   if (save.races >= TAB_AT.rides) VEHICLES.forEach((v, i) => { if (rideState(save, i) === 'buy' && save.cash >= v.price) n++; });
+  // the looks are bought with show money, not cash (3.3.79)
   if (save.races >= TAB_AT.looks) {
-    PAINTS.forEach((_, i) => { if (wearState(save, 'paint', i) === 'buy' && save.cash >= wearPrice('paint', i)) n++; });
-    HATS.forEach((_, i) => { if (wearState(save, 'hat', i) === 'buy' && save.cash >= wearPrice('hat', i)) n++; });
+    PAINTS.forEach((_, i) => { if (wearState(save, 'paint', i) === 'buy' && save.show >= wearPrice('paint', i)) n++; });
+    HATS.forEach((_, i) => { if (wearState(save, 'hat', i) === 'buy' && save.show >= wearPrice('hat', i)) n++; });
   }
   return n;
 }
@@ -260,7 +261,10 @@ export class Garage {
     const go = !on.next ? ''
       : one ? `<button class="primary gfirst">${t('firstBuy', { s: t(UP_NAMES[FIRST_PICK]), n: money(pick as number) })}</button>`
       : `<button class="primary gback"${must ? ' disabled' : ''}>${must ? t('buyFirst') : `${t('nextRace')} ${icon('play')}`}</button>`;
-    card.innerHTML = `<div class="ghead"><h2>${t('garage')}</h2>${back}<div class="cashline">${t('cash')} <b>${money(save.cash)}</b></div></div>
+    // both purses once the looks are open, because from there on half of what is on sale is priced in the
+    // other one and a player looking at a $400 paint needs to see which $400 the game means (3.3.79)
+    const purses = `<div class="cashline">${t('cash')} <b>${money(save.cash)}</b>${save.races >= TAB_AT.looks ? ` <em>${t('showCash')} <b>${money(save.show)}</b></em>` : ''}</div>`;
+    card.innerHTML = `<div class="ghead"><h2>${t('garage')}</h2>${back}${purses}</div>
       ${hint}${tabs ? `<div class="tabs">${tabs}</div>` : ''}
       <div class="gbody${hint ? ' first' : ''}">${body}</div>
       ${go}`;

@@ -17,7 +17,7 @@ const CARRY_KEY = { pan: 'carryPan', bat: 'carryBat', oil: 'carryOil' } as const
 function tag(save: Save, k: 'paint' | 'hat', i: number): { st: string; off: boolean; label: string } {
   const st = wearState(save, k, i);
   const price = wearPrice(k, i);
-  const off = st === 'on' || st === 'locked' || (st === 'buy' && save.cash < price);
+  const off = st === 'on' || st === 'locked' || (st === 'buy' && save.show < price);
   const label = st === 'on' ? t('wearing') : st === 'owned' ? t('wearIt')
     : st === 'locked' ? `${icon('lock')} ${TIERS[wearTier(k, i)].name}` : money(price);
   return { st, off, label };
@@ -51,6 +51,7 @@ export function shopHtml(save: Save): string {
   }).join('');
   return `<div class="shop"><div class="cuphead">${t('paintShop')}</div><div class="paints">${paints}</div>
     <div class="cuphead">${t('hatShop')}</div><div class="paints">${hats}</div>
+    <small class="tip">${t('showTip')}</small>
     <div class="cuphead">${t('bringWeapon')}</div><div class="carries">${carry}</div><small class="tip">${t('carryTip')}</small></div>`;
 }
 

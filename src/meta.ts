@@ -15,6 +15,11 @@ import { newStreak, ACH_IDS, type Streak, type Life } from './rewards';
 
 export interface Save {
   cash: number;
+  /**
+   * The wardrobe's own purse (3.3.79): what showing off pays -- near misses, KO chains, riders bowled over,
+   * taunts, the boss' bounty -- kept apart from the race money, and the only money paints and hats take.
+   */
+  show: number;
   up: Upgrades;
   grudges: number[];
   races: number;
@@ -93,7 +98,7 @@ export function parseSave(raw: string | null): Save {
 const WAS: Record<string, string> = { koRace: 'kos25', koLife: 'kos1000' };
 
 const fresh: Save = {
-    cash: 0, up: { top: 0, steer: 0, hp: 0 }, grudges: [], races: 0, best: 0, div: 0, reach: 0, cup: newCup(FIRST_CUP), titles: 0, gate: 0, endless: 0, feud: newFeud(), tier: 0,
+    cash: 0, show: 0, up: { top: 0, steer: 0, hp: 0 }, grudges: [], races: 0, best: 0, div: 0, reach: 0, cup: newCup(FIRST_CUP), titles: 0, gate: 0, endless: 0, feud: newFeud(), tier: 0,
     garage: { cur: 0, owned: [0] }, paint: { cur: 0, owned: [0] }, hat: { cur: 0, owned: [0] }, launchBest: 0, carry: null, tune: { top: 0, steer: 0, hp: 0 }, wear: 0, muted: false, sessions: 0, firstDay: 0, musicOff: false, sfxOff: false, hapticsOff: false, quality: 'auto', lang: null, calm: null, daily: readDaily(null, today()), drace: newDailyRace(today()), dpts: 0,
     streak: newStreak(), ach: [], life: { kos: 0, wins: 0 },
   };
@@ -135,6 +140,9 @@ const fresh: Save = {
     const div = Math.max(0, Math.min(DIVISIONS.length - 1, Math.floor(num(s.div))));
     return {
       cash: count(s.cash) + refund(s.up?.top, UPGRADE_MAX.top) + refund(s.up?.steer, UPGRADE_MAX.steer) + refund(s.up?.hp, UPGRADE_MAX.hp),
+      // a save from before 3.3.79 has its flair money already spent or sitting in `cash`: the show purse
+      // starts empty rather than being paid twice
+      show: count(s.show),
       up: { top: lvl(s.up?.top, UPGRADE_MAX.top), steer: lvl(s.up?.steer, UPGRADE_MAX.steer), hp: lvl(s.up?.hp, UPGRADE_MAX.hp) },
       grudges,
       races: count(s.races),

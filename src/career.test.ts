@@ -258,6 +258,22 @@ describe('nemesis', () => {
 describe('career settlement, seasons and the garage', () => {
   const summary = raceSummary;
 
+  /**
+   * 3.3.79: the showing off is paid into a purse of its own. The race's own total must not count it, the
+   * save's cash must not see it, and the fines must come off the race money rather than off the show.
+   */
+  it('pays the showing off into the show purse, not into the race money', () => {
+    const save = parseSave(null);
+    const s = settleRace(save, summary(1, { nearPay: 75, chainPay: 40, stuntPay: 300, fines: 50 }));
+    expect(s.show).toBe(415);
+    expect(save.show).toBe(415);
+    expect(s.earned).toBe(s.prize - 50 + s.feud.cash);
+    expect(save.cash).toBe(s.earned);
+    // and it piles up across races, because only the wardrobe can take it out again
+    settleRace(save, summary(4, { nearPay: 25 }));
+    expect(save.show).toBe(440);
+  });
+
   it('pays the race at the stage purse and moves the cup on', () => {
     const save = parseSave(null);
     save.tier = 1;
@@ -357,9 +373,15 @@ describe('career settlement, seasons and the garage', () => {
 
   it('sells paint once and a weapon per race, and starts that race with it', () => {
     const save = parseSave(null);
-    expect(choosePaint(save, 1)).toBe(false); // no cash
+    expect(choosePaint(save, 1)).toBe(false); // nothing in the show purse
+    // 3.3.79: the paint is priced in show money and the weapon in cash, and neither reaches the other's
+    // purse -- a player with the race money for a paint job still cannot buy one
     save.cash = PAINTS[1].price + carryPrice(save, 'bat') + 10;
+    expect(choosePaint(save, 1)).toBe(false);
+    save.show = PAINTS[1].price;
+    save.cash = carryPrice(save, 'bat') + 10;
     expect(choosePaint(save, 1)).toBe(true);
+    expect(save.show).toBe(0);
     expect(save.paint).toEqual({ cur: 1, owned: [0, 1] });
     expect(choosePaint(save, 0)).toBe(true);
     expect(choosePaint(save, 1)).toBe(true);
@@ -379,17 +401,17 @@ describe('career settlement, seasons and the garage', () => {
 
   it('puts the dearest paints and hats on sale only in a later season, and keeps them once bought', () => {
     const save = parseSave(null);
-    save.cash = 1e6;
+    save.show = 1e6;
     const last = PAINTS.length - 1;
     const hat = HATS.length - 1;
     expect(PAINT_TIER[last]).toBeGreaterThan(0);
     expect(wearState(save, 'paint', last)).toBe('locked');
     expect(choosePaint(save, last)).toBe(false);
     expect(chooseHat(save, hat)).toBe(false);
-    expect(save.cash).toBe(1e6);
+    expect(save.show).toBe(1e6);
     save.tier = HAT_TIER[hat];
     expect(chooseHat(save, hat)).toBe(true);
-    expect(save.cash).toBe(1e6 - HAT_PRICE[hat]);
+    expect(save.show).toBe(1e6 - HAT_PRICE[hat]);
     save.tier = PAINT_TIER[last];
     expect(choosePaint(save, last)).toBe(true);
     save.tier = 0; // an old save, or a new career: what is owned stays wearable
