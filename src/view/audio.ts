@@ -19,11 +19,11 @@ type Name = (typeof SFX)[number] | Track | SynthName;
 const isMade = (n: Name): n is Track => n.startsWith('gen') || n.startsWith('boss');
 
 const url = (n: Name) => `${import.meta.env.BASE_URL}audio/${n}.mp3`;
-/** 3.3.74: 0.32 was set against a tune squashed to an RMS of 0.27. The circus band is normalised to a peak
+/** 3.3.74: 0.32 was set against a tune squashed to an RMS of 0.27. The band is normalised to a peak
  *  instead, which leaves it quieter on the bus, so the bus gives that back. Same loudness as before,
  *  dynamics kept: the music peaks near 0.43 here, well under the master limiter's -3 dBFS. The number is
- *  arithmetic, not taste -- 0.0858 / the tune's own RMS -- so it moves whenever the band's crest factor
- *  does. Softening the downbeat lowered the peaks, which let the normaliser up, so this came down with it. */
+ *  arithmetic, not taste -- 0.0858 / the tune's own RMS, which is 0.155-0.167 across the three tunes
+ *  measured -- so it moves whenever the band changes. Taking the tuba out raised the RMS, so this fell. */
 const MUSIC_VOL = 0.53;
 const SFX_VOL = 0.75;
 /** Effects sounding at once. A race fires 300-450 of them and they were piling up 8 deep (doc 3.3.29). */

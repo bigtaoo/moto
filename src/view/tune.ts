@@ -6,11 +6,9 @@
 // 3.3.74: the band is a circus band now -- piccolo, tuba, banjo, marching snare, woodblock -- not a chiptune
 // one. The score barely changed; what wore a listener down was the timbre (a pulse wave's edge for two
 // minutes) and the groove (a bass on six of eight eighths). The tuba plays oom-pah on the quarters instead.
-// Then: "the accent is too strong". It was measurable -- beats 1 and 3 peaked 6 dB above 2 and 4, because
-// the kick pattern and the tuba's oom land on the same two beats and every accented voice piled onto them.
-// Each of the three gave a little back (kick gain, kick attack, and the velocity gap on bass and lead), and
-// the downbeat went from 3.4 dB over the rest to 1.9. Lower peaks mean a higher normaliser gain, so
-// `MUSIC_VOL` came down to match -- the bus RMS is the number held still, not anything inside here.
+// Then: "the accent is too strong" -- and, once they had heard the parts separately, "it's the tuba". It
+// was: beats 1 and 3 peaked 5.3 dB over 2 and 4, and a ladder of five renders put the blame on the
+// oom-pah bounce rather than the tuba's volume. They chose the end of the ladder, so the tuba is gone.
 
 /** A small seeded generator (mulberry32): the same seed, the same tune. */
 function rng(seed: number): () => number {
@@ -24,7 +22,7 @@ function rng(seed: number): () => number {
   };
 }
 
-type Voice = 'lead' | 'bass' | 'arp' | 'kick' | 'snare' | 'hat';
+type Voice = 'lead' | 'arp' | 'kick' | 'snare' | 'hat';
 export interface Note { v: Voice; at: number; len: number; midi: number; vel: number }
 export interface Song { bpm: number; secs: number; notes: Note[] }
 
@@ -115,19 +113,14 @@ export function compose({ seed, boss }: TuneOpts): Song {
       }
       d = best;
       prev = deg(d);
-      notes.push({ v: 'lead', at: t0 + i * eighth, len: (end ? 8 - i : j - i) * eighth * (end ? 0.9 : 0.82), midi: prev, vel: end ? 0.88 : i % 4 === 0 ? 0.9 : 0.82 });
+      notes.push({ v: 'lead', at: t0 + i * eighth, len: (end ? 8 - i : j - i) * eighth * (end ? 0.9 : 0.82), midi: prev, vel: end ? 0.9 : i % 4 === 0 ? 1.0 : 0.8 });
       if (end) break;
     }
-    // bass: oom-pah, the thing a circus band runs on. The root low and loud on the beat, the fifth above it
-    // short and soft on the off-beat, and a step into the next chord on the last pah of an odd bar. Four
-    // notes a bar where 3.3.67 left six: the gap between them is what the ear rests in, and both rounds of
-    // the complaint ("tiring") were about a bass that never stopped.
-    const low = ch > 4 ? ch - 7 : ch; // the chord's root within the bass's octave
-    for (const i of [0, 2, 4, 6]) {
-      const oom = i % 4 === 0;
-      const walk = i === 6 && bi % 2 === 1;
-      notes.push({ v: 'bass', at: t0 + i * eighth, len: eighth * (oom ? 0.55 : 0.38), midi: deg(walk ? low + 4 : low, root - 12) + (oom ? 0 : 7), vel: oom ? 0.85 : 0.74 });
-    }
+    // No bass. The circus band had a tuba playing oom-pah on the quarters, and that bounce is what the
+    // player kept hearing as "the accent": measured, it put beats 1 and 3 five decibels over 2 and 4, and
+    // taking the tuba out was the only version of less that they liked. It costs the low end -- until the
+    // banjo arrives at bar 12 there is a piccolo and drums and nothing underneath -- which is the trade
+    // they chose after hearing both. `git show 8ecdb08^:src/view/tune.ts` has the tuba if it is ever wanted.
     // arpeggio over the climb: chord tones up in sixteenths. It used to run from bar 8, which put
     // sixteenths under the lead for half of every loop; four bars make it the lift it was meant to be.
     if (bi >= 12) for (let i = 0; i < 16; i++) {
@@ -152,9 +145,8 @@ export function compose({ seed, boss }: TuneOpts): Song {
 const hz = (m: number) => 440 * 2 ** ((m - 69) / 12);
 
 /** The band: a piccolo on the lead, a tuba on the bass, a banjo on the arpeggio, a marching snare and a
- *  woodblock. The tuba carries the loop, so it is the loudest of them. The kick sat at 0.6 and landed on
- *  the same two beats as the tuba's oom, which is what made the pulse 6 dB deep: see `vel` in `compose`. */
-const GAIN: Record<Voice, number> = { lead: 0.2, bass: 0.42, arp: 0.12, kick: 0.4, snare: 0.26, hat: 0.15 };
+ *  woodblock -- and no bass at all. The kick is the only thing left on the beat, so it is the loudest. */
+const GAIN: Record<Voice, number> = { lead: 0.2, arp: 0.12, kick: 0.6, snare: 0.3, hat: 0.15 };
 
 /** Straight through under 0.7, rounded over it towards a 0.94 ceiling: a peak limiter rather than a
  *  shaper on everything. */
@@ -245,8 +237,7 @@ export class Renderer {
     const g = GAIN[nt.v] * nt.vel;
     const f = hz(nt.midi);
     let ph = 0;
-    let lp1 = 0, lp2 = 0, hp = 0;
-    const a = pole(Math.min(4000, Math.max(900, f * 4)), sr);
+    let lp1 = 0, hp = 0;
     for (let k = 0; k < len; k++) {
       const t = k / sr;
       let v = 0;
@@ -255,16 +246,6 @@ export class Renderer {
           const vib = t > 0.09 ? 0.006 * Math.sin(2 * Math.PI * 5.5 * t) : 0;
           v = Math.sin(2 * Math.PI * f * t * (1 + vib)) + 0.18 * Math.sin(4 * Math.PI * f * t) + (this.noise() * 2 - 1) * 0.05;
           v *= Math.min(1, t / 0.02) * (t < nt.len ? 1 : Math.max(0, 1 - (t - nt.len) / 0.05));
-          break;
-        }
-        case 'bass': { // tuba: a saw with its edge filtered off, so what is left is round and low
-          ph += f / sr;
-          if (ph >= 1) ph -= 1;
-          v = 2 * ph - 1;
-          lp1 += a * (v - lp1);
-          lp2 += a * (lp1 - lp2);
-          v = lp2 * 1.6;
-          v *= Math.min(1, t / 0.012) * (t < nt.len ? 1 : Math.max(0, 1 - (t - nt.len) / 0.05));
           break;
         }
         case 'arp': { // banjo: a plucked string whose filter closes as it dies
@@ -276,9 +257,9 @@ export class Renderer {
           v = lp1 * 1.4 * Math.exp(-t * 9) * Math.min(1, t / 0.001);
           break;
         }
-        case 'kick': { // the 6 ms fade in is the click taken off the front: a band's drum, not a machine's
+        case 'kick': {
           ph += (45 + 110 * Math.exp(-t * 28)) / sr;
-          v = Math.sin(2 * Math.PI * ph) * Math.exp(-t * 14) * Math.min(1, t / 0.006);
+          v = Math.sin(2 * Math.PI * ph) * Math.exp(-t * 14) * Math.min(1, t / 0.002);
           break;
         }
         case 'snare': { // a marching snare: tighter and drier than the kit one it replaces

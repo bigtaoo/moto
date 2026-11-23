@@ -25,10 +25,7 @@ describe('race tunes made in code', () => {
           expect(n.midi).toBeGreaterThanOrEqual(52); // E3
           expect(n.midi).toBeLessThanOrEqual(84); // C6
         }
-        for (const n of s.notes.filter((n) => n.v === 'bass')) {
-          expect(n.midi).toBeGreaterThanOrEqual(28);
-          expect(n.midi).toBeLessThanOrEqual(64);
-        }
+        expect(s.notes.some((n) => (n.v as string) === 'bass')).toBe(false); // the tuba went in 3.3.74
         // no leap over an octave between lead notes
         for (let i = 1; i < lead.length; i++) expect(Math.abs(lead[i].midi - lead[i - 1].midi)).toBeLessThanOrEqual(12);
       }
@@ -61,12 +58,9 @@ describe('race tunes made in code', () => {
     }
   });
 
-  it('leaves the loop somewhere to go: the bass rests and the arp waits for the climb', () => {
+  it('leaves the loop somewhere to go: the arp waits for the climb', () => {
     for (let seed = 0; seed < 20; seed++) {
       const s = compose({ seed });
-      const bars = Math.round(s.secs / (s.bpm ? (60 / s.bpm) * 4 : 1));
-      const bass = s.notes.filter((n) => n.v === 'bass');
-      expect(bass.length).toBeLessThan(bars * 7); // not all eight eighths of every bar
       const arp = s.notes.filter((n) => n.v === 'arp');
       expect(Math.min(...arp.map((n) => n.at))).toBeGreaterThan(s.secs * 0.6);
     }
