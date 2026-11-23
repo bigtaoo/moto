@@ -21,10 +21,11 @@ const isMade = (n: Name): n is Track => n.startsWith('gen') || n.startsWith('bos
 const url = (n: Name) => `${import.meta.env.BASE_URL}audio/${n}.mp3`;
 /** 3.3.74: 0.32 was set against a tune squashed to an RMS of 0.27. The band is normalised to a peak
  *  instead, which leaves it quieter on the bus, so the bus gives that back. Same loudness as before,
- *  dynamics kept: the music peaks near 0.43 here, well under the master limiter's -3 dBFS. The number is
- *  arithmetic, not taste -- 0.0858 / the tune's own RMS, which is 0.155-0.167 across the three tunes
- *  measured -- so it moves whenever the band changes. Taking the tuba out raised the RMS, so this fell. */
-const MUSIC_VOL = 0.53;
+ *  dynamics kept: the music peaks near 0.37 here, well under the master limiter's -3 dBFS. The number is
+ *  arithmetic, not taste -- 0.0858 / the tune's own RMS, which is 0.185-0.197 across the three tunes
+ *  measured -- so it moves whenever the band changes. 3.3.75 levelled the kick against the snare, which
+ *  lets the peak normalisation push the whole tune up again, so this fell a second time (0.53 -> 0.45). */
+const MUSIC_VOL = 0.45;
 const SFX_VOL = 0.75;
 /** Effects sounding at once. A race fires 300-450 of them and they were piling up 8 deep (doc 3.3.29). */
 const MAX_VOICES = 6;
