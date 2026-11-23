@@ -397,6 +397,12 @@ export class Hud {
       // edge. Clamped before the stacking pass, so two tags pushed to the same corner still part vertically.
       const lo = half + 4, hi = this.roomW - half - 4;
       let x = hi > lo ? Math.max(lo, Math.min(hi, this.pt.x)) : this.pt.x, y = this.pt.y;
+      // No name goes over the player's own dummy. A rival a metre or two behind is drawn below and in
+      // front of them, so its tag -- which hangs above its head -- lands square on the player's chest,
+      // and the player loses sight of the one thing on the screen they steer by. The tag steps up to just
+      // clear of their helmet instead; the stacking pass below then parts it from any other name up there.
+      const pb = view.pbox;
+      if (pb.ok && y > pb.top && y - TAG_H < pb.bot && Math.abs(x - pb.x) < half + pb.half) y = pb.top - 3;
       let rows = 0;
       for (; rows <= TAG_ROWS; rows++) {
         let hit = false;

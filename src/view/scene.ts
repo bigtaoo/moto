@@ -46,6 +46,25 @@ const CAM = {
 const BLOCK_W = 1.6;
 const BLOCK_T = 2.6;
 
+/**
+ * The drawn dummy as a box on the screen: how tall it stands in metres, and how wide half of it is as a
+ * share of the height it draws at. A dummy on its ride is about 1.9 m to the top of the head and a bit
+ * over a metre across with its arms out, which is the 0.3 -- close enough to say what covers what.
+ */
+const BODY_H = 1.9;
+const BODY_W = 0.3;
+/**
+ * How much of the player's own column a rival has to put itself over before it is thinned as far as
+ * `ghost` goes. Measured, not guessed: a rival squarely in front of the player covers 0.72 of the column
+ * at a metre back and 0.39 at three metres, the dip being the band where its head draws just under the
+ * player's and its legs run off the foot of the screen. The scale has to top out inside that dip or the
+ * worst case -- the one the player reported -- is the one it thins least, so it tops out at 0.35.
+ */
+const COVER_FULL = 0.35;
+
+/** A drawn body on the screen: its middle, the rows its head and its wheels are on, and half its width. */
+export interface Box { x: number; top: number; bot: number; half: number; ok: boolean }
+
 
 /**
  * Degrees the camera widens by at `speed`. The old single slope (0.55 deg per m/s, capped at 10) ran out at
@@ -91,6 +110,14 @@ export class RaceView {
   /** Drawn lateral position and speed per rider: a short spring over the sim's x, so contact can't shake. */
   private drawX: number[] = [];
   private drawVx: number[] = [];
+  /**
+   * The player's own dummy as a box on the screen (CSS px, `ok` false while it is off it). Worked out
+   * once a frame, because two things have to keep off it: a rival's body (`cover`) and, in hud.ts, a
+   * rival's name tag.
+   */
+  readonly pbox: Box = { x: 0, top: 0, bot: 0, half: 0, ok: false };
+  private readonly rbox: Box = { x: 0, top: 0, bot: 0, half: 0, ok: false };
+  private readonly pt = { x: 0, y: 0 };
 
   /** `paint`, `hat`: the player's paint job and hat (looks only: the sim keeps the stock colours). */
   constructor(private readonly stage: Stage, public w: World, seed: number, paint?: Paint, hat: Hat = 'none') {
@@ -278,6 +305,7 @@ export class RaceView {
   update(dt: number, alpha: number): void {
     const w = this.w;
     const pz = lerp(w.player.pz, w.player.z, alpha);
+    this.pbox.ok = false; // nothing to keep off the player until the loop below has placed and measured them
     this.shadows.begin();
     for (let i = 0; i < w.riders.length; i++) {
       const r = w.riders[i];
@@ -299,7 +327,12 @@ export class RaceView {
       rv.update(dt, r.speed, this.drawVx[i], r.rubT > 0 ? r.rubSide : 0);
       // Blink while invulnerable after getting back up; while hidden its bones leave the matrix walk too.
       rv.root.matrixWorldAutoUpdate = rv.root.visible = r.invT <= 0 || Math.floor(r.invT / 3) % 2 === 0;
-      rv.ghost(i === 0 ? 0 : this.blocking(x, z, pz));
+      // The player's box first, so every rival after it can be measured against the thing it must not hide.
+      if (i === 0) this.pbox.ok = this.screenBox(0, this.pbox);
+      // In the way of the road (`blocking`), or in the way of the player themselves (`cover`, and only a
+      // rival nearer the camera is drawn over them); whichever is worse decides how far it is thinned.
+      const hide = i === 0 ? 0 : Math.max(this.blocking(x, z, pz), z < pz ? Math.min(1, this.cover(i) / COVER_FULL) : 0);
+      rv.ghost(hide);
       if (r.state === 'ride') this.shadows.add(x, z, 0.5, 0.75);
       else this.shadows.add(x, z, 0.6, 0.6);
       const rd = this.ragdolls[i];
@@ -346,6 +379,45 @@ export class RaceView {
    * with its back, and one sitting in their lane a few metres ahead hides the car they are about to run
    * into. Both are drawn that much see-through instead, so the road reads through them.
    */
+  /**
+   * Rider `i`'s drawn body as a screen box, false when it is behind the camera. Two projections: the
+   * ground it stands on and the top of its head, which give the rows it covers and -- through BODY_W --
+   * how wide it is at that distance, without a bounding box walk over its forty-odd parts.
+   */
+  private screenBox(i: number, out: Box): boolean {
+    if (!this.projectRider(i, 0, this.pt)) return false;
+    out.x = this.pt.x;
+    out.bot = this.pt.y;
+    if (!this.projectRider(i, BODY_H, this.pt)) return false;
+    out.x = (out.x + this.pt.x) / 2;
+    out.top = this.pt.y;
+    out.half = (out.bot - out.top) * BODY_W;
+    out.ok = out.half > 0.5;
+    return out.ok;
+  }
+
+  /**
+   * How much of the player's own column rival `i` stands in, 0 to 1. `blocking` asks how much road a
+   * rival covers, which is the question 3.3.66 answered; this is the one it left open, and the player
+   * reported it again: a rival between the camera and the player is drawn several times their size, so a
+   * metre of road between the two is enough for it to sit on top of the dummy.
+   *
+   * The column is the player's own box widened downwards to the foot of the screen, because a rival in
+   * front of them does not have to land on the dummy itself to blind them -- the rows between the dummy
+   * and the bottom edge are the road they are about to be standing on. Only called for a rival nearer the
+   * camera than the player, which is the only one drawn over them.
+   */
+  private cover(i: number): number {
+    const p = this.pbox;
+    if (!p.ok || !this.screenBox(i, this.rbox)) return 0;
+    const b = this.rbox;
+    const foot = Math.max(p.bot, this.stage.cssH);
+    const ox = Math.min(p.x + p.half, b.x + b.half) - Math.max(p.x - p.half, b.x - b.half);
+    const oy = Math.min(foot, b.bot) - Math.max(p.top, b.top);
+    if (ox <= 0 || oy <= 0) return 0;
+    return (ox / (p.half * 2)) * (oy / (foot - p.top));
+  }
+
   private blocking(x: number, z: number, pz: number): number {
     const t = z - pz + (this.stage.portrait ? CAM.portrait : CAM.landscape).back; // metres in front of the camera
     if (t < 0.3) return 0;

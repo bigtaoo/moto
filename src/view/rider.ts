@@ -12,8 +12,12 @@ import { Wobble } from './hats';
 export const JOINT = 0x34343c;
 export const TARGET = 0xf4d23c;
 export const INK_W = 0.024;
-/** How far `RiderView.ghost` may thin a rider out: see-through, never gone -- the player still has to see who is there. */
-const GHOST = 0.7;
+/**
+ * How far `RiderView.ghost` may thin a rider out: see-through, never gone -- the player still has to see
+ * who is there. 3.3.66 stopped at 0.7, which leaves 0.3 of a rider standing on top of the player, and over
+ * a dark road 0.3 of a dummy still reads as a dummy: the player reported being covered up all the same.
+ */
+const GHOST = 0.85;
 
 export const rbox = (w: number, h: number, d: number, r = Math.min(w, h, d) * 0.3) => prim(`rb:${w},${h},${d},${r}`, () => roundedBox(w, h, d, r));
 export const ball = (r: number, seg = 8) => new THREE.SphereGeometry(r, seg, Math.round(seg * 0.75));
