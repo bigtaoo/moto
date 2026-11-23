@@ -218,4 +218,27 @@ describe('road features and divisions', () => {
     expect(r.state).not.toBe('ride');
     expect(p.speed).toBeGreaterThan(before);
   });
+
+  it('a lean in the air picks the lane it comes down in, and is no match for the road', () => {
+    const fly = (lean: number) => {
+      const w = seedWith(4, (x) => x.road.ramps.some((r) => !r.trail));
+      const ramp = w.road.ramps.find((r) => !r.trail)!;
+      const p = w.player;
+      place(w, ramp.x, ramp.z - 15);
+      let x0 = NaN;
+      let ticks = 0;
+      run(w, () => !isNaN(x0) && p.airT === 0, () => {
+        if (p.airT === 0) return;
+        if (isNaN(x0)) x0 = p.x;
+        ticks++;
+        w.input.targetX = ramp.x + lean; // leaning that way for the whole flight
+      });
+      return { moved: p.x - x0, ticks, steer: p.steer };
+    };
+    const held = fly(6);
+    expect(held.ticks).toBeGreaterThan(20); // a jump worth steering through
+    expect(held.moved).toBeGreaterThan(1); // more than a dodge inside the lane
+    expect(held.moved).toBeLessThan(held.steer * held.ticks * C.DT * 0.6); // ... and well short of the road's
+    expect(fly(0).moved).toBeCloseTo(0, 5); // nobody leaning, nobody drifting
+  });
 });

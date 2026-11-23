@@ -342,17 +342,20 @@ export class World {
       const target = r.braking || (r.finished && r.isPlayer) ? 0 : this.topNow(r) * (trail ? C.CUT.top : 1);
       if (r.speed < target) r.speed = Math.min(target, r.speed + r.accel * pull(r) * C.DT);
       else r.speed = Math.max(target, r.speed - (r.braking ? C.BRAKE : C.COAST) * C.DT);
-      // a blow carries the rider sideways for a moment before they can steer against it
-      if (r.isPlayer) {
-        const step = r.steer * g * C.DT;
-        if (r.stagT === 0) r.x += clamp(r.wantX - r.x, -step, step);
-      } else {
-        // an AI rider has to build up and kill its sideways speed instead of snapping onto its line
-        const v = clamp((r.wantX - r.x) * 2.6, -r.steer, r.steer);
-        const dv = r.latAcc * g * C.DT;
-        if (r.stagT === 0) r.latV += clamp(v - r.latV, -dv, dv);
-        r.x += r.latV * C.DT;
-      }
+    }
+    // Steering. On the road it is the grip that scales it; in the air there is none to carve with, so a
+    // lean is worth C.RAMP.airSteer of it -- enough to choose the lane to come down in (3.3.80).
+    // A blow carries the rider sideways for a moment before they can steer against it either way.
+    const sg = air ? C.RAMP.airSteer : g;
+    if (r.isPlayer) {
+      const step = r.steer * sg * C.DT;
+      if (r.stagT === 0) r.x += clamp(r.wantX - r.x, -step, step);
+    } else {
+      // an AI rider has to build up and kill its sideways speed instead of snapping onto its line
+      const v = clamp((r.wantX - r.x) * 2.6, -r.steer, r.steer);
+      const dv = r.latAcc * sg * C.DT;
+      if (r.stagT === 0) r.latV += clamp(v - r.latV, -dv, dv);
+      r.x += r.latV * C.DT;
     }
     r.x += r.vx * C.DT;
     const [lo, hi] = R.bounds(r.px, r.z);

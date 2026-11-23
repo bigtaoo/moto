@@ -1,0 +1,38 @@
+/* The dummy launch screen (src/view/launch.ts): its own HUD, the meter, the judge and the card. Split
+   out of style.css on 2026-11-23, which the 500-line cap had caught up with. (3.3.80) */
+/* ---------- dummy launch ---------- */
+.launch { position: absolute; inset: 0; z-index: 8; user-select: none; touch-action: none; }
+.lx { position: absolute; top: max(10px, env(safe-area-inset-top)); left: max(10px, env(safe-area-inset-left)); width: 40px; height: 40px; font-size: 20px; font-weight: 900; border: 3px solid var(--ink); border-radius: 50%; background: var(--paper); cursor: pointer; }
+.lhud { position: absolute; top: max(10px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); text-align: center; color: var(--paper); -webkit-text-stroke: 1.5px var(--ink); paint-order: stroke; font-weight: 900; pointer-events: none; }
+.lhud .ld { display: block; font-size: 44px; line-height: 1; }
+/* under the big "39 m": a bare "39" read as a second distance -- the burst marks it as the score */
+.lhud .lp { font-size: 22px; color: var(--yellow); }
+.lhud .lp::before {
+  content: ''; display: inline-block; width: 0.85em; height: 0.85em; margin-right: 4px; vertical-align: -0.08em;
+  background: currentColor; -webkit-mask: var(--ic-burst) center / contain no-repeat; mask: var(--ic-burst) center / contain no-repeat;
+}
+.lmeter { position: absolute; left: 12%; right: 12%; bottom: calc(max(16px, env(safe-area-inset-bottom)) + 40px); height: 22px; border: 3px solid var(--ink); border-radius: 11px; background: rgba(255, 255, 255, 0.8); overflow: hidden; pointer-events: none; transition: opacity 0.3s; }
+.lmeter i, .lmeter b { position: absolute; top: 0; bottom: 0; }
+.lzone { right: 0; background: var(--green-lt); }
+.lsweet { width: 6px; margin-left: -3px; background: var(--green); }
+.lmark { width: 6px; margin-left: -3px; background: var(--ink); left: 0; }
+.lmeter.near { box-shadow: 0 0 0 3px var(--yellow); }
+.lmeter.off, .lhint.off { opacity: 0; }
+.lhint { position: absolute; left: 0; right: 0; bottom: calc(max(16px, env(safe-area-inset-bottom)) + 8px); text-align: center; color: var(--paper); -webkit-text-stroke: 1px var(--ink); paint-order: stroke; font-weight: 800; font-size: 18px; pointer-events: none; transition: opacity 0.3s; }
+.ljudge { position: absolute; top: 32%; left: 50%; transform: translate(-50%, -50%); font-size: 52px; font-weight: 900; color: var(--paper); -webkit-text-stroke: 2px var(--ink); paint-order: stroke; opacity: 0; pointer-events: none; white-space: nowrap; }
+.ljudge.perfect { color: var(--yellow); }
+.ljudge.good { color: var(--green-lt); }
+.ljudge.miss { color: var(--red-lt); }
+.ljudge.on { animation: ljudge 1.4s ease-out forwards; }
+@keyframes ljudge { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.4); } 15% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); } 25% { transform: translate(-50%, -50%) scale(1); } 75% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -70%) scale(1); } }
+.lpop { position: absolute; transform: translate(-50%, 0); font-size: 30px; font-weight: 900; color: var(--yellow); -webkit-text-stroke: 1.5px var(--ink); paint-order: stroke; opacity: 0; pointer-events: none; white-space: nowrap; }
+.lpop.on { animation: lpop 0.9s ease-out forwards; }
+@keyframes lfade { 0%, 75% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes lpop { 0% { opacity: 1; transform: translate(-50%, 0) scale(1.3); } 100% { opacity: 0; transform: translate(-50%, -50px) scale(1); } }
+/* the launch card is the race card's case: its own HUD (distance, meter, the X) steps out behind it */
+.launch:has(.lcard) > :not(.lcard) { visibility: hidden; }
+.lcard { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: calc(100% - 32px); max-width: 340px; }
+.lcard .st { margin-top: 4px; }
+.lbest { margin: 10px 0 0; font-weight: 800; }
+.lbest em { font-style: normal; color: var(--yellow-dk); font-size: 20px; }
+

@@ -4,7 +4,7 @@
  * Bump on any change to the race rules that alters what a seed plus inputs produce, and record the new
  * golden hash in world.test.ts. Replays and (later) online rooms only mix the same version.
  */
-export const SIM_VERSION = 45;
+export const SIM_VERSION = 46;
 
 export const TICK_HZ = 30;
 export const DT = 1 / TICK_HZ;
@@ -483,10 +483,15 @@ export const CUT = {
 
 /**
  * Ramps: one in a lane (cars keep out of that lane from before..after it), one mid-trail. Over it faster
- * than minSpeed sends a rider flying for `air` seconds per m/s: no steering, no blows either way, no
- * traffic. Landing gives `boost` speed, and landing on a rider (stomp) knocks them off.
+ * than minSpeed sends a rider flying for `air` seconds per m/s: no blows either way, no traffic, and the
+ * speed frozen at what the ramp was taken at. Landing gives `boost` speed, and landing on a rider (stomp)
+ * knocks them off. `airSteer` is what a lean in the air is worth, as a fraction of the rider's own steering
+ * speed on the road (3.3.80): it used to be nothing at all, and a jump at 30 m/s is a full second of road --
+ * about a lane and a half of it -- crossed with the hands tied, so the player came down in whatever lane the
+ * ramp pointed them at and ate the car standing in it. At 0.45 the base bike moves 3.8 m/s up there: enough
+ * to pick which lane to come down in, not enough to cross the road. It is a lean, not a carve.
  */
-export const RAMP = { halfW: 1.2, trailHalfW: 1.7, air: 0.035, minSpeed: 10, boost: 1.08, stompX: 1.1, stompZ: 1.6, before: 10, after: 3 };
+export const RAMP = { halfW: 1.2, trailHalfW: 1.7, air: 0.035, airSteer: 0.45, minSpeed: 10, boost: 1.08, stompX: 1.1, stompZ: 1.6, before: 10, after: 3 };
 
 // The career ladder (divisions, seasons, rides, upgrade levels) lives in ladder.ts; it reads as part of config.
 export * from './ladder';

@@ -9,6 +9,7 @@ import { BREAK_AT, type Nemesis } from '../career';
 import { Results } from './results';
 import { Menu } from './menu';
 import { Garage } from './garage';
+import { Tags } from './hudtags';
 import { t, money } from '../i18n';
 import '../style.coach.css';
 
@@ -24,16 +25,12 @@ const cls = (el: HTMLElement, name: string, on: boolean) => {
   if (el.classList.contains(name) !== on) el.classList.toggle(name, on);
 };
 
-/** A rival tag's height plus a hair of air: the step a tag is lifted to clear one already placed. */
-const TAG_H = 20;
-/** Tags are solid to here, then fade to TAG_FAINT at the end of the draw range (3.3.66). */
-const TAG_NEAR = 14;
-const TAG_FAR = 45;
-const TAG_FAINT = 0.28;
-/** A tag at TAG_FAINT is drawn this much of full size, so distance thins the names instead of only dimming them. */
-const TAG_SMALL = 0.72;
-/** Rows a tag may be lifted to clear one already placed; one that still lands on a name is dropped instead. */
-const TAG_ROWS = 2;
+/** Air between the foot of the call-out stack and the top of the player's helmet. */
+const POP_GAP = 6;
+/** The foot of that stack is held between these two lines of the screen, highest first (3.3.80). */
+const POP_HI = 0.42, POP_LO = 0.62;
+/** Where it hangs while the player is off the screen (down, or the camera has lost them). */
+const POP_REST = 0.52;
 
 export class Hud {
   readonly root: HTMLElement;
@@ -45,18 +42,15 @@ export class Hud {
   private readonly dots: HTMLElement[] = [];
   /** Each dot's last offset along the bar, in whole pixels: the transform is written only when it moves. */
   private dotPx: number[] = [];
-  private readonly labels: HTMLElement[] = [];
-  /** Each rival tag's last screen spot, in tenths of a pixel: the transform is written only when it moves. */
-  private tagX: number[] = [];
-  private tagY: number[] = [];
-  /** Each tag's drawn opacity, in twentieths, or -1 for a tag that is off (3.3.66). */
-  private tagA: number[] = [];
-  /** Each tag's width, measured once when the race's tags are built. */
-  private tagW: number[] = [];
-  /** Scratch for the tags already placed this frame: x, y, half-width per tag. */
-  private readonly placed: number[] = [];
+  /** The rival name tags, in src/view/hudtags.ts: their own lane of the HUD, their own placement pass. */
+  private readonly tags: Tags;
   /** The HUD's width: a tag is kept inside it, so a name never hangs off the screen. */
   private roomW = 0;
+  /** The HUD's height: the call-out stack is placed against the screen, not against the road. */
+  private roomH = 0;
+  private readonly popBox: HTMLElement;
+  /** Where the call-out stack's foot was last put, in whole pixels (NaN: not placed yet). */
+  private popY = NaN;
   private readonly banner: HTMLElement;
   private readonly chaser: HTMLElement;
   private readonly hint: HTMLElement;
@@ -94,7 +88,6 @@ export class Hud {
   private barW = 200;
   private last = { place: '', hp: '', cash: -1, fill: -1, slapL: false, slapR: false, chaser: '', incL: false, incR: false, heat: '' };
   private bannerT = 0;
-  private readonly pt = { x: 0, y: 0 };
 
   constructor(host: HTMLElement) {
     host.insertAdjacentHTML('beforeend', `
@@ -135,6 +128,8 @@ export class Hud {
     this.bar = $(this.root, '.prog');
     this.fill = $(this.root, '.prog .fill');
     this.banner = $(this.root, '.banner');
+    this.popBox = $(this.root, '.pops');
+    this.tags = new Tags($(this.root, '.labels'));
     this.chaser = $(this.root, '.chaser');
     this.hint = $(this.root, '.hint');
     this.coachEl = $(this.root, '.coach');
@@ -187,38 +182,29 @@ export class Hud {
   resize(): void {
     this.barW = this.bar.clientWidth || 200;
     this.roomW = this.root.clientWidth || this.barW;
+    this.roomH = this.root.clientHeight || this.roomW;
+    this.popY = NaN;
     this.dotPx.fill(-1);
-    this.tagX.fill(NaN);
+    this.tags.resize(this.roomW);
   }
 
   /** Build the per-race bits: progress dots and rival name tags. */
   /** `me`: the player's dot colour (their paint job). */
   setup(w: World, me?: number): void {
     for (const d of this.dots) d.remove();
-    for (const l of this.labels) l.remove();
     this.dots.length = 0;
-    this.labels.length = 0;
-    const lab = $(this.root, '.labels');
     for (const r of w.riders) {
       const d = document.createElement('div');
       d.className = r.isPlayer ? 'dot me' : r.thug ? 'dot hidden' : 'dot';
       d.style.background = '#' + (r.isPlayer && me !== undefined ? me : r.body).toString(16).padStart(6, '0');
       this.bar.appendChild(d);
       this.dots.push(d);
-      const l = document.createElement('div');
-      l.className = r.thug ? 'tag thug' : r.boss ? 'tag boss' : 'tag';
-      l.textContent = r.isPlayer ? '' : r.boss ? `${t('bossTag')} · ${r.name}` : r.name;
-      lab.appendChild(l);
-      this.labels.push(l);
     }
+    this.tags.setup(w);
     this.last = { place: '', hp: '', cash: -1, fill: -1, slapL: false, slapR: false, chaser: '', incL: false, incR: false, heat: '' };
     this.speedT = 0;
     this.tellT = w.riders.map(() => 0);
     this.dotPx = w.riders.map(() => -1);
-    this.tagX = w.riders.map(() => NaN);
-    this.tagY = w.riders.map(() => NaN);
-    this.tagA = w.riders.map(() => -1);
-    this.tagW = this.labels.map((l) => l.offsetWidth); // one layout per race, read before anything moves
     this.chaser.classList.remove('on');
     this.banner.className = 'banner';
     this.root.classList.remove('flashing');
@@ -303,8 +289,7 @@ export class Hud {
    * anything that happens often (KOs, dodges, near misses, chains) -- see the note at the top of src/events.ts.
    */
   pop(text: string, kind = ''): void {
-    const box = this.root.querySelector('.pops');
-    if (!box) return;
+    const box = this.popBox;
     while (box.childElementCount >= 3) box.firstElementChild!.remove();
     const el = document.createElement('div');
     el.className = `pop ${kind}`;
@@ -352,85 +337,17 @@ export class Hud {
       this.dotPx[i] = px;
       this.dots[i].style.transform = `translate(${px}px, -50%)`;
     }
-    // rival tags. Two riders side by side used to print their names over each other, one name
-    // unreadable under the other; a tag that would land on one already placed is lifted a row instead.
-    // The order is the rider list, not the distance, so a pair trading places never makes them flicker.
-    const placed = this.placed;
-    placed.length = 0;
-    for (let i = 1; i < w.riders.length; i++) {
-      const r = w.riders[i];
-      const l = this.labels[i];
-      const dz = r.z - p.z;
-      const nem = r.id === w.nemesis;
-      const grudge = !nem && w.grudges.has(r.id);
-      const hunt = r.huntT > 0;
-      const tell = this.tellT[i] > 0;
-      const open = r.openT > 0 && !tell;
-      // Past arm's reach a name is worth no more than the road it covers, and the road up there is where
-      // the player reads their lane and the traffic coming down it. Out of reach only the rivals carrying
-      // something to act on keep a tag; the rest of the pack rides anonymously and the lane stays clear.
-      const worth = dz <= TAG_NEAR || nem || grudge || hunt || tell || open || r.boss;
-      const show = worth && r.state === 'ride' && dz > -6 && dz < 45 && view.projectRider(i, 2.55, this.pt);
-      l.classList.toggle('on', show);
-      if (!show) {
-        // the inline fade would otherwise keep a hidden tag visible: `.tag` hides by opacity
-        if (this.tagA[i] !== -1) { this.tagA[i] = -1; l.style.opacity = ''; }
-        continue;
-      }
-      // 3.3.66: eight tags at full strength made the far half of the road a wall of names, and the two or
-      // three riders the player can actually reach read no louder than the pack 40 m up the road. The near
-      // ones stay solid; past 14 m the tag thins out to a quarter by the time it leaves the draw range.
-      const fade = dz <= TAG_NEAR ? 1 : Math.max(TAG_FAINT, 1 - ((dz - TAG_NEAR) / (TAG_FAR - TAG_NEAR)) * (1 - TAG_FAINT));
-      // quantized, so a tag rewrites its opacity about twenty times over the whole fade, not every frame
-      const step = Math.round(fade * 20);
-      const refade = step !== this.tagA[i];
-      if (refade) { this.tagA[i] = step; l.style.opacity = String(step / 20); }
-      cls(l, 'nem', nem);
-      cls(l, 'grudge', grudge);
-      cls(l, 'hunt', hunt);
-      cls(l, 'tell', tell);
-      cls(l, 'open', open);
-      // an icon class adds its 1em badge in front of the name, which the measured width predates
-      const half = (this.tagW[i] + (nem || grudge || hunt || tell || open ? 15 : 0)) / 2 + 3;
-      // A rider at the edge of the road used to get a tag half off the screen (`.labels` clips it), so the
-      // name was cut in two. Held inside the screen instead: it still sits over its rider, just not past the
-      // edge. Clamped before the stacking pass, so two tags pushed to the same corner still part vertically.
-      const lo = half + 4, hi = this.roomW - half - 4;
-      let x = hi > lo ? Math.max(lo, Math.min(hi, this.pt.x)) : this.pt.x, y = this.pt.y;
-      // No name goes over the player's own dummy. A rival a metre or two behind is drawn below and in
-      // front of them, so its tag -- which hangs above its head -- lands square on the player's chest,
-      // and the player loses sight of the one thing on the screen they steer by. The tag steps up to just
-      // clear of their helmet instead; the stacking pass below then parts it from any other name up there.
-      const pb = view.pbox;
-      if (pb.ok && y > pb.top && y - TAG_H < pb.bot && Math.abs(x - pb.x) < half + pb.half) y = pb.top - 3;
-      let rows = 0;
-      for (; rows <= TAG_ROWS; rows++) {
-        let hit = false;
-        for (let k = 0; k < placed.length; k += 3) {
-          if (Math.abs(x - placed[k]) < half + placed[k + 2] && Math.abs(y - placed[k + 1]) < TAG_H) {
-            hit = true;
-            y = placed[k + 1] - TAG_H;
-          }
-        }
-        if (!hit) break;
-      }
-      if (rows > TAG_ROWS) {
-        // A third row would put the name a quarter of the screen above its rider, out over the road the
-        // player is reading. The road is worth more than the name: this one stands down for the frame.
-        l.classList.remove('on');
-        if (this.tagA[i] !== -1) { this.tagA[i] = -1; l.style.opacity = ''; }
-        continue;
-      }
-      placed.push(x, y, half);
-      const tx = Math.round(x * 10), ty = Math.round(y * 10);
-      if (!refade && tx === this.tagX[i] && ty === this.tagY[i]) continue;
-      this.tagX[i] = tx;
-      this.tagY[i] = ty;
-      // The far ones shrink as well as fade: eight chips of one size read as a row of buttons pasted over
-      // the road, where a name that is both smaller and fainter falls back into the distance with its rider.
-      const s = TAG_SMALL + (1 - TAG_SMALL) * fade;
-      l.style.transform = `translate(${tx / 10}px, ${ty / 10}px) translate(-50%, -100%) scale(${s.toFixed(2)})`;
-    }
+    // The call-outs hung from a fixed line down the middle of the screen, and in landscape -- the way a
+    // phone is held for this -- that line is where the dummy rides: three at once (a near miss, a chain
+    // and a bowl inside the same second) came down square over the player's own head, which is the one
+    // thing on the screen they steer by. They hang off the helmet instead, by the foot of the stack, so
+    // the newest one is the lowest and none of them ever reaches below that line. Held between POP_HI and
+    // POP_LO so a camera that has swung somewhere odd cannot push them into the banner or off the bottom.
+    const pbp = view.pbox;
+    const foot = Math.round(Math.max(this.roomH * POP_HI,
+      Math.min(this.roomH * POP_LO, pbp.ok ? pbp.top - POP_GAP : this.roomH * POP_REST)));
+    if (foot !== this.popY) { this.popY = foot; this.popBox.style.bottom = `${this.roomH - foot}px`; }
+    this.tags.update(w, view, this.tellT);
     // slap reach indicators
     let left = false;
     let right = false;

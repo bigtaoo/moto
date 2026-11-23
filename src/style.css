@@ -2,6 +2,7 @@
 @import './style.ui.css';
 @import './style.garage.css';
 @import './style.landscape.css';
+@import './style.launch.css';
 /* The game's digits: a 4 kB subset of Baloo 2 ExtraBold (SIL OFL 1.1 — src/assets/digits-baloo2.LICENSE.txt),
    inlined so it is there before the first frame: no request, no swap, dev and build alike.
    The `unicode-range` line is the whole trick — the browser takes the digits and the few signs that travel with them
@@ -226,12 +227,17 @@ html, body {
 #hud.flashing .labels { opacity: 0; }
 .banner.ko, .banner.go { color: var(--yellow); }
 .banner.bad, .banner.warn { color: var(--red-lt); }
+/* Hung by its foot, not its head: hud.ts walks `bottom` to just above the player's helmet every frame,
+   so the stack grows upward and the newest call-out is always the lowest one. The 52% here is only what
+   it reads before the first frame places it. (3.3.80) */
 .pops {
-  position: absolute; left: 50%; top: 42%; transform: translateX(-50%);
+  position: absolute; left: 50%; bottom: 52%; transform: translateX(-50%);
   display: flex; flex-direction: column; align-items: center; gap: 2px; pointer-events: none;
 }
 .pop {
-  font-size: clamp(16px, 4.2vmin, 28px); font-weight: 900; white-space: nowrap; color: var(--ice);
+  /* Tight rows: three of them stacked over a phone held sideways is a quarter of the screen at the
+     default line height, and the top one climbs into the banner's band. (3.3.80) */
+  font-size: clamp(16px, 4.2vmin, 28px); line-height: 1.1; font-weight: 900; white-space: nowrap; color: var(--ice);
   -webkit-text-stroke: 1.5px var(--ink); paint-order: stroke fill; text-shadow: 0 3px 0 var(--ink);
   animation: popup 1.1s ease-out forwards;
 }
@@ -460,42 +466,6 @@ button.primary:disabled:active { transform: none; box-shadow: 0 5px 0 var(--ink)
 .howto li { margin: 4px 0; }
 .blocker { z-index: 30; background: rgba(22, 22, 26, 0.7); }
 .blocker p { opacity: 1; font-weight: 700; }
-
-/* ---------- dummy launch ---------- */
-.launch { position: absolute; inset: 0; z-index: 8; user-select: none; touch-action: none; }
-.lx { position: absolute; top: max(10px, env(safe-area-inset-top)); left: max(10px, env(safe-area-inset-left)); width: 40px; height: 40px; font-size: 20px; font-weight: 900; border: 3px solid var(--ink); border-radius: 50%; background: var(--paper); cursor: pointer; }
-.lhud { position: absolute; top: max(10px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); text-align: center; color: var(--paper); -webkit-text-stroke: 1.5px var(--ink); paint-order: stroke; font-weight: 900; pointer-events: none; }
-.lhud .ld { display: block; font-size: 44px; line-height: 1; }
-/* under the big "39 m": a bare "39" read as a second distance -- the burst marks it as the score */
-.lhud .lp { font-size: 22px; color: var(--yellow); }
-.lhud .lp::before {
-  content: ''; display: inline-block; width: 0.85em; height: 0.85em; margin-right: 4px; vertical-align: -0.08em;
-  background: currentColor; -webkit-mask: var(--ic-burst) center / contain no-repeat; mask: var(--ic-burst) center / contain no-repeat;
-}
-.lmeter { position: absolute; left: 12%; right: 12%; bottom: calc(max(16px, env(safe-area-inset-bottom)) + 40px); height: 22px; border: 3px solid var(--ink); border-radius: 11px; background: rgba(255, 255, 255, 0.8); overflow: hidden; pointer-events: none; transition: opacity 0.3s; }
-.lmeter i, .lmeter b { position: absolute; top: 0; bottom: 0; }
-.lzone { right: 0; background: var(--green-lt); }
-.lsweet { width: 6px; margin-left: -3px; background: var(--green); }
-.lmark { width: 6px; margin-left: -3px; background: var(--ink); left: 0; }
-.lmeter.near { box-shadow: 0 0 0 3px var(--yellow); }
-.lmeter.off, .lhint.off { opacity: 0; }
-.lhint { position: absolute; left: 0; right: 0; bottom: calc(max(16px, env(safe-area-inset-bottom)) + 8px); text-align: center; color: var(--paper); -webkit-text-stroke: 1px var(--ink); paint-order: stroke; font-weight: 800; font-size: 18px; pointer-events: none; transition: opacity 0.3s; }
-.ljudge { position: absolute; top: 32%; left: 50%; transform: translate(-50%, -50%); font-size: 52px; font-weight: 900; color: var(--paper); -webkit-text-stroke: 2px var(--ink); paint-order: stroke; opacity: 0; pointer-events: none; white-space: nowrap; }
-.ljudge.perfect { color: var(--yellow); }
-.ljudge.good { color: var(--green-lt); }
-.ljudge.miss { color: var(--red-lt); }
-.ljudge.on { animation: ljudge 1.4s ease-out forwards; }
-@keyframes ljudge { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.4); } 15% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); } 25% { transform: translate(-50%, -50%) scale(1); } 75% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -70%) scale(1); } }
-.lpop { position: absolute; transform: translate(-50%, 0); font-size: 30px; font-weight: 900; color: var(--yellow); -webkit-text-stroke: 1.5px var(--ink); paint-order: stroke; opacity: 0; pointer-events: none; white-space: nowrap; }
-.lpop.on { animation: lpop 0.9s ease-out forwards; }
-@keyframes lfade { 0%, 75% { opacity: 1; } 100% { opacity: 0; } }
-@keyframes lpop { 0% { opacity: 1; transform: translate(-50%, 0) scale(1.3); } 100% { opacity: 0; transform: translate(-50%, -50px) scale(1); } }
-/* the launch card is the race card's case: its own HUD (distance, meter, the X) steps out behind it */
-.launch:has(.lcard) > :not(.lcard) { visibility: hidden; }
-.lcard { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: calc(100% - 32px); max-width: 340px; }
-.lcard .st { margin-top: 4px; }
-.lbest { margin: 10px 0 0; font-weight: 800; }
-.lbest em { font-style: normal; color: var(--yellow-dk); font-size: 20px; }
 
 /* Calm motion (src/view/motion.ts: the system's reduce-motion, or the pause menu's screen-shake switch). */
 .calm .hint.ask, .calm .chaser.on, .calm .inc.on, .calm .heat.hot, .calm .tag.tell, .calm .taunt.on, .calm .replaytag.on { animation: none; }
