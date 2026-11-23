@@ -80,7 +80,7 @@ export const EN = {
   upHp: 'Toughness',
   max: 'MAX',
   tuneOn: 'Fitted',
-  tuneTip: 'A tune-up lasts one race and ignores the season cap.',
+  tuneTip: 'A tune-up lasts one race and ignores the season cap. Past the first level it dents the ride.',
   cond: 'Condition',
   repair: 'Repair',
   mint: 'Mint',

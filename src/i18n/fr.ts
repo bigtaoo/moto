@@ -76,7 +76,7 @@ export const FR: Table = {
   upHp: 'Solidité',
   max: 'MAX',
   tuneOn: 'Monté',
-  tuneTip: "Un réglage ne dure qu'une course et ignore le plafond de la saison.",
+  tuneTip: "Un réglage ne dure qu'une course et ignore le plafond de la saison. À partir du deuxième niveau, il abîme la machine.",
   cond: 'État',
   repair: 'Réparer',
   mint: 'Impeccable',

@@ -76,7 +76,7 @@ export const ID: Table = {
   upHp: 'Ketahanan',
   max: 'MAKS',
   tuneOn: 'Terpasang',
-  tuneTip: 'Setelan ini hanya untuk satu balapan dan mengabaikan batas musim.',
+  tuneTip: 'Setelan ini hanya untuk satu balapan dan mengabaikan batas musim. Mulai level kedua, kendaraan jadi rusak.',
   cond: 'Kondisi',
   repair: 'Perbaiki',
   mint: 'Mulus',

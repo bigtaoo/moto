@@ -76,7 +76,7 @@ export const JA: Table = {
   upHp: 'タフさ',
   max: 'MAX',
   tuneOn: '装着中',
-  tuneTip: 'レース前の調整は次の1戦だけ、シーズン上限も無視します。',
+  tuneTip: 'レース前の調整は次の1戦だけ、シーズン上限も無視します。2段階目からは車体が傷みます。',
   cond: '車の状態',
   repair: '修理',
   mint: '良好',

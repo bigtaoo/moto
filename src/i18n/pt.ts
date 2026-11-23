@@ -76,7 +76,7 @@ export const PT: Table = {
   upHp: 'Resistência',
   max: 'MÁX',
   tuneOn: 'Montado',
-  tuneTip: 'Um ajuste dura uma corrida e ignora o limite da temporada.',
+  tuneTip: 'Um ajuste dura uma corrida e ignora o limite da temporada. A partir do segundo nível, estraga a moto.',
   cond: 'Estado',
   repair: 'Reparar',
   mint: 'Impecável',

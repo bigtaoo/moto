@@ -7,7 +7,7 @@ import { t, money, type Key } from '../i18n';
 import { UPGRADE_MAX, UPGRADE_CAP, VEHICLES, DIVISIONS, stage, type Vehicle, type WeaponKind } from '../sim/config';
 import { rideState, upgradeLock, upgradePrice, type UpKey } from '../career';
 import { PAINTS, HATS, wearState, wearPrice } from '../shop';
-import { tunePrice, repairPrice, WEAR_AT } from '../tune';
+import { tunePrice, repairPrice, WEAR_AT, TUNE_MAX } from '../tune';
 import { shopHtml, bindShop } from './shop';
 import { rideThumb } from './thumbs';
 import type { Save } from '../meta';
@@ -53,7 +53,7 @@ export function buyable(save: Save): number {
   // middle of a season on, which is the point of them -- before this round 51 of a career's 63 races had
   // nothing on sale but paint.
   let n = upgradesBuyable(save);
-  if (tuneOpen(save)) n += (Object.keys(UP_NAMES) as UpKey[]).filter((k) => !save.tune[k] && save.cash >= tunePrice(save, k)).length;
+  if (tuneOpen(save)) n += (Object.keys(UP_NAMES) as UpKey[]).filter((k) => save.tune[k] < TUNE_MAX && save.cash >= tunePrice(save, k)).length;
   if (save.wear > 0 && save.cash >= repairPrice(save)) n++;
   if (save.races >= TAB_AT.rides) VEHICLES.forEach((v, i) => { if (rideState(save, i) === 'buy' && save.cash >= v.price) n++; });
   if (save.races >= TAB_AT.looks) {
@@ -118,12 +118,15 @@ function upsHtml(save: Save, what: boolean): string {
     const lock = upgradeLock(save, k);
     const cap = UPGRADE_CAP[save.tier][k];
     const pips = Array.from({ length: UPGRADE_MAX[k] }, (_, i) => `<i class="${i < lvl ? 'on' : i >= cap ? 'lock' : ''}"></i>`).join('')
-      + (save.tune[k] ? '<i class="fit"></i>' : '');
+      + '<i class="fit"></i>'.repeat(save.tune[k]);
     const label = cost !== null ? money(cost) : lock ? locked(lock) : t('max');
-    const fit = save.tune[k] > 0;
+    // 3.3.78: the tune-up stacks to TUNE_MAX, so the button sells the next level rather than the only
+    // one, and says which it is -- `+2` after one is on. It only reads "fitted" once there is no more.
+    const fit = save.tune[k];
+    const full = fit >= TUNE_MAX;
     const tp = tunePrice(save, k);
     const tune = !tuneOpen(save) ? ''
-      : `<button class="tune${fit ? ' on' : ''}" data-t="${k}"${fit || save.cash < tp ? ' disabled' : ''}>${fit ? t('tuneOn') : `+1 · ${money(tp)}`}</button>`;
+      : `<button class="tune${fit ? ' on' : ''}" data-t="${k}"${full || save.cash < tp ? ' disabled' : ''}>${full ? t('tuneOn') : `+${fit + 1} · ${money(tp)}`}</button>`;
     const first = what && k === FIRST_PICK;
     const rec = first ? ` <em class="rec">${t('recUp')}</em>` : '';
     return `<div class="up${first ? ' rec' : ''}"><div class="upname">${t(UP_NAMES[k])}${rec}<div class="pips">${pips}</div>${what ? `<small class="what">${t(UP_WHAT[k])}</small>` : ''}</div>

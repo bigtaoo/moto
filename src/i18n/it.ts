@@ -76,7 +76,7 @@ export const IT: Table = {
   upHp: 'Resistenza',
   max: 'MAX',
   tuneOn: 'Montato',
-  tuneTip: 'Una messa a punto dura una gara e ignora il limite della stagione.',
+  tuneTip: 'Una messa a punto dura una gara e ignora il limite della stagione. Dal secondo livello in poi rovina il mezzo.',
   cond: 'Condizioni',
   repair: 'Riparare',
   mint: 'Perfetta',

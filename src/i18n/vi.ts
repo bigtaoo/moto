@@ -76,7 +76,7 @@ export const VI: Table = {
   upHp: 'Độ lì',
   max: 'TỐI ĐA',
   tuneOn: 'Đã lắp',
-  tuneTip: 'Bản độ chỉ dùng cho một chặng và bỏ qua giới hạn mùa giải.',
+  tuneTip: 'Bản độ chỉ dùng cho một chặng và bỏ qua giới hạn mùa giải. Từ cấp hai trở đi sẽ làm hỏng xe.',
   cond: 'Tình trạng',
   repair: 'Sửa xe',
   mint: 'Như mới',

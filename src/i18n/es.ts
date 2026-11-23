@@ -76,7 +76,7 @@ export const ES: Table = {
   upHp: 'Aguante',
   max: 'MÁX',
   tuneOn: 'Montado',
-  tuneTip: 'Una puesta a punto dura una carrera e ignora el tope de la temporada.',
+  tuneTip: 'Una puesta a punto dura una carrera e ignora el tope de la temporada. Del segundo nivel en adelante castiga la moto.',
   cond: 'Estado',
   repair: 'Reparar',
   mint: 'Impecable',

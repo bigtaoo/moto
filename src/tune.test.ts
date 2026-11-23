@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { parseSave, type Save } from './meta';
 import { settleRace } from './career';
 import { raceOpts } from './raceOpts';
-import { buyTune, tunePrice, repair, repairPrice, dent, fitted, WEAR_AT, WEAR_BITE, WEAR_PER_KO } from './tune';
+import { buyTune, tunePrice, repair, repairPrice, dent, fitted, tuneSpent, WEAR_AT, WEAR_BITE, WEAR_PER_KO, TUNE_MAX, TUNE_STEP, OVER_WEAR } from './tune';
 import * as C from './sim/config';
 
 /** A save at the given season with money in it and the garage's levels already bought. */
@@ -21,13 +21,33 @@ const raced = (kos: number[]) => ({
 });
 
 describe('the tune-up, a level rented for one race (3.3.70)', () => {
-  it('is paid for once and fitted once', () => {
+  it('stacks to TUNE_MAX, each level dearer than the last (3.3.78)', () => {
     const save = at(1);
-    const price = tunePrice(save, 'top');
-    expect(buyTune(save, 'top')).toBe(true);
-    expect(save.cash).toBe(100000 - price);
-    expect(buyTune(save, 'top')).toBe(false); // already fitted: no second charge
-    expect(save.cash).toBe(100000 - price);
+    let spent = 0;
+    const paid: number[] = [];
+    for (let lv = 0; lv < TUNE_MAX; lv++) {
+      const price = tunePrice(save, 'top');
+      paid.push(price);
+      expect(buyTune(save, 'top')).toBe(true);
+      spent += price;
+      expect(save.cash).toBe(100000 - spent);
+      expect(save.tune.top).toBe(lv + 1);
+    }
+    // each level is TUNE_STEP of the one before it (to the $10 the price is rounded to)
+    for (let lv = 1; lv < paid.length; lv++) expect(paid[lv] / paid[lv - 1]).toBeCloseTo(TUNE_STEP, 1);
+    expect(buyTune(save, 'top')).toBe(false); // full: no fourth charge
+    expect(save.cash).toBe(100000 - spent);
+    expect(tuneSpent(save)).toBe(TUNE_MAX);
+  });
+
+  it('marks the ride for every level over the first, in any season (3.3.78)', () => {
+    const save = at(0); // Amateur: a knockdown leaves no mark (WEAR_AT), a bought level does
+    buyTune(save, 'top');
+    dent(save, 3);
+    expect(save.wear).toBe(0); // one level, and the knockdowns are the rookie's own
+    save.tune = { top: 2, steer: 3, hp: 1 }; // 1 + 2 + 0 = three levels over the first
+    dent(save, 3);
+    expect(save.wear).toBeCloseTo(OVER_WEAR * 3, 6);
   });
 
   it('will not be sold on credit', () => {

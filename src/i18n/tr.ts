@@ -76,7 +76,7 @@ export const TR: Table = {
   upHp: 'Dayanıklılık',
   max: 'MAKS',
   tuneOn: 'Takılı',
-  tuneTip: 'Ayar tek yarış sürer ve sezon sınırını dinlemez.',
+  tuneTip: 'Ayar tek yarış sürer ve sezon sınırını dinlemez. İkinci kademeden sonra aracı hırpalar.',
   cond: 'Durum',
   repair: 'Tamir',
   mint: 'Tertemiz',

@@ -76,7 +76,7 @@ export const ZH: Table = {
   upHp: '抗揍',
   max: '满级',
   tuneOn: '已装',
-  tuneTip: '赛前改装只管下一场，而且不受赛季上限限制。',
+  tuneTip: '赛前改装只管下一场，而且不受赛季上限限制。第二级起会把车搞伤。',
   cond: '车况',
   repair: '维修',
   mint: '完好',

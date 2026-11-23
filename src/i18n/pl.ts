@@ -76,7 +76,7 @@ export const PL: Table = {
   upHp: 'Wytrzymałość',
   max: 'MAKS',
   tuneOn: 'Zamontowane',
-  tuneTip: 'Tuning starcza na jeden wyścig i omija limit sezonu.',
+  tuneTip: 'Tuning starcza na jeden wyścig i omija limit sezonu. Od drugiego poziomu niszczy maszynę.',
   cond: 'Stan',
   repair: 'Naprawa',
   mint: 'Jak nowy',

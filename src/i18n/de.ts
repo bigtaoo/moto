@@ -76,7 +76,7 @@ export const DE: Table = {
   upHp: 'Härte',
   max: 'MAX',
   tuneOn: 'Montiert',
-  tuneTip: 'Ein Tuning hält ein Rennen und ignoriert das Saisonlimit.',
+  tuneTip: 'Ein Tuning hält ein Rennen und ignoriert das Saisonlimit. Ab der zweiten Stufe geht es aufs Fahrzeug.',
   cond: 'Zustand',
   repair: 'Reparieren',
   mint: 'Neuwertig',

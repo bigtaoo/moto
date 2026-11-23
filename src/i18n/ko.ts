@@ -76,7 +76,7 @@ export const KO: Table = {
   upHp: '맷집',
   max: '최대',
   tuneOn: '장착됨',
-  tuneTip: '경기 전 튜닝은 다음 한 경기만 유지되며 시즌 한계를 무시합니다.',
+  tuneTip: '경기 전 튜닝은 다음 한 경기만 유지되며 시즌 한계를 무시합니다. 2단계부터는 차체가 상합니다.',
   cond: '차 상태',
   repair: '수리',
   mint: '최상',

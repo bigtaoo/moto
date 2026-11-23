@@ -18,6 +18,7 @@ import { MUTATOR, MUTATORS } from '../src/sim/fun';
 import { dailyFor, scoreDaily } from '../src/daily';
 import { afterRace, unlock, visit, dayMult } from '../src/rewards';
 import { PAINTS, HAT_PRICE, PAINT_TIER, HAT_TIER } from '../src/shop';
+import { buyTune, tunePrice, repair, repairPrice, TUNE_MAX, OVER_WEAR, REPAIR_FULL, TUNE_CURVE, fitted } from '../src/tune';
 
 const careers = Number(process.argv[2] ?? 3);
 const skill = Number(process.argv[3] ?? 0.8);
@@ -52,7 +53,7 @@ for (let run = 0; run < careers; run++) {
     }
     const seed = ((save.races * 7919 + 17 + run * 104729) % 99991) + 1;
     const mutator = save.cup.race === MUTATOR.race ? MUTATORS[Math.floor(save.races / 20) % MUTATORS.length] : undefined;
-    const w = new World({ seed, upgrades: save.up, grudges: save.grudges, div: save.div, tier: save.tier, endless: save.endless, vehicle: save.garage.cur,
+    const w = new World({ seed, upgrades: fitted(save, false), grudges: save.grudges, div: save.div, tier: save.tier, endless: save.endless, vehicle: save.garage.cur,
       nemesis: save.feud.nemesis?.id, boss: save.cup.race === CUP_RACES - 1, mutator });
     let falls = 0;
     while (!w.over && w.tick < 400 * C.TICK_HZ) {
@@ -104,6 +105,21 @@ for (let run = 0; run < careers; run++) {
       const keys: UpKey[] = ['top', 'steer', 'hp'];
       const k = keys.map((k) => [k, upgradePrice(save, k)] as const).filter(([, p]) => p !== null).sort((a, b) => a[1]! - b[1]!)[0];
       if (!k || save.cash - k[1]! < keep || !buyUpgrade(save, k[0])) break;
+    }
+    // 3.3.78: the per-race sinks, in the order a player meets them. The dents first -- a dented ride
+    // costs levels, so beating them out is worth more than any tune-up -- then tune-ups, cheapest stat
+    // first, for as long as the money holds. This is what the bot used to walk past: before this round it
+    // raced on `save.up` and spent on nothing else, which is why its careers ended six figures up.
+    if (save.wear > 0 && save.cash - repairPrice(save) >= keep) { add('repairs', -repairPrice(save)); repair(save); }
+    for (;;) {
+      const keys: UpKey[] = ['top', 'steer', 'hp'];
+      const k = keys.filter((j) => save.tune[j] < TUNE_MAX).map((j) => [j, tunePrice(save, j)] as const).sort((a, b) => a[1] - b[1])[0];
+      // held back: what beating out the dents this tune-up is about to put in will cost next race. Without
+      // it the bot tuned itself broke, raced the next one dented -- which costs levels -- and went slower
+      // for the money, which is not a trade any player would make twice.
+      const mend = Math.round(REPAIR_FULL * OVER_WEAR * 2 * C.stage(save.div, save.tier, save.endless).prize ** TUNE_CURVE);
+      if (!k || save.cash - k[1] < keep + mend || !buyTune(save, k[0])) break;
+      add('tune-ups', -k[1]);
     }
     // the bot buys no paints or hats: the cash it sits on is what they could have had (once all are on sale)
     if (!wardrobeAt && save.tier >= Math.max(...PAINT_TIER, ...HAT_TIER) && save.cash - keep >= WARDROBE) wardrobeAt = `${at}, race ${save.races}`;

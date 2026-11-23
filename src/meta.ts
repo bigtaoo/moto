@@ -5,6 +5,7 @@ import type { Upgrades } from './sim/world';
 import { DIVISIONS, TIERS, VEHICLES, UPGRADE_MAX, upgradeCost, ROSTER, WEAPON, type WeaponKind } from './sim/config';
 import { PAINTS, HATS } from './shop';
 import { newCup, newFeud, GATE_AT, FIRST_CUP, CUP_RACES, type Cup, type Feud } from './career';
+import { TUNE_MAX } from './tune';
 import { saveData } from './platform';
 import { readDaily, today, type Daily } from './daily';
 import { newDailyRace, readDailyRace, type DailyRace } from './dailyRace';
@@ -152,7 +153,7 @@ const fresh: Save = {
       hat: kept(s.hat, HATS.length),
       launchBest: count(s.launchBest),
       carry: typeof s.carry === 'string' && Object.keys(WEAPON).includes(s.carry) ? s.carry : null,
-      tune: { top: lvl(s.tune?.top, 1), steer: lvl(s.tune?.steer, 1), hp: lvl(s.tune?.hp, 1) },
+      tune: { top: lvl(s.tune?.top, TUNE_MAX), steer: lvl(s.tune?.steer, TUNE_MAX), hp: lvl(s.tune?.hp, TUNE_MAX) },
       wear: Math.max(0, Math.min(1, num(s.wear))),
       muted: s.muted === true,
       sessions: count(s.sessions),
