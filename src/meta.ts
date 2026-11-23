@@ -65,6 +65,8 @@ export interface Save {
   daily: Daily;
   /** The daily challenge race: today's best score and runs (src/dailyRace.ts). */
   drace: DailyRace;
+  /** Every daily race's best score added up: what the public daily board ranks (3.3.77). */
+  dpts: number;
   /** Days in a row the game was opened, and what today's visit paid (src/rewards.ts). */
   streak: Streak;
   /** Achievements won (src/rewards.ts ids) and the lifetime counts they need. */
@@ -91,7 +93,7 @@ const WAS: Record<string, string> = { koRace: 'kos25', koLife: 'kos1000' };
 
 const fresh: Save = {
     cash: 0, up: { top: 0, steer: 0, hp: 0 }, grudges: [], races: 0, best: 0, div: 0, reach: 0, cup: newCup(FIRST_CUP), titles: 0, gate: 0, endless: 0, feud: newFeud(), tier: 0,
-    garage: { cur: 0, owned: [0] }, paint: { cur: 0, owned: [0] }, hat: { cur: 0, owned: [0] }, launchBest: 0, carry: null, tune: { top: 0, steer: 0, hp: 0 }, wear: 0, muted: false, sessions: 0, firstDay: 0, musicOff: false, sfxOff: false, hapticsOff: false, quality: 'auto', lang: null, calm: null, daily: readDaily(null, today()), drace: newDailyRace(today()),
+    garage: { cur: 0, owned: [0] }, paint: { cur: 0, owned: [0] }, hat: { cur: 0, owned: [0] }, launchBest: 0, carry: null, tune: { top: 0, steer: 0, hp: 0 }, wear: 0, muted: false, sessions: 0, firstDay: 0, musicOff: false, sfxOff: false, hapticsOff: false, quality: 'auto', lang: null, calm: null, daily: readDaily(null, today()), drace: newDailyRace(today()), dpts: 0,
     streak: newStreak(), ach: [], life: { kos: 0, wins: 0 },
   };
   try {
@@ -163,6 +165,7 @@ const fresh: Save = {
       calm: typeof s.calm === 'boolean' ? s.calm : null,
       daily: readDaily(s.daily, today()),
       drace: readDailyRace(s.drace, today()),
+      dpts: count(s.dpts),
       streak: { day: count(s.streak?.day), n: count(s.streak?.n), pay: count(s.streak?.pay), doubled: s.streak?.doubled === true },
       ach: Array.isArray(s.ach) ? ACH_IDS.filter((id) => s.ach!.includes(id) || s.ach!.includes(WAS[id])) : [],
       life: { kos: count(s.life?.kos), wins: count(s.life?.wins) },

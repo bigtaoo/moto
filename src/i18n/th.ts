@@ -214,6 +214,8 @@ export const TH: Table = {
   boardEmpty: 'ยังไม่มีสถิติ มาเป็นคนแรกสิ!',
   boardFail: 'โหลดตารางอันดับไม่ได้ ลองใหม่ภายหลัง',
   boardSignIn: "เข้าสู่ระบบเพื่อแสดงชื่อของคุณ",
+  boardDaily: 'คะแนนรายวัน',
+  boardDailyTip: 'ผลดีที่สุดของแต่ละวันรวมกัน',
   streakDay: 'วันที่ {n} ติดกัน',
   streakX2: '×2 (โฆษณา)',
   achievements: 'ความสำเร็จ {n}/{m}',

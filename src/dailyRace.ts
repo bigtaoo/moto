@@ -146,7 +146,18 @@ export interface DailyRaceResult {
   /** The stage the day is run at, and its twist. */
   name: string;
   mutator: Mutator | null;
+  /** Daily points after this run: the sum of every day's best, which is what the board ranks. */
+  pts: number;
 }
+
+/**
+ * What the public board holds. A Playgama board is one list that keeps the highest number a player ever
+ * sent it -- it has no notion of a day -- so sending today's score would rank a Legend Tuesday against
+ * somebody's Amateur Friday and call it a ranking. The sum of every day's best is the one number a
+ * standing board can carry honestly: it only ever climbs, and it says what it looks like it says, which
+ * is who rides the day, and rides it well, most often (3.3.77).
+ */
+export const dailyPoints = (save: Save): number => save.dpts;
 
 /** Score a finished daily run into the save. */
 export function settleDailyRace(save: Save, w: World, falls: number, day: number): DailyRaceResult {
@@ -157,6 +168,8 @@ export function settleDailyRace(save: Save, w: World, falls: number, day: number
   const paid = d.runs === 0 ? Math.round(DAILY_PAY * dayMult(C.stage(save.div, save.tier, save.endless).prize)) : 0;
   d.runs++;
   d.best = Math.max(d.best, score.total);
+  // only what this run added to today's best, so a second run cannot bank the same day twice
+  save.dpts += Math.max(0, score.total - was);
   save.cash += paid;
-  return { score, was, best: score.total > was, runs: d.runs, paid, name: w.div.name, mutator: w.mutator };
+  return { score, was, best: score.total > was, runs: d.runs, paid, name: w.div.name, mutator: w.mutator, pts: save.dpts };
 }

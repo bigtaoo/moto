@@ -11,7 +11,7 @@ const host = vi.hoisted(() => ({ scores: [] as number[], saved: [] as string[], 
 vi.mock('./platform', async (orig) => ({
   ...(await orig<typeof import('./platform')>()),
   track: () => {},
-  submitScore: (n: number) => { host.scores.push(n); },
+  submitScore: (_b: string, n: number) => { host.scores.push(n); },
   saveData: (json: string) => { host.saved.push(json); },
   rewardedReady: () => host.ad,
 }));

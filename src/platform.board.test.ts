@@ -30,19 +30,19 @@ describe('leaderboard analytics', () => {
 
   it('says a write landed', async () => {
     const { p, sent } = await boot({ setScore: () => Promise.resolve() });
-    p.submitScore(12);
+    p.submitScore('takedowns', 12);
     await settle();
     const w = sent.filter((e) => e.name === 'board_write');
     expect(w).toHaveLength(1);
-    expect(w[0].data).toMatchObject({ ok: true, score: 12 });
+    expect(w[0].data).toMatchObject({ ok: true, score: 12, board: 'takedowns' });
   });
 
   it('says a write failed, and tries that score again after the next race', async () => {
     const calls: number[] = [];
     const { p, sent } = await boot({ setScore: (_id, s) => { calls.push(s); return Promise.reject(new Error('nope')); } });
-    p.submitScore(12);
+    p.submitScore('takedowns', 12);
     await settle();
-    p.submitScore(12);
+    p.submitScore('takedowns', 12);
     await settle();
     expect(calls).toEqual([12, 12]);
     expect(sent.filter((e) => e.name === 'board_write').map((e) => e.data)).toEqual([
@@ -51,19 +51,29 @@ describe('leaderboard analytics', () => {
     ]);
   });
 
+  it('keeps the two boards apart: the same number lands on each of them', async () => {
+    const calls: [string, number][] = [];
+    const { p } = await boot({ setScore: (id, s) => { calls.push([id, s]); return Promise.resolve(); } });
+    p.submitScore('takedowns', 12);
+    p.submitScore('daily_points', 12);
+    p.submitScore('takedowns', 12); // the same score again on the same board: not sent
+    await settle();
+    expect(calls).toEqual([['takedowns', 12], ['daily_points', 12]]);
+  });
+
   it('says a read came back, how long it was and whether the player was on it', async () => {
     const { p, sent } = await boot({
       setScore: () => Promise.resolve(),
       getEntries: () => Promise.resolve([{ id: 'p0', name: 'A', score: 40, rank: 1 }, { id: 'p1', name: 'Me', score: 12, rank: 2 }]),
     });
-    const list = await p.boardEntries();
+    const list = await p.boardEntries('takedowns');
     expect(list.map((e) => e.me)).toEqual([false, true]);
     expect(sent.find((e) => e.name === 'board_read')!.data).toMatchObject({ ok: true, n: 2, mine: true });
   });
 
   it('says a read failed, and still rejects for the board card', async () => {
     const { p, sent } = await boot({ setScore: () => Promise.resolve(), getEntries: () => Promise.reject(new Error('down')) });
-    await expect(p.boardEntries()).rejects.toThrow('down');
+    await expect(p.boardEntries('daily_points')).rejects.toThrow('down');
     expect(sent.find((e) => e.name === 'board_read')!.data).toMatchObject({ ok: false, err: 'error' });
   });
 });

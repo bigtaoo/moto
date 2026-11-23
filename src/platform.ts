@@ -255,8 +255,13 @@ function fakeAd(placement: string): Promise<boolean> {
 
 // ---- leaderboard -------------------------------------------------------------------------------
 
-/** The one board: lifetime takedowns (public/playgama-bridge-config.json; on Playgama it runs on Bridge SaaS). */
-const BOARD = 'takedowns';
+/**
+ * The two boards (public/playgama-bridge-config.json; on Playgama they run on Bridge SaaS): lifetime
+ * takedowns, and the daily challenge's points. Both only ever climb, which is what lets `sent` below
+ * hold the last number each one got and skip a write that would say the same thing again.
+ */
+export type BoardId = 'takedowns' | 'daily_points';
+export const BOARDS: BoardId[] = ['takedowns', 'daily_points'];
 export type BoardType = 'not_available' | 'in_game' | 'native' | 'native_popup';
 export interface BoardEntry { name: string; score: number; rank: number; me: boolean; }
 
@@ -268,33 +273,33 @@ export const boardType = (): BoardType => {
 /** How a board call failed, as one of two words (no messages in analytics). */
 const why = (e: unknown): string => (e instanceof Error && e.message.endsWith('timed out') ? 'timeout' : 'error');
 
-let sent = -1;
+const sent: Record<BoardId, number> = { takedowns: -1, daily_points: -1 };
 /** The player's score after a race; skipped where there is no board, or when it hasn't changed. A failed
  *  write is tried again after the next race. `board_write{ok}` says whether it landed (3.3.63). */
-export function submitScore(score: number): void {
-  if (boardType() === 'not_available' || score <= sent) return;
-  sent = score;
+export function submitScore(board: BoardId, score: number): void {
+  if (boardType() === 'not_available' || score <= sent[board]) return;
+  sent[board] = score;
   const t0 = performance.now();
   const ms = () => Math.round(performance.now() - t0);
   let p: Promise<unknown>;
-  try { p = within(bridge.leaderboards.setScore(BOARD, score), READ_MS, 'leaderboard write'); } catch (e) { p = Promise.reject(e); }
-  p.then(() => track('board_write', { ok: true, ms: ms(), score }), (e: unknown) => {
+  try { p = within(bridge.leaderboards.setScore(board, score), READ_MS, 'leaderboard write'); } catch (e) { p = Promise.reject(e); }
+  p.then(() => track('board_write', { ok: true, ms: ms(), score, board }), (e: unknown) => {
     console.warn('Leaderboard write failed', e);
-    if (sent === score) sent = -1;
-    track('board_write', { ok: false, ms: ms(), score, err: why(e) });
+    if (sent[board] === score) sent[board] = -1;
+    track('board_write', { ok: false, ms: ms(), score, board, err: why(e) });
   });
 }
 
 /** The board's top entries (an `in_game` board only). `board_read` says whether they came, how many, and
  *  whether the player's own row was among them (3.3.63). */
-export async function boardEntries(): Promise<BoardEntry[]> {
+export async function boardEntries(board: BoardId): Promise<BoardEntry[]> {
   const me = String(bridge?.player?.id ?? '');
   const t0 = performance.now();
   let raw: any[];
   try {
-    raw = await within<any[]>(bridge.leaderboards.getEntries(BOARD), READ_MS, 'leaderboard read');
+    raw = await within<any[]>(bridge.leaderboards.getEntries(board), READ_MS, 'leaderboard read');
   } catch (e) {
-    track('board_read', { ok: false, ms: Math.round(performance.now() - t0), err: why(e) });
+    track('board_read', { ok: false, ms: Math.round(performance.now() - t0), board, err: why(e) });
     throw e;
   }
   const list = (Array.isArray(raw) ? raw : []).slice(0, 50).map((e, i) => ({
@@ -303,20 +308,22 @@ export async function boardEntries(): Promise<BoardEntry[]> {
     rank: Number(e?.rank) || i + 1,
     me: !!me && String(e?.id ?? '') === me,
   }));
-  track('board_read', { ok: true, ms: Math.round(performance.now() - t0), n: list.length, mine: list.some((e) => e.me), sent: Math.max(sent, 0) });
+  track('board_read', { ok: true, ms: Math.round(performance.now() - t0), board, n: list.length, mine: list.some((e) => e.me), sent: Math.max(sent[board], 0) });
   return list;
 }
 
 /** The platform's own board overlay (a `native_popup` board). */
-export function showBoardPopup(): void {
-  try { bridge.leaderboards.showNativePopup(BOARD).catch(() => { /* closed or none */ }); } catch { /* none */ }
+export function showBoardPopup(board: BoardId): void {
+  try { bridge.leaderboards.showNativePopup(board).catch(() => { /* closed or none */ }); } catch { /* none */ }
 }
 
-/** The last score sent again, under the name the player now has. */
+/** Every board's last score sent again, under the name the player now has. */
 export function resendScore(): void {
-  const s = sent;
-  sent = -1;
-  if (s >= 0) submitScore(s);
+  for (const b of BOARDS) {
+    const s = sent[b];
+    sent[b] = -1;
+    if (s >= 0) submitScore(b, s);
+  }
 }
 
 // ---- the player's name on the board --------------------------------------------------------------

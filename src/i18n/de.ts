@@ -214,6 +214,8 @@ export const DE: Table = {
   boardEmpty: "Noch keine Einträge. Sei der Erste!",
   boardFail: "Die Bestenliste lädt gerade nicht. Versuch es später.",
   boardSignIn: "Anmelden, um deinen Namen zu zeigen",
+  boardDaily: 'Tagespunkte',
+  boardDailyTip: 'Jeden Tag die beste Fahrt, addiert',
   streakDay: "Tag {n} in Folge",
   streakX2: "×2 (Werbung)",
   achievements: "Erfolge {n}/{m}",

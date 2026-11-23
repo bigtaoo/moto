@@ -128,9 +128,30 @@ describe('the day’s best and its pay', () => {
 
   it('leaves the career exactly where it was', () => {
     const save = parseSave(null);
-    const before = JSON.stringify({ ...save, cash: 0, drace: 0 });
+    // cash, the day's own row and the board's running total are the three things a daily may move
+    const before = JSON.stringify({ ...save, cash: 0, drace: 0, dpts: 0 });
     run(save, 1);
-    expect(JSON.stringify({ ...save, cash: 0, drace: 0 })).toBe(before);
+    expect(JSON.stringify({ ...save, cash: 0, drace: 0, dpts: 0 })).toBe(before);
+  });
+
+  it("banks a day only once: the points follow the day's best, not every run", () => {
+    const save = parseSave(null);
+    const a = run(save, 5);
+    expect(a.pts).toBe(a.score.total);
+    const b = run(save, 1); // better, the same day: only the difference is banked
+    expect(save.dpts).toBe(b.score.total);
+    expect(b.pts).toBe(b.score.total);
+    const c = run(save, 8); // worse, the same day: nothing is banked, and nothing is taken away
+    expect(save.dpts).toBe(b.score.total);
+    expect(c.pts).toBe(b.score.total);
+  });
+
+  it('adds the next day on top: the board only ever climbs', () => {
+    const save = parseSave(null);
+    const a = run(save, 1, DAY);
+    const b = run(save, 5, DAY + 1);
+    expect(save.dpts).toBe(a.score.total + b.score.total);
+    expect(b.pts).toBeGreaterThan(a.pts);
   });
 });
 

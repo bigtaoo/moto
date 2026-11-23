@@ -322,7 +322,7 @@ export function dailyRaceHtml(r: DailyRaceResult, save: Save): string {
       ${row(t('dRaceTime', { n: s.time.toFixed(1) }), pts(s.timePts), 'bad')}
       ${row(t('dRaceScore'), num(s.total), 'total')}
     </div>
-    ${r.paid ? `<div class="rows">${row(t('dRacePay'), money(r.paid), 'good')}</div>` : ''}
+    <div class="rows">${r.paid ? row(t('dRacePay'), money(r.paid), 'good') : ''}${row(t('boardDaily'), num(r.pts), 'total')}</div>
     <div class="cashline">${t('cash')} <b>${money(save.cash)}</b></div>
     <button class="primary again">${t('dRaceAgain')}</button>
     <button class="shift home">${t('toMenu')}</button>`;

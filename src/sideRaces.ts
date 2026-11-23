@@ -9,6 +9,7 @@ import { settleDailyRace } from './dailyRace';
 import { today } from './daily';
 import { storeSave, type Save } from './meta';
 import * as funnel from './funnel';
+import * as platform from './platform';
 import { openFree } from './view/scenes';
 import type { Results } from './view/results';
 import type { World } from './sim/world';
@@ -56,6 +57,7 @@ export function finishDaily(c: SideCtx, w: World, falls: number): void {
   const r = settleDailyRace(c.save, w, falls, today());
   storeSave(c.save);
   funnel.event('drace_end', { score: r.score.total, place: r.score.place, best: r.best, runs: r.runs, paid: r.paid });
+  platform.submitScore('daily_points', r.pts); // the public board's number: every day's best added up
   c.shown();
   c.results.showDailyRace(r, c.save, { again: () => c.next('drace_end'), home: c.home });
 }

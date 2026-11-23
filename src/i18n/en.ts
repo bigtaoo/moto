@@ -219,6 +219,8 @@ export const EN = {
   boardEmpty: "No scores yet. Be the first!",
   boardFail: "The leaderboard didn't load. Try again later.",
   boardSignIn: "Sign in to show your name",
+  boardDaily: 'Daily points',
+  boardDailyTip: "Every day's best, added up",
   streakDay: "Day {n} in a row",
   streakX2: "×2 (ad)",
   achievements: "Achievements {n}/{m}",

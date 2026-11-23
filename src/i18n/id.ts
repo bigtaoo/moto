@@ -214,6 +214,8 @@ export const ID: Table = {
   boardEmpty: 'Belum ada skor. Jadilah yang pertama!',
   boardFail: 'Papan skor gagal dimuat. Coba lagi nanti.',
   boardSignIn: "Masuk untuk menampilkan namamu",
+  boardDaily: 'Poin harian',
+  boardDailyTip: 'Hasil terbaik tiap hari, dijumlahkan',
   streakDay: 'Hari ke-{n} berturut-turut',
   streakX2: '×2 (iklan)',
   achievements: 'Pencapaian {n}/{m}',

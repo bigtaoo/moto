@@ -4,7 +4,7 @@
 import { titleInfo, achHtml, dailyPage } from './title';
 import { openPage } from './subpage';
 import { ACHIEVEMENTS } from '../rewards';
-import { wireBoard } from './board';
+import { wireBoard, openBoard } from './board';
 import { streakDouble } from '../shopping';
 import { cupGoal, cupRaces, goalText } from '../career';
 import { today } from '../daily';
@@ -74,6 +74,8 @@ export function drawTitle(save: Save, on: TitleCardActions): void {
     const page = openPage(on.app, t('daily'), dailyPage(save).body);
     const dr = page.el.querySelector<HTMLButtonElement>('.dracego');
     if (dr) dr.onclick = () => { page.close(); if (on.onTitle()) on.dailyRace(); };
+    const db = page.el.querySelector<HTMLButtonElement>('.dboardgo');
+    if (db) db.onclick = () => openBoard(on.app, 'daily_points');
   };
   const ac = info.querySelector<HTMLButtonElement>('.achsgo');
   if (ac) ac.onclick = () => {

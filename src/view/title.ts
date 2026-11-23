@@ -15,7 +15,7 @@ import { shiftOpen } from '../shift';
 import { freeOpen } from '../free';
 import { dailyRaceOpen } from '../dailyRace';
 import { shiftButton } from './results';
-import { boardButton } from './board';
+import { boardButton, dailyBoardButton } from './board';
 import { LAUNCH } from '../sim/launch';
 
 /** The button into the dummy launch, once it's open: its best score under it. */
@@ -87,7 +87,10 @@ function dailyRaceBox(save: Save): { race: boolean; html: string } {
   if (!dailyRaceOpen(save)) return { race: false, html: '' };
   const d = save.drace;
   const best = d.runs ? `<small>${t('dRaceBest', { n: d.best })}</small>` : `<small>${t('dRaceTip')}</small>`;
-  return { race: d.runs === 0, html: `<button class="shift dracego"><span>${icon('flag')} ${t('dRace')}</span>${best}</button>` };
+  // the board goes under the race that feeds it, not on the lobby beside the takedowns one: two tiles
+  // called "board" a thumb apart would have been two of the same thing (3.3.77)
+  const html = `<button class="shift dracego"><span>${icon('flag')} ${t('dRace')}</span>${best}</button>` + dailyBoardButton();
+  return { race: d.runs === 0, html };
 }
 
 /** Today's challenges: how many are done (for the tile) and the list (for the page). */

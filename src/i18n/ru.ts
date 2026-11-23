@@ -214,6 +214,8 @@ export const RU: Table = {
   boardEmpty: "Пока пусто. Будь первым!",
   boardFail: "Таблица не загрузилась. Попробуй позже.",
   boardSignIn: "Войди, чтобы показать своё имя",
+  boardDaily: 'Очки дня',
+  boardDailyTip: 'Лучший результат каждого дня, в сумме',
   streakDay: "День {n} подряд",
   streakX2: "×2 (реклама)",
   achievements: "Достижения {n}/{m}",

@@ -214,6 +214,8 @@ export const ZH: Table = {
   boardEmpty: '还没有成绩，来当第一个！',
   boardFail: '排行榜没加载出来，待会儿再试。',
   boardSignIn: "登录后显示你的名字",
+  boardDaily: '每日挑战总分',
+  boardDailyTip: '每天最好成绩累加',
   streakDay: '连续第 {n} 天',
   streakX2: '×2（广告）',
   achievements: '成就 {n}/{m}',

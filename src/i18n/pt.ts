@@ -214,6 +214,8 @@ export const PT: Table = {
   boardEmpty: "Ainda sem pontuações. Sê o primeiro!",
   boardFail: "A classificação não carregou. Tenta mais tarde.",
   boardSignIn: "Entra para mostrar o teu nome",
+  boardDaily: 'Pontos diários',
+  boardDailyTip: 'O melhor de cada dia, somado',
   streakDay: "Dia {n} seguido",
   streakX2: "×2 (anúncio)",
   achievements: "Conquistas {n}/{m}",
