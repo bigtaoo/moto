@@ -231,8 +231,8 @@ html, body {
    helmet every frame, which only moved the problem: above the helmet is the road the player is reading.
    The screen below their feet is road already ridden and owes them nothing, so the stack stands on a
    fixed line down there and grows upward -- the newest call-out lowest, furthest from the road, rising
-   and fading out of the top of the lane. Measured on a 812x375 phone held sideways: the foot lands at
-   y 331, the dummy's feet at 273, so all three rows fit the gap without ever touching them. (3.3.81) */
+   and fading out of the top of the lane. Measured on a 812x375 phone held sideways: the foot of the lane
+   lands at y 317 and the dummy's feet at 273, so POP_MAX rows of two fit the gap below them. (3.3.81) */
 .pops {
   position: absolute; left: 50%; bottom: calc(max(14px, env(safe-area-inset-bottom)) + 44px);
   transform: translateX(-50%);
