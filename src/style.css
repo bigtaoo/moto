@@ -227,11 +227,15 @@ html, body {
 #hud.flashing .labels { opacity: 0; }
 .banner.ko, .banner.go { color: var(--yellow); }
 .banner.bad, .banner.warn { color: var(--red-lt); }
-/* Hung by its foot, not its head: hud.ts walks `bottom` to just above the player's helmet every frame,
-   so the stack grows upward and the newest call-out is always the lowest one. The 52% here is only what
-   it reads before the first frame places it. (3.3.80) */
+/* Down in the bottom lane, and nailed there. 3.3.80 had hud.ts walk this box to just above the player's
+   helmet every frame, which only moved the problem: above the helmet is the road the player is reading.
+   The screen below their feet is road already ridden and owes them nothing, so the stack stands on a
+   fixed line down there and grows upward -- the newest call-out lowest, furthest from the road, rising
+   and fading out of the top of the lane. Measured on a 812x375 phone held sideways: the foot lands at
+   y 331, the dummy's feet at 273, so all three rows fit the gap without ever touching them. (3.3.81) */
 .pops {
-  position: absolute; left: 50%; bottom: 52%; transform: translateX(-50%);
+  position: absolute; left: 50%; bottom: calc(max(14px, env(safe-area-inset-bottom)) + 44px);
+  transform: translateX(-50%);
   display: flex; flex-direction: column; align-items: center; gap: 2px; pointer-events: none;
 }
 .pop {
@@ -242,12 +246,15 @@ html, body {
   animation: popup 1.1s ease-out forwards;
 }
 .pop.big { color: var(--yellow); font-size: clamp(20px, 5.4vmin, 36px); }
+/* It rises out of the lane: in from a row's height below, out through the top. The 8px nudge this used
+   to enter on read as a twitch when the stack sat in the middle of the screen; down here the climb is
+   the whole point, and it is what tells the player the newest line is the bottom one. (3.3.81) */
 @keyframes popup {
-  0% { transform: translateY(8px) scale(0.6); opacity: 0; }
+  0% { transform: translateY(18px) scale(0.6); opacity: 0; }
   15% { transform: translateY(0) scale(1.1); opacity: 1; }
   25% { transform: scale(1); }
   70% { opacity: 1; }
-  100% { transform: translateY(-18px); opacity: 0; }
+  100% { transform: translateY(-22px); opacity: 0; }
 }
 .banner.count { font-size: clamp(60px, 18vmin, 140px); }
 /* The race ribbon holds 18% to 23%, and the countdown is 18vmin tall: at the shared 24% band the "3"

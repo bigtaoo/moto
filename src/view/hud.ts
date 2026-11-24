@@ -25,12 +25,11 @@ const cls = (el: HTMLElement, name: string, on: boolean) => {
   if (el.classList.contains(name) !== on) el.classList.toggle(name, on);
 };
 
-/** Air between the foot of the call-out stack and the top of the player's helmet. */
-const POP_GAP = 6;
-/** The foot of that stack is held between these two lines of the screen, highest first (3.3.80). */
-const POP_HI = 0.42, POP_LO = 0.62;
-/** Where it hangs while the player is off the screen (down, or the camera has lost them). */
-const POP_REST = 0.52;
+/** Call-outs standing in the bottom lane at once. Three fit where the stack used to hang -- over the
+ *  player -- but the lane between their feet and the hint pill is two rows tall on a phone held
+ *  sideways, and the oldest row of three landed back on the dummy's wheels. The newest line is the one
+ *  being read; a third pushes the oldest out a little sooner instead of climbing. (3.3.81) */
+const POP_MAX = 2;
 
 export class Hud {
   readonly root: HTMLElement;
@@ -46,11 +45,7 @@ export class Hud {
   private readonly tags: Tags;
   /** The HUD's width: a tag is kept inside it, so a name never hangs off the screen. */
   private roomW = 0;
-  /** The HUD's height: the call-out stack is placed against the screen, not against the road. */
-  private roomH = 0;
   private readonly popBox: HTMLElement;
-  /** Where the call-out stack's foot was last put, in whole pixels (NaN: not placed yet). */
-  private popY = NaN;
   private readonly banner: HTMLElement;
   private readonly chaser: HTMLElement;
   private readonly hint: HTMLElement;
@@ -107,9 +102,11 @@ export class Hud {
         <div class="inc l">${icon('warn')}</div>
         <div class="inc r">${icon('warn')}</div>
         <div class="banner"></div>
-        <div class="pops"></div>
         <div class="chaser"></div>
         <div class="hint"></div>
+        <!-- after the chip and the pill on purpose: the call-outs share the bottom lane with them and,
+             for the one second they are up, a call-out paints over them rather than behind (3.3.81) -->
+        <div class="pops"></div>
         <div class="coach"></div>
         <div class="league"></div>
         <div class="nemcard"></div>
@@ -182,8 +179,6 @@ export class Hud {
   resize(): void {
     this.barW = this.bar.clientWidth || 200;
     this.roomW = this.root.clientWidth || this.barW;
-    this.roomH = this.root.clientHeight || this.roomW;
-    this.popY = NaN;
     this.dotPx.fill(-1);
     this.tags.resize(this.roomW);
   }
@@ -290,7 +285,7 @@ export class Hud {
    */
   pop(text: string, kind = ''): void {
     const box = this.popBox;
-    while (box.childElementCount >= 3) box.firstElementChild!.remove();
+    while (box.childElementCount >= POP_MAX) box.firstElementChild!.remove();
     const el = document.createElement('div');
     el.className = `pop ${kind}`;
     el.textContent = text;
@@ -337,16 +332,6 @@ export class Hud {
       this.dotPx[i] = px;
       this.dots[i].style.transform = `translate(${px}px, -50%)`;
     }
-    // The call-outs hung from a fixed line down the middle of the screen, and in landscape -- the way a
-    // phone is held for this -- that line is where the dummy rides: three at once (a near miss, a chain
-    // and a bowl inside the same second) came down square over the player's own head, which is the one
-    // thing on the screen they steer by. They hang off the helmet instead, by the foot of the stack, so
-    // the newest one is the lowest and none of them ever reaches below that line. Held between POP_HI and
-    // POP_LO so a camera that has swung somewhere odd cannot push them into the banner or off the bottom.
-    const pbp = view.pbox;
-    const foot = Math.round(Math.max(this.roomH * POP_HI,
-      Math.min(this.roomH * POP_LO, pbp.ok ? pbp.top - POP_GAP : this.roomH * POP_REST)));
-    if (foot !== this.popY) { this.popY = foot; this.popBox.style.bottom = `${this.roomH - foot}px`; }
     this.tags.update(w, view, this.tellT);
     // slap reach indicators
     let left = false;
