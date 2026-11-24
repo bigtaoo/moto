@@ -14,6 +14,8 @@ export const ID: Table = {
   slapNowTap: 'Ketuk untuk menampar!',
   slapNowClick: 'Klik untuk menampar!',
   slapNowKeys: 'Tekan SPASI untuk menampar!',
+  steerNowKeys: 'Tekan ← → untuk bergerak!',
+  steerNowDrag: 'Seret untuk bergerak!',
   slap: 'TAMPAR',
   watchAd: 'tonton iklan',
   paused: 'Dijeda',

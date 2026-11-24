@@ -14,6 +14,8 @@ export const RU: Table = {
   slapNowTap: 'Тап — удар!',
   slapNowClick: 'Клик — удар!',
   slapNowKeys: 'Жми ПРОБЕЛ — удар!',
+  steerNowKeys: 'Нажми ← →, чтобы ехать!',
+  steerNowDrag: 'Проведи, чтобы ехать!',
   slap: 'УДАР',
   watchAd: 'смотреть рекламу',
   paused: 'Пауза',

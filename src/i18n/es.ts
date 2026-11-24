@@ -14,6 +14,8 @@ export const ES: Table = {
   slapNowTap: '¡Toca para golpear!',
   slapNowClick: '¡Clic para golpear!',
   slapNowKeys: '¡Pulsa ESPACIO para golpear!',
+  steerNowKeys: '¡Pulsa ← → para moverte!',
+  steerNowDrag: '¡Arrastra para moverte!',
   slap: 'GOLPE',
   watchAd: 'ver un anuncio',
   paused: 'Pausa',

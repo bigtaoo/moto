@@ -14,6 +14,8 @@ export const TR: Table = {
   slapNowTap: 'Vurmak için DOKUN!',
   slapNowClick: 'Vurmak için TIKLA!',
   slapNowKeys: 'Vurmak için BOŞLUK’a bas!',
+  steerNowKeys: 'Hareket için ← → bas!',
+  steerNowDrag: 'Hareket için sürükle!',
   slap: 'VUR',
   watchAd: 'reklam izle',
   paused: 'Durduruldu',

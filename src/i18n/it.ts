@@ -14,6 +14,8 @@ export const IT: Table = {
   slapNowTap: 'Tocca per colpire!',
   slapNowClick: 'Clic per colpire!',
   slapNowKeys: 'Premi SPAZIO per colpire!',
+  steerNowKeys: 'Premi ← → per muoverti!',
+  steerNowDrag: 'Trascina per muoverti!',
   slap: 'COLPO',
   watchAd: 'guarda un annuncio',
   paused: 'In pausa',

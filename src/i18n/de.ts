@@ -14,6 +14,8 @@ export const DE: Table = {
   slapNowTap: 'Tippen: Schlag!',
   slapNowClick: 'Klicken: Schlag!',
   slapNowKeys: 'LEERTASTE drücken: Schlag!',
+  steerNowKeys: '← → drücken zum Fahren!',
+  steerNowDrag: 'Ziehen zum Fahren!',
   slap: 'SCHLAG',
   watchAd: 'Werbung ansehen',
   paused: 'Pause',

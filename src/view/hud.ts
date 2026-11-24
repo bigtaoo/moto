@@ -1,7 +1,7 @@
 // DOM overlay. Per-frame changes go through transform/opacity only; text is touched only when it changes.
 
 import { icon } from './icons';
-import { DESKTOP, controlKind, STEER_WORD as STEER, SLAP_WORD as SLAP, SLAP_BIG_WORD as SLAP_BIG } from './input';
+import { DESKTOP, controlKind, STEER_WORD as STEER, SLAP_WORD as SLAP, SLAP_BIG_WORD as SLAP_BIG, STEER_BIG_WORD as STEER_BIG } from './input';
 import type { World } from '../sim/world';
 import { ATTACK, WEAPON } from '../sim/config';
 import type { RaceView } from './scene';
@@ -51,6 +51,8 @@ export class Hud {
   private readonly hint: HTMLElement;
   private readonly coachEl: HTMLElement;
   private coachOn = false;
+  /** Which lesson the big card is showing (3.3.82 added the steer one). */
+  private coachKind: 'slap' | 'steer' = 'slap';
   private hintKey = '';
   private want: Want = 'off';
   private readonly slapL: HTMLElement;
@@ -155,7 +157,7 @@ export class Hud {
   localize(): void {
     this.slapL.innerHTML = `${icon('left')} ${t('slap')}`;
     this.slapR.innerHTML = `${t('slap')} ${icon('right')}`;
-    this.coachEl.textContent = t(SLAP_BIG[controlKind()]);
+    this.coachEl.textContent = t((this.coachKind === 'steer' ? STEER_BIG : SLAP_BIG)[controlKind()]);
     const want = this.want;
     this.hintKey = '';
     this.paintHint(want);
@@ -260,11 +262,15 @@ export class Hud {
     this.root.classList.toggle('hinting', on);
   }
 
-  /** The big ask for the slap key over a slowed race (3.3.64). */
-  coach(on: boolean): void {
-    if (on === this.coachOn) return;
+  /**
+   * The big ask over a held or slowed race: `steer` on the last beat of the countdown (3.3.82) and `slap`
+   * the first time a rival comes into reach (3.3.64).
+   */
+  coach(on: boolean, kind: 'slap' | 'steer' = 'slap'): void {
+    if (on === this.coachOn && kind === this.coachKind) return;
     this.coachOn = on;
-    if (on) this.coachEl.textContent = t(SLAP_BIG[controlKind()]);
+    this.coachKind = kind;
+    if (on) this.coachEl.textContent = t((kind === 'steer' ? STEER_BIG : SLAP_BIG)[controlKind()]);
     this.coachEl.classList.toggle('on', on);
   }
 

@@ -14,6 +14,8 @@ export const KO: Table = {
   slapNowTap: '탭으로 후려쳐!',
   slapNowClick: '클릭으로 후려쳐!',
   slapNowKeys: '스페이스로 후려쳐!',
+  steerNowKeys: '← → 로 움직여봐!',
+  steerNowDrag: '드래그해서 움직여봐!',
   slap: '후려치기',
   watchAd: '광고 보기',
   paused: '일시정지',

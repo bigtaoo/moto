@@ -36,7 +36,7 @@ import type { Free } from './free';
 import { raceOpts } from './raceOpts';
 import { openFree, openStop } from './view/scenes';
 import { blocker } from './view/blocker';
-import { SlapCoach, hintNeed, usedControl } from './coach';
+import { SlapCoach, StartCoach, hintNeed, usedControl } from './coach';
 import { unlock, visit, dayMult, type Unlocked } from './rewards';
 
 const params = new URLSearchParams(location.search);
@@ -110,6 +110,8 @@ let feel = newFeel();
 let atkBuffer = 0;
 /** The first slap, taught by force in a rookie's first race (3.3.64, src/coach.ts). */
 const coach = new SlapCoach((r) => funnel.event('slap_coach', { slapped: r.slapped, ms: r.ms, n: r.n, early: r.early, kind: controlKind() }));
+/** The first steer, asked for on the last beat of a new player's first countdown (3.3.82, src/coach.ts). */
+const startCoach = new StartCoach((r) => funnel.event('start_coach', { steered: r.steered, ms: r.ms, shown: r.shown, kind: controlKind() }));
 let lastCount = -1;
 /** Times the player came off this race (for the daily "without falling off"). */
 let falls = 0;
@@ -131,6 +133,7 @@ function newRace(): void {
   hud.results.hide();
   intro();
   controls.reset();
+  startCoach.arm(!BOT && save.races === 0);
   acc = 0;
   feel = newFeel(save.life.kos === 0);
   atkBuffer = 0;
@@ -347,8 +350,14 @@ function frame(now: number): void {
   // and a countdown waits for it so the race doesn't start without them
   if (!keysEver && keysReach()) keysEver = true;
   const askKeys = state === 'race' && !BOT && !paused && controlKind() === 'key' && !keysReach();
-  // the line yields to the slap card, which asks for the same key in bigger letters (src/coach.ts)
-  hud.showHint(askKeys ? null : hintNeed(state === 'race' && !BOT && !paused && save.races < 2 && !coach.on));
+  // 3.3.82: the countdown stops on its last beat and asks a new player for one steer, and the grid is
+  // steerable so the answer shows. Read from `controls` rather than from the tick, since this is settled
+  // before the world steps. It lets go on that steer or after START_LIMIT_S, whichever comes first.
+  const steerNow = controls.steer !== 0 || controls.targetX !== null;
+  world.holdCount = startCoach.frame(dt, state === 'race' && !BOT && !paused && !askKeys, world.countdown, steerNow);
+  hud.coach(startCoach.on && state === 'race', 'steer');
+  // the line yields to either big card, which asks for the same control in bigger letters (src/coach.ts)
+  hud.showHint(askKeys ? null : hintNeed(state === 'race' && !BOT && !paused && save.races < 2 && !coach.on && !startCoach.on));
   // held only so long: a player whose keys never arrive is better off racing with the ask still on screen
   // than staring at a frozen countdown (any click in the game fixes it). keysWait keeps counting past the
   // hold so the telemetry still reports the whole wait.
@@ -373,7 +382,7 @@ function frame(now: number): void {
   if (state === 'race' && !waiting && world.countdown <= 0 && !world.player.finished) {
     simDt *= coach.frame(dt, world.player.state === 'ride' && world.targetFor(world.player, 0.3) !== null);
   }
-  hud.coach(coach.on && state === 'race');
+  if (!startCoach.on) hud.coach(coach.on && state === 'race');
   if (state !== 'title' && !waiting) {
     acc += simDt;
     let n = 0;
@@ -476,6 +485,6 @@ async function boot(): Promise<void> {
 boot().catch((e) => { console.error(e); tele.bootFailed(); });
 
 // For poking at the game from the console while testing.
-Object.assign(window, { __game: { get world() { return world; }, get view() { return view; }, get state() { return state; }, get paused() { return { player: paused, host: hostPaused }; }, hud, get save() { return save; }, botInput, platform, coach,
+Object.assign(window, { __game: { get world() { return world; }, get view() { return view; }, get state() { return state; }, get paused() { return { player: paused, host: hostPaused }; }, hud, get save() { return save; }, botInput, platform, coach, startCoach,
   /** Bug report: this race so far as a replay (seed, options, every input), JSON to paste. */
   replay: () => JSON.stringify(recorder.finish(world)) } });

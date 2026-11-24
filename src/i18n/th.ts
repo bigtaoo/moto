@@ -14,6 +14,8 @@ export const TH: Table = {
   slapNowTap: 'แตะเพื่อตบ!',
   slapNowClick: 'คลิกเพื่อตบ!',
   slapNowKeys: 'กด SPACE เพื่อตบ!',
+  steerNowKeys: 'กด ← → เพื่อขยับ!',
+  steerNowDrag: 'ลากเพื่อขยับ!',
   slap: 'ตบ',
   watchAd: 'ดูโฆษณา',
   paused: 'หยุดชั่วคราว',

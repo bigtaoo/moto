@@ -4,7 +4,7 @@
  * Bump on any change to the race rules that alters what a seed plus inputs produce, and record the new
  * golden hash in world.test.ts. Replays and (later) online rooms only mix the same version.
  */
-export const SIM_VERSION = 46;
+export const SIM_VERSION = 47;
 
 export const TICK_HZ = 30;
 export const DT = 1 / TICK_HZ;
@@ -26,25 +26,25 @@ export const COUNTDOWN_S = 2;
 
 export const PLAYER_BASE = { top: 28.6, accel: 7, steer: 8.5, hp: 3 };
 /**
- * How fast the spot a held key is steering for travels, as a fraction of the bike's own `steer` speed.
- * Hold the key and it keeps going; only the road's edges stop it, so press length reads as distance all the
- * way across: 0.1 s is half a metre, 0.7 s is a lane, 1.4 s is two of them, 2.5 s is the whole road.
+ * How fast the spot a held key steers for travels, as a fraction of the bike's own `steer` speed. Press
+ * length reads as distance, stopped only by the road's edges: 0.1 s half a metre, 0.7 s a lane, 2.5 s all of it.
  *
- * 3.3.67 found the crashes a new player makes are overshot dodges, not missed ones: a held key moved the
- * line at the full 8.5 m/s, so a 300 ms press slid 2.55 m and half a second crossed a lane into oncoming
- * traffic. The fix was two things at once -- a `KEY_RATE` of 5 m/s to slow what a press spends (3.3.68),
- * and a `KEY_STEP` cap of one lane. 3.3.73 found only the first was doing the work: at 5 m/s a 300 ms press
- * is 1.5 m, well short of the 2.55 m that caused the crashes, while the cap meant a key held down went dead
- * after one lane -- the player kept pressing and the bike kept not moving. The cap is gone.
+ * 3.3.67 found a new player's crashes are overshot dodges, not missed ones: at the full 8.5 m/s a 300 ms
+ * press slid 2.55 m and half a second crossed a lane into oncoming traffic. 3.3.68 fixed it twice over --
+ * 5 m/s, and a `KEY_STEP` cap of one lane -- and 3.3.73 found only the rate was doing the work: the cap
+ * made a held key go dead after a lane, so the player kept pressing and the bike kept still. The cap is gone.
  *
- * A fraction rather than a speed because the old flat 5 m/s meant a keyboard player got nothing at all from
- * the steer upgrades or a nimbler ride; only the touch drag ever felt them. 0.6 leaves the base bike at
- * about 5.1 m/s, which is what 3.3.68 measured the hand against, and an upgraded one finally steers faster.
+ * A fraction, not a speed: the old flat 5 m/s meant a keyboard player felt nothing of the steer upgrades or
+ * a nimbler ride. 0.6 leaves the base bike at the 5.1 m/s 3.3.68 measured, and an upgraded one steers faster.
  */
 export const KEY_RATE = 0.6;
 /** How far ahead of the bike the steered-for spot may get. Shoved off line or held against the barrier, a
  *  press cannot run up a debt of metres that snaps back the moment the bike is free. */
 export const KEY_LEASH = 2.5;
+/** 3.3.82: how far across the player may slide before GO. The grid is the one moment of a race with nothing
+ *  else in it, so a press there answers on its own -- but another rider sits 4.4 m away, and arriving at GO
+ *  on top of them would open a new player's first race with a shove. */
+export const GRID_SLIDE = 2;
 /**
  * How the engine's pull falls off near the bike's own top speed. Below `knee` of it the full `accel` is
  * there, so getting back up after a fall is as quick as it ever was; over the knee the pull slides down to

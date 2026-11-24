@@ -14,6 +14,8 @@ export const VI: Table = {
   slapNowTap: 'Chạm để tát!',
   slapNowClick: 'Nhấp để tát!',
   slapNowKeys: 'Nhấn SPACE để tát!',
+  steerNowKeys: 'Nhấn ← → để di chuyển!',
+  steerNowDrag: 'Kéo để di chuyển!',
   slap: 'TÁT',
   watchAd: 'xem quảng cáo',
   paused: 'Tạm dừng',

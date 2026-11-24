@@ -14,6 +14,8 @@ export const ZH: Table = {
   slapNowTap: '点击挥拳！',
   slapNowClick: '点击挥拳！',
   slapNowKeys: '按空格挥拳！',
+  steerNowKeys: '按 ← → 移动！',
+  steerNowDrag: '拖动移动！',
   slap: '挥拳',
   watchAd: '看个广告',
   paused: '已暂停',

@@ -90,3 +90,82 @@ export class SlapCoach {
     this.phase = slapped || this.tries >= COACH_TRIES ? 'off' : 'wait';
   }
 }
+
+// 3.3.82: the first steer, asked for before GO. On r51 (11-24 telemetry) 15 of 53 first-race sessions
+// never sent a single input event and left in 2-23 s, and merged over 11-23/11-24 only 65% of the people
+// dropped into race 1 ever steered once (n=136, +-8). Everything the rounds before this one changed sits
+// downstream of that: of the players who do touch the controls, 89% finish race 1 and 84% start race 2.
+// So the countdown now stops on its last beat and asks, and the grid is steerable (World.gridSteer) so the
+// ask has an answer the bike gives back immediately. It lets go on the first steer, or after START_LIMIT_S
+// either way -- nobody is held on a screen they did not ask for.
+
+/** Real seconds the countdown waits for the first steer before it runs on without one. */
+export const START_LIMIT_S = 4;
+/** Countdown ticks left when the card comes up: one second, so a beat is left to play after they steer. */
+export const START_AT = 30;
+
+export interface StartReport {
+  /** They steered -- before the card (`shown` false) or in answer to it. */
+  steered: boolean;
+  /** How long the card was up, in milliseconds. */
+  ms: number;
+  /** The card came up at all; false when the player steered during the first beat on their own. */
+  shown: boolean;
+}
+
+export class StartCoach {
+  private phase: 'off' | 'wait' | 'on' | 'done' = 'off';
+  private t = 0;
+
+  constructor(private readonly report: (r: StartReport) => void) {}
+
+  /** A new race: `on` when this is a new player's very first one. */
+  arm(on: boolean): void {
+    this.phase = on ? 'wait' : 'off';
+    this.t = 0;
+  }
+
+  get on(): boolean {
+    return this.phase === 'on';
+  }
+
+  /**
+   * Once a frame. `live`: a real player is on the race screen and not paused; `countdown`: ticks left;
+   * `steered`: a steering control is being used right now. Returns whether the countdown must stand still.
+   */
+  frame(dt: number, live: boolean, countdown: number, steered: boolean): boolean {
+    if (this.phase === 'off' || this.phase === 'done') return false;
+    if (countdown <= 0) { // GO came without us: nothing left to teach here
+      if (this.phase === 'on') this.end(false);
+      else this.phase = 'off';
+      return false;
+    }
+    if (!live) return this.phase === 'on'; // paused with the card up: keep the count still, don't age it
+    if (steered) {
+      this.end(true);
+      return false;
+    }
+    if (this.phase === 'wait') {
+      if (countdown > START_AT) return false;
+      this.phase = 'on';
+      this.t = 0;
+    }
+    this.t += dt;
+    if (this.t >= START_LIMIT_S) {
+      this.end(false);
+      return false;
+    }
+    return true;
+  }
+
+  /** The race was left or restarted: a card still up comes down without a report. */
+  stop(): void {
+    this.phase = 'off';
+  }
+
+  private end(steered: boolean): void {
+    const shown = this.phase === 'on';
+    this.phase = 'done';
+    this.report({ steered, ms: Math.round(this.t * 1000), shown });
+  }
+}

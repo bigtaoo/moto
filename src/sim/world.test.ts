@@ -3,16 +3,18 @@ import * as C from './config';
 import { SIM_VERSION, TICK_HZ } from './config';
 import { botInput } from './ai';
 import { hashState } from './hash';
-import { Recorder, playReplay, type Replay } from './replay';
+import { Recorder, playReplay, type InputRow, type Replay } from './replay';
 import { World, type WorldOpts } from './world';
 
+// 3.3.82: the hashes and endTick both moved -- the countdown is steerable now (World.gridSteer), so a bot
+// race that steers from tick 0 reaches GO a little across from where it used to sit.
 // 3.3.67/3.3.68/3.3.73: the hashes moved but endTick did not. A bot race steers by targetX and never touches
 // the keys, so what a press is worth changes nothing it does; what the hash picked up is the fields the key
 // handling keeps on the World, since hashState walks every field there -- 3.3.73 is two of them going away.
 // The golden hashes pin what a seed plus inputs produce. If one changes, either the change was meant
 // to alter the race (bump SIM_VERSION in config.ts and paste the new hashes here) or the sim lost
 // its determinism (find out why before touching anything).
-const GOLDEN = { version: 46, mid: 'e74c2107', end: 'c6a9ffb7', endTick: 4242 };
+const GOLDEN = { version: 47, mid: 'b48841ac', end: '2127e25b', endTick: 4569 };
 
 const OPTS: WorldOpts = { seed: 1, upgrades: { top: 2, steer: 2, hp: 2 }, div: 2, nemesis: 3, tier: 1, vehicle: 2 };
 const MID = 60 * TICK_HZ;
@@ -67,8 +69,11 @@ describe('sim determinism', () => {
   });
 
   it('notices a replay that was tampered with', () => {
+    // Every slap taken out, not one: a single one can leave no trace at all (it whiffs, or it falls in the
+    // countdown, where 3.3.82 lets the bot press while only the steering is listened to), and a replay that
+    // still ends on the recorded hash is a replay that was not changed in any way the race could feel.
     const r = structuredClone(a.replay);
-    r.rows.splice(r.rows.findIndex((row) => row[4] & 1), 1);
+    r.rows = r.rows.map((row) => [row[0], row[1], row[2], row[3], row[4] & ~1] as InputRow);
     expect(playReplay(r).ok).toBe(false);
   });
 
@@ -247,5 +252,50 @@ describe('seasons and rides', () => {
       expect(pro.riders[i].top - am.riders[i].top).toBeCloseTo(C.TIERS[1].top[1] - C.TIERS[0].top[1], 6);
       expect(pro.riders[i].hp).toBe(am.riders[i].hp + C.TIERS[1].hp);
     }
+  });
+});
+
+describe('the steerable grid (3.3.82)', () => {
+  /** Hold a key for `ticks` of the countdown and say how far across the bike went. */
+  function slide(ticks: number, steer: number, hold = false): { moved: number; countdown: number; x: number } {
+    const w = new World({ seed: 11 });
+    const x0 = w.player.x;
+    w.holdCount = hold;
+    w.input.steer = steer;
+    for (let i = 0; i < ticks; i++) w.step();
+    return { moved: w.player.x - x0, countdown: w.countdown, x: w.player.x };
+  }
+
+  it('answers a press before GO, which nothing else in the race does yet', () => {
+    const w = new World({ seed: 11 });
+    expect(w.countdown).toBeGreaterThan(0);
+    const z0 = w.player.z;
+    const { moved } = slide(20, -1);
+    expect(Math.abs(moved)).toBeGreaterThan(0.3); // the bike visibly goes
+    expect(new World({ seed: 11 }).player.z).toBe(z0); // and nothing else has started
+  });
+
+  it('keeps the slide within reach of the slot, so GO is not a shove', () => {
+    const far = slide(C.COUNTDOWN_S * C.TICK_HZ - 1, -1);
+    expect(Math.abs(far.moved)).toBeLessThanOrEqual(C.GRID_SLIDE + 1e-9);
+    for (const r of new World({ seed: 11 }).riders) {
+      if (!r.isPlayer && Math.abs(r.z - 2) < 3) expect(Math.abs(r.x - far.x)).toBeGreaterThan(2);
+    }
+  });
+
+  it('holds the countdown while holdCount is set, and still steers', () => {
+    const held = slide(C.COUNTDOWN_S * C.TICK_HZ * 4, -1, true);
+    expect(held.countdown).toBe(Math.round(C.COUNTDOWN_S * C.TICK_HZ));
+    expect(Math.abs(held.moved)).toBeCloseTo(C.GRID_SLIDE, 6);
+  });
+
+  it('lets go of the count the moment the hold does', () => {
+    const w = new World({ seed: 11 });
+    w.holdCount = true;
+    for (let i = 0; i < 100; i++) w.step();
+    expect(w.countdown).toBe(Math.round(C.COUNTDOWN_S * C.TICK_HZ));
+    w.holdCount = false;
+    for (let i = 0; i < Math.round(C.COUNTDOWN_S * C.TICK_HZ); i++) w.step();
+    expect(w.countdown).toBe(0);
   });
 });

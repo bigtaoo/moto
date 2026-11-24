@@ -14,6 +14,8 @@ export const FR: Table = {
   slapNowTap: 'Touche pour frapper !',
   slapNowClick: 'Clic pour frapper !',
   slapNowKeys: 'Appuie sur ESPACE pour frapper !',
+  steerNowKeys: 'Appuie sur ← → pour bouger\xa0!',
+  steerNowDrag: 'Glisse pour bouger\xa0!',
   slap: 'BAFFE',
   watchAd: 'regarder une pub',
   paused: 'Pause',

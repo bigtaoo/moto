@@ -14,6 +14,8 @@ export const JA: Table = {
   slapNowTap: 'タップでビンタ！',
   slapNowClick: 'クリックでビンタ！',
   slapNowKeys: 'スペースでビンタ！',
+  steerNowKeys: '← → で動かそう！',
+  steerNowDrag: 'ドラッグで動かそう！',
   slap: 'ビンタ',
   watchAd: '広告を見る',
   paused: '一時停止',

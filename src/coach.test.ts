@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SlapCoach, COACH_SLOW, COACH_LIMIT_S, COACH_TRIES, type CoachReport } from './coach';
+import { SlapCoach, StartCoach, COACH_SLOW, COACH_LIMIT_S, COACH_TRIES, START_LIMIT_S, START_AT, type CoachReport, type StartReport } from './coach';
 
 // 3.3.64: the desktop rookie's first slap, taught by force.
 
@@ -66,5 +66,72 @@ describe('the slap coach', () => {
     c.stop();
     expect(c.on).toBe(false);
     expect(out).toEqual([]);
+  });
+});
+
+
+// 3.3.82: the first steer, asked for on the last beat of a new player's first countdown.
+
+const start = () => {
+  const out: StartReport[] = [];
+  return { c: new StartCoach((r) => out.push(r)), out };
+};
+
+describe('the start coach', () => {
+  it('lets the countdown run until its last beat, then holds it', () => {
+    const { c, out } = start();
+    expect(c.frame(0.016, true, START_AT, false)).toBe(false); // not armed
+    c.arm(true);
+    expect(c.frame(0.016, true, START_AT + 1, false)).toBe(false); // still beats to play
+    expect(c.on).toBe(false);
+    expect(c.frame(0.016, true, START_AT, false)).toBe(true);
+    expect(c.on).toBe(true);
+    expect(out).toEqual([]);
+  });
+
+  it('lets go on the first steer, and only asks once a race', () => {
+    const { c, out } = start();
+    c.arm(true);
+    c.frame(0.5, true, START_AT, false);
+    expect(c.frame(0.016, true, START_AT, true)).toBe(false);
+    expect(c.on).toBe(false);
+    expect(out).toEqual([{ steered: true, ms: 500, shown: true }]);
+    expect(c.frame(0.016, true, START_AT, false)).toBe(false); // does not come back
+    expect(out).toHaveLength(1);
+  });
+
+  it('reports the players who steer before the card, without ever showing it', () => {
+    const { c, out } = start();
+    c.arm(true);
+    expect(c.frame(0.016, true, START_AT + 20, true)).toBe(false);
+    expect(c.on).toBe(false);
+    expect(out).toEqual([{ steered: true, ms: 0, shown: false }]);
+  });
+
+  it('never holds the start for long: no steer in time and the race goes anyway', () => {
+    const { c, out } = start();
+    c.arm(true);
+    let t = 0;
+    while (c.frame(0.1, true, START_AT, false)) t += 0.1;
+    expect(t).toBeGreaterThan(0);
+    expect(t).toBeLessThanOrEqual(START_LIMIT_S);
+    expect(out).toEqual([{ steered: false, ms: Math.round(START_LIMIT_S * 1000), shown: true }]);
+  });
+
+  it('keeps the count still while the game is paused, and does not age the card', () => {
+    const { c } = start();
+    c.arm(true);
+    c.frame(0.5, true, START_AT, false);
+    for (let i = 0; i < 100; i++) expect(c.frame(0.1, false, START_AT, false)).toBe(true);
+    expect(c.on).toBe(true); // ten seconds of pause did not spend the four it waits
+    expect(c.frame(0.016, true, START_AT, true)).toBe(false);
+  });
+
+  it('stands down when GO came without it (a bot, or a race it was never armed for)', () => {
+    const { c, out } = start();
+    c.arm(true);
+    expect(c.frame(0.016, true, 0, false)).toBe(false);
+    expect(out).toEqual([]);
+    expect(c.frame(0.016, true, START_AT, false)).toBe(false); // and stays down
   });
 });

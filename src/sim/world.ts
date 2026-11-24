@@ -68,6 +68,14 @@ export class World {
   /** Times the player knocked the nemesis off this race. */
   revenge = 0;
   countdown = Math.round(C.COUNTDOWN_S * C.TICK_HZ);
+  /**
+   * 3.3.82: the countdown stands still while this is set. The start coach (src/coach.ts) holds it on the
+   * last beat of a new player's first race until they steer once, because 35% of the people dropped into
+   * race 1 never touched a control at all.
+   */
+  holdCount = false;
+  /** Where the player's slot on the grid is: gridSteer() keeps the pre-GO slide within reach of it. */
+  private readonly gridX: number;
   over = false;
   overT = -1;
   finished = 0;
@@ -151,6 +159,7 @@ export class World {
       hp: C.PLAYER_BASE.hp + v.hp + up.hp * C.UPGRADE_STEP.hp, accel: C.PLAYER_BASE.accel + v.accel,
       aggr: 0, aware: 1, body: C.PLAYER_BODY, ride: C.PLAYER_RIDE, weapon: opts.weapon ?? (bats ? 'bat' : undefined), strap: opts.weapon !== undefined,
     });
+    this.gridX = this.player.x;
     C.ROSTER.forEach((s, i) => {
       const g = grid(i);
       const d = this.div;
@@ -276,7 +285,8 @@ export class World {
     this.patrol.px = this.patrol.x;
     this.patrol.pz = this.patrol.z;
     if (this.countdown > 0) {
-      if (--this.countdown === 0) this.events.push({ type: 'go' });
+      if (!this.holdCount && --this.countdown === 0) this.events.push({ type: 'go' });
+      this.gridSteer();
       this.remember();
       return;
     }
@@ -293,6 +303,32 @@ export class World {
     if (!this.chase) { updatePatrol(this); leaderThreats(this); }
     this.checkFinish();
     this.remember();
+  }
+
+  /**
+   * The one thing the player may do before GO: slide across the start line. Nothing else runs during the
+   * countdown -- no speed, no rivals, no traffic -- so a press answers at once and on its own, which is
+   * what makes it teachable. Before 3.3.82 the countdown returned early and the controls were dead until
+   * GO, so a new player's first two seconds had nothing in them to try.
+   */
+  private gridSteer(): void {
+    const p = this.player;
+    const inp = this.input;
+    // Within C.GRID_SLIDE of the slot: enough to see the bike answer, not enough to park on the rider
+    // sharing the back row (grid i=6 sits 4.4 m to the left) and be shoved off the moment GO lands.
+    const [rLo, rHi] = this.road.bounds(p.x, p.z);
+    const lo = Math.max(rLo, this.gridX - C.GRID_SLIDE);
+    const hi = Math.min(rHi, this.gridX + C.GRID_SLIDE);
+    if (inp.targetX !== null) p.wantX = clamp(inp.targetX, lo, hi);
+    else if (inp.steer === 0) p.wantX = clamp(p.x, lo, hi);
+    else {
+      if (inp.steer !== this.steerWas) p.wantX = p.x;
+      const to = p.wantX + inp.steer * p.steer * C.KEY_RATE * C.DT;
+      p.wantX = clamp(to, Math.max(lo, p.x - C.KEY_LEASH), Math.min(hi, p.x + C.KEY_LEASH));
+    }
+    this.steerWas = inp.steer;
+    const step = p.steer * C.DT;
+    p.x += clamp(p.wantX - p.x, -step, step);
   }
 
   private controlPlayer(): void {

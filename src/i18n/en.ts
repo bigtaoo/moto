@@ -16,6 +16,8 @@ export const EN = {
   slapNowTap: 'Tap to slap!',
   slapNowClick: 'Click to slap!',
   slapNowKeys: 'Press SPACE to slap!',
+  steerNowKeys: 'Press ← → to move!',
+  steerNowDrag: 'Drag to move!',
   slap: 'SLAP',
   watchAd: 'watch an ad',
   paused: 'Paused',

@@ -36,6 +36,8 @@ const sawKind = (k: ControlKind): void => { seenKind = k; };
 export const STEER_WORD = { key: 'hintSteerKeys', mouse: 'hintSteerDrag', touch: 'hintSteerDrag' } as const;
 export const SLAP_WORD = { key: 'hintSlapKeys', mouse: 'hintSlapClick', touch: 'hintSlapTap' } as const;
 export const SLAP_BIG_WORD = { key: 'slapNowKeys', mouse: 'slapNowClick', touch: 'slapNowTap' } as const;
+/** The big ask for the first steer, held on the last beat of the countdown (3.3.82, src/coach.ts). */
+export const STEER_BIG_WORD = { key: 'steerNowKeys', mouse: 'steerNowDrag', touch: 'steerNowDrag' } as const;
 
 /**
  * Where a drag of `dx` CSS px from `anchor` (metres across the road) points, held inside [lo, hi].
