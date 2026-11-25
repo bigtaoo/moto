@@ -72,16 +72,26 @@ install the file on the box again).
 2. **Put the two secrets in `.env`.** Paste them yourself; they never go through a config file in this
    repo and never through CI's logs:
 
-   ```sh
-   ssh blightbloom 'umask 077; cat > /home/deploy/dummy-brawl/.env; chown deploy:deploy /home/deploy/dummy-brawl/.env'
-   ```
-
-   then type the two lines and Ctrl-D:
-
    ```
    DX_TUNNEL_TOKEN=<the connector token>
    DX_EXPORT_TOKEN=<a long random string you keep>
    ```
+
+   From a shell that has a real Ctrl-D, that is a pipe:
+
+   ```sh
+   ssh blightbloom 'umask 077; cat > /home/deploy/dummy-brawl/.env; chown deploy:deploy /home/deploy/dummy-brawl/.env'
+   ```
+
+   From Windows it is easier to keep the file in the credential store beside the key and send it:
+
+   ```powershell
+   scp D:\cloud\dummy-brawl.env blightbloom:/home/deploy/dummy-brawl/.env
+   ssh blightbloom 'chmod 600 /home/deploy/dummy-brawl/.env; chown deploy:deploy /home/deploy/dummy-brawl/.env'
+   ```
+
+   The export token is ours to pick — `python -c "import secrets; print(secrets.token_urlsafe(32))"`
+   and keep the output. Neither value belongs anywhere in this repo.
 
 3. **Install the three files**, root-owned so a deploy cannot replace them:
 
@@ -101,6 +111,10 @@ install the file on the box again).
    ```
    command="/home/deploy/dummy-brawl-ci-deploy.sh",restrict ssh-ed25519 AAAA... dummy-brawl-ci
    ```
+
+   The pair is `D:\cloud\dummy_brawl_ci_ed25519`, beside Potion Siege's and fight's. Its private
+   half goes into the repository secret below and nowhere else; `restrict` turns off the pty, the
+   forwarding and everything but the one command.
 
 ## Deploying
 
