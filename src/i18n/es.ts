@@ -322,7 +322,7 @@ export const ES: Table = {
   goalWin: "a {n} pts del 1.º",
   goalLead: "1.º · aguanta",
   firstUp: "¡Primera mejora a tu alcance!",
-  buyFirst: "Compra una mejora para seguir",
+  gearUp: "Los rivales de {d} son más rápidos: sube la velocidad",
   // 3.3.72: the stop after race 1 says what each level does and names the one to start with
   upTopWhat: 'Alcanza al pelotón en las rectas',
   upSteerWhat: 'Mantiene la línea en el tráfico',

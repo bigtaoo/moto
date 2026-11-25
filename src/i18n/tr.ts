@@ -322,7 +322,7 @@ export const TR: Table = {
   goalWin: "1.'liğe {n} puan",
   goalLead: "1. · dayan",
   firstUp: "İlk yükseltmeye paran yetiyor!",
-  buyFirst: "Devam etmek için bir yükseltme al",
+  gearUp: "{d} rakipleri daha hızlı — son hızı yükselt",
   // 3.3.72: the stop after race 1 says what each level does and names the one to start with
   upTopWhat: 'Düzlükte grubu yakalar',
   upSteerWhat: 'Trafikte çizgisini korur',

@@ -172,8 +172,11 @@ function startRace(): void {
 
 /** From the results (or a restart): the next race, straight into its countdown. */
 function nextRace(placement: string, shift = false): void {
-  // 3.3.59: no ad inside a new player's first cup; it is the stretch where the sandbox loses them
-  if (save.races >= FIRST_CUP) platform.interstitial(placement);
+  // 3.3.59: no ad inside a new player's first cup; it is the stretch where the sandbox loses them.
+  // 3.3.83: nor on the beat that ends it. `>=` put the career's first interstitial exactly between the
+  // cup ceremony and the first race of the new division -- the one race r53 lost 10 of 16 players in the
+  // middle of -- and the garage stop now stands there too. The first ad waits until that race is behind them.
+  if (save.races > FIRST_CUP) platform.interstitial(placement);
   chase = shift;
   newRace();
   stage.raceStart();

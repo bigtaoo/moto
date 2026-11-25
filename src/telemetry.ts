@@ -170,7 +170,7 @@ export function raceStart(w: World): void {
   const between: Props = resultsAt ? { results_sec: Math.round((now() - resultsAt) / 1000), buys } : {};
   resultsAt = 0;
   buys = 0;
-  track('progression_started', { ...step, career_race: save.races + 1, cash: save.cash, up_total: upTotal(save), nemesis: w.nemesis > 0, mutator: w.mutator ?? 'none', boss: w.boss >= 0, ...between });
+  track('progression_started', { ...step, career_race: save.races + 1, cash: save.cash, up_total: upTotal(save), up_top: save.up.top, nemesis: w.nemesis > 0, mutator: w.mutator ?? 'none', boss: w.boss >= 0, ...between });
 }
 
 /** The way the race was played: the kind of most presses, or none. */
@@ -203,7 +203,7 @@ export function raceEnd(s: Settlement): void {
   const place = r.world.standing;
   const done = place <= C.PROMOTE;
   track(done ? 'progression_completed' : 'progression_failed', {
-    ...raceFields(r), ...(done ? {} : { reason: 'place' }), career_race: save.races, earned: s.earned, cash: save.cash, up_total: upTotal(save),
+    ...raceFields(r), ...(done ? {} : { reason: 'place' }), career_race: save.races, earned: s.earned, cash: save.cash, up_total: upTotal(save), up_top: save.up.top,
   });
   milestones(s);
   resultsAt = now();

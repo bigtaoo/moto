@@ -38,7 +38,7 @@ export function streakDouble(save: Save, btn: HTMLButtonElement, redraw: () => v
 }
 
 /** The results screen's shop buttons; `got` hears of achievements a purchase won (owning every ride ..). */
-export function shopActions(save: Save, redraw: () => void, got: (u: Unlocked[]) => void) {
+export function shopActions(save: Save, redraw: () => void, gotAch: (u: Unlocked[]) => void) {
   // 3.3.79: paints and hats come out of the show purse, so what a purchase cost is the drop across both
   // purses -- measuring `cash` alone would have priced every paint at $0 and gone through without a coin
   // sound or a `bought` of its own.
@@ -48,12 +48,31 @@ export function shopActions(save: Save, redraw: () => void, got: (u: Unlocked[])
     const price = had - save.cash - save.show;
     funnel.event(event, { ...fields(price), price, cash: save.cash, show: save.show });
     if (price > 0) { tele.bought(); sfx.coin(); }
-    got(counted(save, unlock(save)));
+    gotAch(counted(save, unlock(save)));
     storeSave(save);
     redraw();
   };
   return {
     buy: (k: UpKey) => spend('upgrade_purchased', () => buyUpgrade(save, k), () => ({ upgrade_id: k, level: save.up[k] })),
+    // 3.3.83: the division stop fits a whole stack of top speed on one tap. Each level is its own
+    // `upgrade_purchased` -- that is how the next read tells speed from toughness -- but the coin, the
+    // save and the redraw happen once: five `buy` calls in a row played five copies of one sample on the
+    // same millisecond, which is not five coins, it is one coin five times as loud.
+    buyLevels: (k: UpKey, n: number) => {
+      let got = 0;
+      for (let i = 0; i < n; i++) {
+        const had = save.cash;
+        if (!buyUpgrade(save, k)) break;
+        got++;
+        funnel.event('upgrade_purchased', { upgrade_id: k, level: save.up[k], price: had - save.cash, cash: save.cash, show: save.show });
+        tele.bought();
+      }
+      if (!got) return;
+      sfx.coin();
+      gotAch(counted(save, unlock(save)));
+      storeSave(save);
+      redraw();
+    },
     ride: (v: number) => spend('ride_chosen', () => chooseRide(save, v), (p) => ({ ride: v, bought: p > 0 })),
     paint: (i: number) => spend('paint_chosen', () => choosePaint(save, i), (p) => ({ paint: i, bought: p > 0 })),
     hat: (i: number) => spend('hat_chosen', () => chooseHat(save, i), (p) => ({ hat: i, bought: p > 0 })),

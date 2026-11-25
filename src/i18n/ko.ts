@@ -322,7 +322,7 @@ export const KO: Table = {
   goalWin: "1위까지 {n}점",
   goalLead: "1위 · 버텨",
   firstUp: "첫 업그레이드를 살 수 있어!",
-  buyFirst: "업그레이드를 하나 사고 출발하자",
+  gearUp: "{d}의 라이벌이 더 빠르다 — 최고 속도를 올리자",
 
   // 3.3.72: the stop after race 1 says what each level does and names the one to start with
   upTopWhat: '직선에서 선두를 따라잡는다',

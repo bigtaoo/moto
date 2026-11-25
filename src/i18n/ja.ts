@@ -322,7 +322,7 @@ export const JA: Table = {
   goalWin: "1位まであと{n}点",
   goalLead: "1位 · 死守",
   firstUp: "初めての強化が買える！",
-  buyFirst: "強化を1つ買って出発しよう",
+  gearUp: "{d} のライバルは速い——最高速を上げよう",
   // 3.3.72: the stop after race 1 says what each level does and names the one to start with
   upTopWhat: '直線で先頭集団に追いつく',
   upSteerWhat: '車の間でも線を外さない',

@@ -322,7 +322,7 @@ export const RU: Table = {
   goalWin: "{n} очк. до 1-го места",
   goalLead: "1-е место · держись",
   firstUp: "Первое улучшение по карману!",
-  buyFirst: "Купи улучшение, чтобы ехать дальше",
+  gearUp: "Соперники в {d} быстрее — возьми скорость",
   // 3.3.72: the stop after race 1 says what each level does and names the one to start with
   upTopWhat: 'Догоняет пелотон на прямых',
   upSteerWhat: 'Держит линию в потоке',

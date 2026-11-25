@@ -322,7 +322,7 @@ export const ID: Table = {
   goalWin: "{n} poin lagi ke peringkat 1",
   goalLead: "peringkat 1 · bertahan",
   firstUp: "Peningkatan pertama terjangkau!",
-  buyFirst: "Beli satu peningkatan untuk lanjut",
+  gearUp: "Lawan di {d} lebih cepat — tambah kecepatan",
   // 3.3.72: the stop after race 1 says what each level does and names the one to start with
   upTopWhat: 'Mengejar rombongan di trek lurus',
   upSteerWhat: 'Tetap pada jalur di tengah lalu lintas',

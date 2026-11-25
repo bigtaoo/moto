@@ -328,7 +328,7 @@ export const EN = {
   goalWin: "{n} pts off 1st",
   goalLead: "1st · hold on",
   firstUp: "First upgrade in reach!",
-  buyFirst: "Buy an upgrade to ride on",
+  gearUp: "{d} rivals are faster — fit top speed",
   // 3.3.72: the stop after race 1 says what each level does and names the one to start with
   upTopWhat: 'Catches the pack on the straights',
   upSteerWhat: 'Holds its line through traffic',

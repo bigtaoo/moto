@@ -4,7 +4,7 @@
 
 import { icon } from './icons';
 import { t, money, type Key } from '../i18n';
-import { UPGRADE_MAX, UPGRADE_CAP, VEHICLES, DIVISIONS, stage, type Vehicle, type WeaponKind } from '../sim/config';
+import { UPGRADE_MAX, UPGRADE_CAP, VEHICLES, DIVISIONS, stage, careerGear, upgradeCost, type Vehicle, type WeaponKind } from '../sim/config';
 import { rideState, upgradeLock, upgradePrice, type UpKey } from '../career';
 import { PAINTS, HATS, wearState, wearPrice } from '../shop';
 import { tunePrice, repairPrice, WEAR_AT, TUNE_MAX } from '../tune';
@@ -19,6 +19,8 @@ export type Tab = 'up' | 'rides' | 'looks';
 
 export interface GarageActions {
   buy: (k: UpKey) => void;
+  /** Several levels of one upgrade on one tap: the garage stop's stack of top speed (3.3.83). */
+  buyLevels: (k: UpKey, n: number) => void;
   ride: (v: number) => void;
   paint: (i: number) => void;
   hat: (i: number) => void;
@@ -80,6 +82,38 @@ const upgradesBuyable = (save: Save) =>
 export const firstUpInReach = (save: Save): boolean =>
   (Object.keys(UP_NAMES) as UpKey[]).every((k) => !save.up[k]) && upgradesBuyable(save) > 0;
 
+/**
+ * 3.3.83: the levels of top speed the player is short of what this division's rivals are pitched against.
+ * `careerGear` is the same function the ladder reads to set `TIERS[].top`, so asking it here ties "how
+ * fast is the field" and "when does the garage stand in the way" to one number: they cannot drift apart
+ * again. They had. On r53 the first promotion stepped the field from -2.5 to +4.6 m/s in one race while
+ * the median new player owned one level and it was toughness, and the median finish went 1st to 7th.
+ */
+export const gearGap = (save: Save): number =>
+  Math.max(0, careerGear(save.div, save.tier).up.top - save.up.top);
+
+/**
+ * The stack of top-speed levels the stop fits: the gap, as far as the cash and the season's cap go.
+ * Priced without touching the save, because the button says the total before anything is bought.
+ */
+export function stopStack(save: Save): { n: number; cost: number } {
+  const cap = UPGRADE_CAP[Math.min(save.tier, UPGRADE_CAP.length - 1)].top;
+  const want = gearGap(save);
+  let n = 0;
+  let cost = 0;
+  for (let lvl = save.up.top; n < want && lvl < cap; lvl++) {
+    const c = upgradeCost(lvl);
+    if (cost + c > save.cash) break;
+    cost += c;
+    n++;
+  }
+  return { n, cost };
+}
+
+/** What the stop in front of the next race is selling, or null when it has nothing to sell (3.3.83). */
+export const stopPick = (save: Save): UpKey | null =>
+  stopStack(save).n > 0 ? 'top' : firstUpInReach(save) ? FIRST_PICK : null;
+
 /** How many upgrade levels the player owns (analytics). */
 export const upLevels = (save: Save): number => save.up.top + save.up.steer + save.up.hp;
 
@@ -112,7 +146,7 @@ function statLine(v: Vehicle): string {
  * The tune-up sits here rather than on a tab of its own because this is where the player meets the wall
  * -- the row that says "unlocks: Pro" is the row that can also say "$600, just for this race".
  */
-function upsHtml(save: Save, what: boolean): string {
+function upsHtml(save: Save, pick: UpKey | null): string {
   return (Object.keys(UP_NAMES) as UpKey[]).map((k) => {
     const lvl = save.up[k];
     const cost = upgradePrice(save, k);
@@ -128,9 +162,9 @@ function upsHtml(save: Save, what: boolean): string {
     const tp = tunePrice(save, k);
     const tune = !tuneOpen(save) ? ''
       : `<button class="tune${fit ? ' on' : ''}" data-t="${k}"${full || save.cash < tp ? ' disabled' : ''}>${full ? t('tuneOn') : `+${fit + 1} · ${money(tp)}`}</button>`;
-    const first = what && k === FIRST_PICK;
+    const first = pick !== null && k === pick;
     const rec = first ? ` <em class="rec">${t('recUp')}</em>` : '';
-    return `<div class="up${first ? ' rec' : ''}"><div class="upname">${t(UP_NAMES[k])}${rec}<div class="pips">${pips}</div>${what ? `<small class="what">${t(UP_WHAT[k])}</small>` : ''}</div>
+    return `<div class="up${first ? ' rec' : ''}"><div class="upname">${t(UP_NAMES[k])}${rec}<div class="pips">${pips}</div>${pick ? `<small class="what">${t(UP_WHAT[k])}</small>` : ''}</div>
       ${tune}<button data-k="${k}" ${cost === null || save.cash < cost ? 'disabled' : ''}>${label}</button></div>`;
   }).join('');
 }
@@ -189,21 +223,26 @@ export class Garage {
     return true;
   }
 
-  /** 3.3.64: the stop holds the race back until the first upgrade is bought. On r45 the stop was up for 1 s
-   *  for 10 of 11 players and 1 bought: they tapped its button where the results' had been. Every player who
-   *  meets the stop can afford a level (that is what brings it up), so there is always a way on. */
+  /** 3.3.64: the stop holds the race back until the upgrade it came up for is bought. On r45 the stop was
+   *  up for 1 s for 10 of 11 players and 1 bought: they tapped its button where the results' had been.
+   *  `stopPick` is null the moment there is nothing affordable left to sell, so there is always a way on. */
   get mustBuy(): boolean {
-    return !!this.on?.next && !!this.save && firstUpInReach(this.save);
+    return !!this.on?.next && !!this.save && stopPick(this.save) !== null;
   }
 
-  /** The stop's one tap (3.3.72): fit the level it recommends, and on to the race. */
+  /** The stop's one tap (3.3.72): fit what it recommends -- at a division step the whole stack of top
+   *  speed that step asks for (3.3.83) -- and on to the race. */
   private firstBuy(): void {
     const save = this.save;
     const on = this.on;
     if (!save || !on) return;
-    const cost = upgradePrice(save, FIRST_PICK);
-    if (cost === null || save.cash < cost) return;
-    on.buy(FIRST_PICK);
+    const k = stopPick(save);
+    if (!k) return;
+    // the stack still goes through one level at a time, so each lands in the funnel as its own
+    // `upgrade_purchased` (the r53 read could not tell speed from toughness: only `up_total` was on the
+    // wire), but it pays, saves and redraws once (src/shopping.ts)
+    if (k === 'top') on.buyLevels('top', stopStack(save).n);
+    else on.buy(k);
     on.close();
   }
 
@@ -244,23 +283,29 @@ export class Garage {
     // the three rows it labelled, on the one screen that should read as a single step (3.3.72)
     const open = this.tabs(save);
     const tabs = open.length < 2 ? '' : open.map((x) => `<button class="tab ${x === this.tab ? 'on' : ''}" data-tab="${x}">${t(names[x])}</button>`).join('');
-    const must = this.mustBuy;
-    const body = this.tab === 'up' ? `<div class="ups">${upsHtml(save, must)}${condHtml(save)}${tuneOpen(save) ? `<small class="tip">${t('tuneTip')}</small>` : ''}</div>`
+    const pick = this.mustBuy ? stopPick(save) : null;
+    const body = this.tab === 'up' ? `<div class="ups">${upsHtml(save, pick)}${condHtml(save)}${tuneOpen(save) ? `<small class="tip">${t('tuneTip')}</small>` : ''}</div>`
       : this.tab === 'rides' ? ridesHtml(save) : shopHtml(save);
-    // on the stop before a race, the line says why the garage came up, and the upgrades in reach move
-    const hint = on.next && firstUpInReach(save) ? `<div class="ghint">${t('firstUp')}</div>` : '';
+    // on the stop before a race, the line says why the garage came up, and the upgrades in reach move.
+    // 3.3.83: at a division step it names the division, because that is the whole of the player's news --
+    // the field just got 7 m/s faster and nothing on the results card said so.
+    const hint = !on.next || !pick ? ''
+      : `<div class="ghint">${pick === 'top' ? t('gearUp', { d: stage(save.div, save.tier).name }) : t('firstUp')}</div>`;
     // 3.3.66: leaving is not what this screen is for, so Back is a small white button at the top, where
     // every second-level page keeps it. The big yellow button at the foot is left for the one case where
     // going on IS the point: the stop that stands between the results and the next race.
     const back = on.next ? '' : `<button class="back gback">${icon('left')} ${t('back')}</button>`;
-    // 3.3.72: while the stop is waiting for that first level, the foot button is the purchase itself --
-    // one tap fits the recommended level and goes racing. A disabled button at the foot of a screen with no
-    // way back is what 3.3.64 watched ten of eleven players tap once and leave.
-    const pick = must ? upgradePrice(save, FIRST_PICK) : null;
-    const one = pick !== null && save.cash >= pick;
+    // 3.3.72: while the stop is waiting, the foot button is the purchase itself -- one tap fits what it
+    // recommends and goes racing. A disabled button at the foot of a screen with no way back is what
+    // 3.3.64 watched ten of eleven players tap once and leave, so there is never one: with nothing left
+    // to sell `pick` is null and the button is the race.
+    const stack = pick === 'top' ? stopStack(save) : null;
+    const sell = !pick ? null
+      : stack ? { s: `${t('upTop')} ×${stack.n}`, n: money(stack.cost) }
+      : { s: t(UP_NAMES[pick]), n: money(upgradePrice(save, pick) ?? 0) };
     const go = !on.next ? ''
-      : one ? `<button class="primary gfirst">${t('firstBuy', { s: t(UP_NAMES[FIRST_PICK]), n: money(pick as number) })}</button>`
-      : `<button class="primary gback"${must ? ' disabled' : ''}>${must ? t('buyFirst') : `${t('nextRace')} ${icon('play')}`}</button>`;
+      : sell ? `<button class="primary gfirst">${t('firstBuy', sell)}</button>`
+      : `<button class="primary gback">${t('nextRace')} ${icon('play')}</button>`;
     // both purses once the looks are open, because from there on half of what is on sale is priced in the
     // other one and a player looking at a $400 paint needs to see which $400 the game means (3.3.79)
     const purses = `<div class="cashline">${t('cash')} <b>${money(save.cash)}</b>${save.races >= TAB_AT.looks ? ` <em>${t('showCash')} <b>${money(save.show)}</b></em>` : ''}</div>`;

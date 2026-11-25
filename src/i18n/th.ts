@@ -322,7 +322,7 @@ export const TH: Table = {
   goalWin: "ขาดอีก {n} แต้มถึงอันดับ 1",
   goalLead: "อันดับ 1 · รักษาไว้",
   firstUp: "ซื้ออัปเกรดแรกได้แล้ว!",
-  buyFirst: "ซื้ออัปเกรดก่อนแล้วค่อยไปต่อ",
+  gearUp: "คู่แข่งใน {d} เร็วกว่า — เพิ่มความเร็วสูงสุด",
   // 3.3.72: the stop after race 1 says what each level does and names the one to start with
   upTopWhat: 'ไล่กลุ่มหน้าทันในทางตรง',
   upSteerWhat: 'คุมเส้นได้ท่ามกลางรถ',

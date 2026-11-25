@@ -322,7 +322,7 @@ export const VI: Table = {
   goalWin: "còn {n} điểm tới hạng 1",
   goalLead: "hạng 1 · giữ vững",
   firstUp: "Mua được nâng cấp đầu tiên!",
-  buyFirst: "Mua một nâng cấp để đi tiếp",
+  gearUp: "Đối thủ ở {d} nhanh hơn — nâng tốc độ tối đa",
   // 3.3.72: the stop after race 1 says what each level does and names the one to start with
   upTopWhat: 'Bắt kịp tốp đầu trên đường thẳng',
   upSteerWhat: 'Giữ vạch giữa dòng xe',

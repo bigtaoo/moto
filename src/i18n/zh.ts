@@ -322,7 +322,7 @@ export const ZH: Table = {
   goalWin: "距第一还差 {n} 分",
   goalLead: "第一 · 守住",
   firstUp: "第一个升级买得起了！",
-  buyFirst: "先买一个升级再出发",
+  gearUp: "{d} 的对手更快 —— 加极速",
   // 3.3.72: the stop after race 1 says what each level does and names the one to start with
   upTopWhat: '直道上追得上前面的车',
   upSteerWhat: '车流里不容易被带偏',
