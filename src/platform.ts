@@ -4,6 +4,8 @@
 // everything falls back: saves to localStorage, no ads. On the Bridge's mock platform (local runs) ads are faked in dev builds, or with `?fakeads`,
 // so the rewarded flows can be played through.
 
+import { collect } from './collect';
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Bridge = any;
 
@@ -92,6 +94,9 @@ export function track(name: string, data?: Props): void {
   const all = { ...common(), ...data };
   if (params.has('trace')) console.info('track', name, all);
   try { bridge?.analytics?.send(name, all); } catch { /* not supported here */ }
+  // ...and a copy to our own collector, which is the only one that hears it on a host with no Bridge
+  // (CrazyGames collects no custom events at all). Unconfigured, `collect` returns at its first line.
+  collect(name, all);
 }
 
 /** Lifecycle message (`level_started`, `level_completed` ...), for the platforms that use them. */

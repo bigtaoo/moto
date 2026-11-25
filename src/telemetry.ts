@@ -19,6 +19,7 @@ import type { World, CrashCause } from './sim/world';
 import type { Save } from './meta';
 import { CUP_RACES, upgradePrice, type Settlement, type UpKey } from './career';
 import { track, setCommonFields, flushEarly, deviceType, interstitialOpen } from './platform';
+import { identify } from './collect';
 import * as funnel from './funnel';
 import { getLang } from './i18n';
 import { loadErrors } from './view/audio';
@@ -129,6 +130,9 @@ export function begin(s: Save, c: HTMLCanvasElement, gfx: () => number): void {
     gfx: gfx(),
   }));
   c.addEventListener('webglcontextlost', () => { win.gl++; report('webgl_lost'); });
+  // The id our own collector joins a returning player's sessions on; the batches sent before this
+  // (the boot marks, a boot error) carry the session id alone and join by that.
+  identify(s.uid);
   flushEarly();
 }
 

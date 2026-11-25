@@ -1,0 +1,20 @@
+{
+  // The Worker is checked on its own: it runs in the Cloudflare runtime, not in a browser and not in
+  // node, so it must not see the DOM or node globals the game's tsconfig provides.
+  // Check it with: npm run typecheck:server
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "lib": ["ES2022", "WebWorker"],
+    "types": []
+  },
+  "include": ["."],
+  // The tests run under vitest with node's globals; they are checked by the game's tsconfig instead.
+  "exclude": ["**/*.test.ts"]
+}

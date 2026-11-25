@@ -7,6 +7,7 @@ import { PAINTS, HATS } from './shop';
 import { newCup, newFeud, GATE_AT, FIRST_CUP, CUP_RACES, type Cup, type Feud } from './career';
 import { TUNE_MAX } from './tune';
 import { saveData } from './platform';
+import { newPlayerId } from './collect';
 import { readDaily, today, type Daily } from './daily';
 import { newDailyRace, readDailyRace, type DailyRace } from './dailyRace';
 import type { QualityMode } from './view/quality';
@@ -57,6 +58,13 @@ export interface Save {
   /** Sessions started (analytics: the session number) and the day (UTC days since 1970) of the first one. */
   sessions: number;
   firstDay: number;
+  /**
+   * This player, for our own collector (src/collect.ts). A random id and nothing else: it says that
+   * two sessions are the same save, which is all a retention reading needs, and it is what lets a
+   * host with no backend of its own (CrazyGames) tell a returning player from a new one. An old save
+   * gets one the first time it is read here.
+   */
+  uid: string;
   /** The pause menu's switches: music and effects apart (under the sound switch), and the graphics setting. */
   musicOff: boolean;
   sfxOff: boolean;
@@ -99,7 +107,7 @@ const WAS: Record<string, string> = { koRace: 'kos25', koLife: 'kos1000' };
 
 const fresh: Save = {
     cash: 0, show: 0, up: { top: 0, steer: 0, hp: 0 }, grudges: [], races: 0, best: 0, div: 0, reach: 0, cup: newCup(FIRST_CUP), titles: 0, gate: 0, endless: 0, feud: newFeud(), tier: 0,
-    garage: { cur: 0, owned: [0] }, paint: { cur: 0, owned: [0] }, hat: { cur: 0, owned: [0] }, launchBest: 0, carry: null, tune: { top: 0, steer: 0, hp: 0 }, wear: 0, muted: false, sessions: 0, firstDay: 0, musicOff: false, sfxOff: false, hapticsOff: false, quality: 'auto', lang: null, calm: null, daily: readDaily(null, today()), drace: newDailyRace(today()), dpts: 0,
+    garage: { cur: 0, owned: [0] }, paint: { cur: 0, owned: [0] }, hat: { cur: 0, owned: [0] }, launchBest: 0, carry: null, tune: { top: 0, steer: 0, hp: 0 }, wear: 0, muted: false, sessions: 0, firstDay: 0, uid: newPlayerId(), musicOff: false, sfxOff: false, hapticsOff: false, quality: 'auto', lang: null, calm: null, daily: readDaily(null, today()), drace: newDailyRace(today()), dpts: 0,
     streak: newStreak(), ach: [], life: { kos: 0, wins: 0 },
   };
   try {
@@ -166,6 +174,7 @@ const fresh: Save = {
       muted: s.muted === true,
       sessions: count(s.sessions),
       firstDay: count(s.firstDay),
+      uid: typeof s.uid === 'string' && /^[a-z0-9]{1,40}$/.test(s.uid) ? s.uid : newPlayerId(),
       musicOff: s.musicOff === true,
       sfxOff: s.sfxOff === true,
       hapticsOff: s.hapticsOff === true,

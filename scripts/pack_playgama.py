@@ -11,10 +11,36 @@ import sys
 import zipfile
 
 
+def check_telemetry(src):
+    """
+    The collector's address must be in the built JS. Swarm Orbit shipped four packages that sent
+    nothing at all because the variable was set in CI and the packing ran on a desktop; it was only
+    found days later, by grepping the zips. The address lives in .env.production now, so this only
+    fails when someone moves it -- and then it fails here, before a package exists to upload.
+    """
+    line = ""
+    env = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env.production")
+    if os.path.isfile(env):
+        with open(env, encoding="utf-8") as f:
+            for raw in f:
+                if raw.startswith("VITE_TELEMETRY="):
+                    line = raw.split("=", 1)[1].strip()
+    if not line:
+        sys.exit("no VITE_TELEMETRY in .env.production: the build would collect nothing")
+    for root, _, files in os.walk(src):
+        for f in files:
+            if f.endswith(".js"):
+                with open(os.path.join(root, f), encoding="utf-8", errors="ignore") as fh:
+                    if line in fh.read():
+                        return
+    sys.exit(f"{line} is in no built script under {src}/: rebuild, the package would collect nothing")
+
+
 def pack(src, out):
     for need in ("index.html", "playgama-bridge-config.json"):
         if not os.path.isfile(os.path.join(src, need)):
             sys.exit(f"{src}/{need} missing: run the build first")
+    check_telemetry(src)
     names = []
     for root, dirs, files in os.walk(src):
         dirs.sort()
