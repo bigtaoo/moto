@@ -1,225 +1,256 @@
-// Our own telemetry collector: one Cloudflare Worker in front of one R2 bucket.
-// Deploy: npx wrangler deploy -c wrangler/collect.jsonc   (config, bindings and secrets are documented there)
+// Our own telemetry collector: one small Node process that appends batches to a file.
 //
-// Why this shape. The reading we actually do is the low-traffic method (the `data-check` skill):
-// twenty players a version, read one player's events in order. That is a `list` with a day's prefix and a
-// local script, not a database — so the server's whole job is to take a batch, check it, and put it down
-// where a day can be pulled back whole. No schema to migrate, no row limit to outgrow, nothing to keep
-// running between requests.
+// It runs on the box blight bloom owns, in its own compose project beside Potion Siege, Holy Kicker
+// and fight, and apart from all of them (server/README.md). Ports 80 and 443 on that box belong to
+// blight bloom's Caddy, so this publishes none: a cloudflared container dials out and Cloudflare
+// serves https://dx.gamestao.com down that connection -- which is also what keeps `cf-connecting-ip`
+// and `cf-ipcountry` arriving, the two headers limits.ts reads.
+//
+// Why a file. The reading we actually do is the low-traffic method (the `data-check` skill): twenty
+// players a version, read one player's events in order. That is a day's file and a local script, not
+// a database -- so the whole job here is to take a batch, check it, and put it down so a day can be
+// read back whole. No schema to migrate, no row limit to outgrow, nothing running between requests.
 //
 // Endpoints
-//   POST /c             a batch from the game (public; this address is in the build, so anyone can see it)
-//   GET  /export?day=   a day's batches as NDJSON (bearer EXPORT_TOKEN); &after= carries on past a cut
+//   POST /c             a batch from the game (public; the address is in the build, so anyone sees it)
+//   GET  /export?day=   that day's batches as NDJSON, exactly as stored (bearer EXPORT_TOKEN)
 //   GET  /days          which days hold data (bearer EXPORT_TOKEN)
+//   GET  /health        200 while the disk takes writes -- for the container healthcheck
 //   GET  /              one line saying what this is
-import { key, LIMITS, parseBatch, type Stored } from './wire';
+import { appendFileSync, createReadStream, existsSync, mkdirSync, readdirSync, statfsSync, statSync, unlinkSync } from 'node:fs';
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import { join } from 'node:path';
+import { addressOf, Budget, countryOf, readBody } from './limits.ts';
+import { LIMITS, parseBatch, type Stored } from './wire.ts';
 
-export interface Env {
-  /** The bucket every batch lands in. */
-  RAW: R2Bucket;
-  /** Optional rate limit, keyed per address, so one page cannot fill the bucket. */
-  LIMIT?: RateLimit;
-  /** Secret. Without it set, /export and /days answer 404 — no token, no door. */
-  EXPORT_TOKEN?: string;
-  /** Optional comma-separated host allowlist for POSTs (`crazygames.com,playgama.ai`). Empty: any. */
-  ORIGINS?: string;
-}
-
-/** The game sends from a portal's page, cross-origin, and never reads the answer. */
-const CORS = {
-  'access-control-allow-origin': '*',
-  'access-control-allow-methods': 'POST,OPTIONS',
-  'access-control-allow-headers': 'content-type',
-  'access-control-max-age': '86400',
-};
+/** A day's file stops growing past this, so a flood cannot fill a disk three other games are on. */
+const MAX_FILE = 512 * 1024 * 1024;
+/** Free disk under this and /health says 503, which is what a healthcheck is there to catch. */
+const MIN_FREE = 256 * 1024 * 1024;
+/**
+ * Day files older than this are deleted. Nothing is promised to anyone yet -- the game has no privacy
+ * page -- but a portal will ask for one, and a retention we already keep is easier to write down than
+ * one we have to start keeping. Checked on the first batch of each UTC day, so no cron is needed.
+ */
+const KEEP_DAYS = 430;
+/** How often the address map is swept. Not the window itself -- that is RATE.window in limits.ts. */
+const RATE_SWEEP_MS = 60_000;
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
+const FILE = /^events-(\d{4}-\d{2}-\d{2})\.ndjson$/;
 
-function text(body: string, status = 200, headers: Record<string, string> = {}): Response {
-  return new Response(body, { status, headers: { 'content-type': 'text/plain;charset=utf-8', ...headers } });
+const dayOf = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
+
+export interface Options {
+  /** Where the day files live. Created if it is not there. */
+  dir: string;
+  /** Secret. Without one, /export and /days answer 404 -- no token, no door. */
+  token?: string;
+  /** Overridable so a test can reach the cap and the cutoff without half a gigabyte and a year. */
+  maxFile?: number;
+  keepDays?: number;
 }
 
-/**
- * `https://sub.crazygames.com` matches `crazygames.com`; nothing else does. The list is a filter against
- * junk rather than a lock: the address is in the build, so anyone who opens the game can post to it with
- * whatever Origin they like, and what actually keeps the bucket clean is wire.ts.
- */
-function allowed(origin: string | null, list: string): boolean {
-  if (!list.trim()) return true;
-  // No Origin at all -- a beacon from a page that is already gone -- and the literal "null" a sandboxed
-  // iframe sends, which is most portals: both mean the browser would not say, not that it said something
-  // else. Turning those away would throw out every batch from a `sandbox`ed embed.
-  if (!origin || origin === 'null') return true;
-  let host: string;
-  try {
-    host = new URL(origin).hostname;
-  } catch {
+export function collector({ dir, token = '', maxFile = MAX_FILE, keepDays = KEEP_DAYS }: Options): Server {
+  mkdirSync(dir, { recursive: true });
+  const budget = new Budget();
+  const fileFor = (day: string): string => join(dir, `events-${day}.ndjson`);
+
+  // Nothing here runs between requests except this: a sweep of addresses nobody has used in a minute,
+  // so the map cannot grow without end, and one line in the log when anyone was turned away.
+  const sweeper = setInterval(() => {
+    budget.sweep();
+    if (budget.over) {
+      console.log(`over budget: ${budget.over} request(s) refused, ${budget.size} address(es) tracked`);
+      budget.over = 0;
+    }
+  }, RATE_SWEEP_MS);
+  sweeper.unref();
+
+  let prunedOn = '';
+  /** Delete the day files from before the window, once per UTC day. */
+  function prune(today: string): void {
+    if (today === prunedOn) return;
+    prunedOn = today;
+    const cutoff = dayOf(Date.parse(`${today}T00:00:00Z`) - keepDays * 86_400_000);
+    for (const name of readdirSync(dir)) {
+      const m = FILE.exec(name);
+      if (!m || m[1] >= cutoff) continue;
+      try {
+        unlinkSync(join(dir, name));
+        console.log(`pruned ${name}`);
+      } catch (e) {
+        console.error(`could not prune ${name}: ${String(e)}`);
+      }
+    }
+  }
+
+  function sizeOf(file: string): number {
+    try {
+      return statSync(file).size;
+    } catch {
+      return 0;
+    }
+  }
+
+  /** Store one batch, or say why not. Throws only if the disk does, which the caller turns into a 500. */
+  function store(body: string, req: IncomingMessage, now: number): { ok: true } | { ok: false; why: string; status: number } {
+    const parsed = parseBatch(body);
+    if (!parsed.ok) return { ok: false, why: parsed.why, status: 400 };
+    const day = dayOf(now);
+    prune(day);
+    const file = fileFor(day);
+    if (sizeOf(file) > maxFile) return { ok: false, why: 'full', status: 507 };
+    const stored: Stored = { ...parsed.batch, rt: now };
+    const c = countryOf(req);
+    if (c) stored.c = c;
+    // One line per batch, and a line that cannot hold a newline of its own: JSON.stringify escapes
+    // every one it finds, so a day stays readable with `wc -l` and `sed -n` whatever the client sent.
+    appendFileSync(file, `${JSON.stringify(stored)}\n`);
+    return { ok: true };
+  }
+
+  async function collect(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const head = cors(req);
+    const addr = addressOf(req);
+    const declared = Number(req.headers['content-length']);
+    if (!budget.take(addr, Number.isFinite(declared) ? declared : 0)) {
+      text(res, 429, 'slow down\n', { ...head, 'retry-after': '60' });
+      return;
+    }
+    const body = await readBody(req, LIMITS.body, (n) => budget.add(addr, n));
+    // Over the cap the body was never held: reading it whole first would buffer every byte of a
+    // gigabyte post into this process before wire.ts got its say, and one of those is all it takes.
+    if (body === null) {
+      text(res, 413, 'too big\n', head);
+      return;
+    }
+    let result: ReturnType<typeof store>;
+    try {
+      result = store(body, req, Date.now());
+    } catch (e) {
+      // A write that failed is ours, not the client's: 500 so the retry in src/collect.ts is worth
+      // making, and a line in the log, because a collector answering 204 while writing nothing is the
+      // worst outcome there is here.
+      console.error(`store failed: ${String(e)}`);
+      text(res, 500, 'sorry\n', head);
+      return;
+    }
+    if (!result.ok) {
+      text(res, result.status, `${result.why}\n`, head);
+      return;
+    }
+    // Nothing to say back: the client never reads it, and a body would only cost the beacon time.
+    res.writeHead(204, head);
+    res.end();
+  }
+
+  /** The token is a secret of ours, not a user's: a plain compare, and a miss looks like a 404. */
+  function guarded(req: IncomingMessage, res: ServerResponse): boolean {
+    if (token && req.headers.authorization === `Bearer ${token}`) return true;
+    text(res, 404, 'not found\n');
     return false;
   }
-  return list
-    .split(',')
-    .map((h) => h.trim().toLowerCase())
-    .filter(Boolean)
-    .some((h) => host === h || host.endsWith(`.${h}`));
-}
 
-function guarded(request: Request, env: Env): Response | null {
-  if (!env.EXPORT_TOKEN) return text('not found\n', 404);
-  const given = request.headers.get('authorization') ?? '';
-  // The token is a secret of ours, not a user's: a plain compare is enough, and a miss looks like a 404
-  // so the endpoint does not advertise itself.
-  return given === `Bearer ${env.EXPORT_TOKEN}` ? null : text('not found\n', 404);
-}
-
-/**
- * The body as text, or null once it is over `max` bytes. The declared length is only a hint -- it can be
- * missing or a lie -- so it is the running count that decides, and the rest of the upload is cancelled
- * rather than drained. Bytes, not characters: `max` is what the stored JSON is measured in.
- */
-async function readCapped(request: Request, max: number): Promise<string | null> {
-  const declared = Number(request.headers.get('content-length'));
-  if (Number.isFinite(declared) && declared > max) return null;
-  const body = request.body;
-  if (!body) return '';
-  const reader = body.getReader();
-  const decoder = new TextDecoder();
-  let out = '';
-  let seen = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    if (!value) continue;
-    seen += value.byteLength;
-    if (seen > max) {
-      await reader.cancel();
-      return null;
+  /**
+   * A day, as one NDJSON line per batch -- the same shape the pull script writes to disk and the trace
+   * script reads. Streamed off the disk, so a busy day costs this process nothing to hand over.
+   */
+  function exportDay(res: ServerResponse, day: string): void {
+    const file = fileFor(day);
+    // A day with no file and a day with nothing in it are the same answer. 200, so a puller walking a
+    // week of days does not have to tell a gap from a failure.
+    if (!existsSync(file)) {
+      text(res, 200, '', { 'content-type': 'application/x-ndjson' });
+      return;
     }
-    out += decoder.decode(value, { stream: true });
+    res.writeHead(200, { 'content-type': 'application/x-ndjson' });
+    const stream = createReadStream(file);
+    stream.on('error', (e) => {
+      // The status line is long gone, so the only way to say it is to stop short; the log is where
+      // this is actually noticed.
+      console.error(`export ${day}: ${String(e)}`);
+      res.end();
+    });
+    stream.pipe(res);
   }
-  return out + decoder.decode();
-}
 
-async function collect(request: Request, env: Env): Promise<Response> {
-  if (!allowed(request.headers.get('origin'), env.ORIGINS ?? '')) return text('no\n', 403, CORS);
-  if (env.LIMIT) {
-    // Per address, and only as a loose filter: the binding counts per edge location, so a real flood
-    // from many places still gets through. It is here to stop one page in a loop.
-    const ip = request.headers.get('cf-connecting-ip') ?? 'none';
-    const { success } = await env.LIMIT.limit({ key: ip });
-    if (!success) return text('slow down\n', 429, CORS);
+  function days(res: ServerResponse): void {
+    const found: string[] = [];
+    for (const name of readdirSync(dir)) {
+      const m = FILE.exec(name);
+      if (m) found.push(m[1]);
+    }
+    text(res, 200, found.length ? `${found.sort().join('\n')}\n` : '');
   }
-  const body = await readCapped(request, LIMITS.body);
-  // Over the cap the body was never held: `request.text()` would have buffered every byte of a gigabyte
-  // post into the isolate's 128 MB before wire.ts got its say, and one of those is all it takes.
-  if (body === null) return text('too big\n', 413, CORS);
-  const parsed = parseBatch(body);
-  if (!parsed.ok) return text(`${parsed.why}\n`, 400, CORS);
-  const rt = Date.now();
-  const stored: Stored = { ...parsed.batch, rt };
-  const country = (request as { cf?: IncomingCf }).cf?.country;
-  if (country) stored.c = country;
-  await env.RAW.put(key(parsed.batch, rt), JSON.stringify(stored));
-  // Nothing to say back: the client never reads it, and a body would only cost the beacon time.
-  return new Response(null, { status: 204, headers: CORS });
-}
 
-/**
- * How many batches one /export hands back. Every R2 read is a subrequest, and a Worker gets 1000 of them
- * per request on the Paid plan and 50 on Free — a day with more objects than that cannot come back in one
- * answer whatever we do here, so it comes back in pieces instead: the last line of a cut-short export is
- * `{"more":"<key>"}` and the puller asks again with `&after=<that key>`. The number is held well under the
- * Paid budget to leave room for the `list` calls that go with it.
- */
-const EXPORT_MAX = 900;
-
-/**
- * A day, as one NDJSON line per batch — the same shape the pull script writes to disk and the trace
- * script reads. Streamed, because a busy day is tens of thousands of objects and a Worker holds no
- * more than its memory. `after` is a key from an earlier `{"more":...}` line: carry on past it.
- */
-function exportDay(env: Env, day: string, after: string): Response {
-  const stream = new TransformStream<Uint8Array, Uint8Array>();
-  const writer = stream.writable.getWriter();
-  const encoder = new TextEncoder();
-  void (async () => {
-    // The last key actually written out, which is what a follow-up asks to carry on from. It is tracked
-    // outside the try because a read that breaks halfway has to say where it got to as well.
-    let last = '';
+  /** Writable, with room left. A full disk is the failure this service has to survive on a shared box. */
+  function health(res: ServerResponse): void {
     try {
-      const prefix = `v1/${day}/`;
-      const all: string[] = [];
-      let cursor: string | undefined;
-      let from = after;
-      do {
-        const page = await env.RAW.list({ prefix, cursor, limit: 1000, ...(from ? { startAfter: from } : {}) });
-        for (const o of page.objects) all.push(o.key);
-        from = ''; // startAfter is where the walk begins, the cursor carries it on from there
-        cursor = page.truncated ? page.cursor : undefined;
-      } while (cursor && all.length < EXPORT_MAX);
-      all.sort();
-      let more = !!cursor;
-      if (all.length > EXPORT_MAX) {
-        all.length = EXPORT_MAX;
-        more = true;
+      const { bavail, bsize } = statfsSync(dir);
+      if (bavail * bsize < MIN_FREE) {
+        text(res, 503, 'no room\n');
+        return;
       }
-      // A few at a time: R2 is fast but one round trip per object would make a big day crawl, and
-      // unbounded concurrency is how a Worker runs out of its subrequest budget.
-      for (let i = 0; i < all.length; i += 20) {
-        const slice = all.slice(i, i + 20);
-        const chunk = await Promise.all(slice.map((k) => env.RAW.get(k).then((o) => o?.text())));
-        const lines = chunk.filter((t): t is string => !!t).map((t) => `${t.replace(/\n/g, ' ')}\n`);
-        if (lines.length) await writer.write(encoder.encode(lines.join('')));
-        last = slice[slice.length - 1] ?? last;
-      }
-      // A day of exactly EXPORT_MAX costs one extra, empty follow-up. Cheaper than a short day read as
-      // a whole one.
-      if (more) await writer.write(encoder.encode(`${JSON.stringify({ more: last })}\n`));
+      text(res, 200, 'ok\n');
     } catch (e) {
-      // The status line is long gone; say it in the body so a truncated pull is not read as a short day,
-      // and say where it stopped so the puller can pick it up rather than start over.
-      await writer.write(encoder.encode(`${JSON.stringify({ error: String(e), more: last })}\n`));
-    } finally {
-      // A reader that has already gone away makes this throw, and there is nobody left to tell.
-      try {
-        await writer.close();
-      } catch {
-        /* nothing to do about it */
-      }
+      console.error(`health: ${String(e)}`);
+      text(res, 503, 'unreadable\n');
     }
-  })();
-  return new Response(stream.readable, { headers: { 'content-type': 'application/x-ndjson' } });
-}
+  }
 
-/**
- * Which days have anything. One `list` per 1000 days rather than per 1000 objects: the delimiter makes
- * R2 fold every key under `v1/<day>/` into the one prefix, so a year of data is a single round trip
- * instead of a walk over every batch ever stored.
- */
-async function days(env: Env): Promise<Response> {
-  const seen = new Set<string>();
-  let cursor: string | undefined;
-  do {
-    const page = await env.RAW.list({ prefix: 'v1/', delimiter: '/', cursor, limit: 1000 });
-    for (const p of page.delimitedPrefixes ?? []) seen.add(p.slice(3).replace(/\/$/, ''));
-    cursor = page.truncated ? page.cursor : undefined;
-  } while (cursor);
-  return text(`${[...seen].sort().join('\n')}\n`);
-}
-
-export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
-    const url = new URL(request.url);
-    if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
-    if (request.method === 'POST' && url.pathname === '/c') return collect(request, env);
-    if (request.method === 'GET' && url.pathname === '/export') {
-      const no = guarded(request, env);
-      if (no) return no;
+  const server = createServer((req, res) => {
+    const url = new URL(req.url ?? '/', 'http://collector');
+    const path = url.pathname;
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204, cors(req));
+      res.end();
+      return;
+    }
+    if (req.method === 'POST' && path === '/c') {
+      void collect(req, res);
+      return;
+    }
+    if (req.method === 'GET' && path === '/health') return health(res);
+    if (req.method === 'GET' && path === '/export') {
+      if (!guarded(req, res)) return;
       const day = url.searchParams.get('day') ?? '';
-      if (!DAY.test(day)) return text('day=YYYY-MM-DD\n', 400);
-      return exportDay(env, day, url.searchParams.get('after') ?? '');
+      if (!DAY.test(day)) return text(res, 400, 'day=YYYY-MM-DD\n');
+      return exportDay(res, day);
     }
-    if (request.method === 'GET' && url.pathname === '/days') return guarded(request, env) ?? days(env);
-    if (request.method === 'GET' && url.pathname === '/') return text('dummy brawl telemetry collector\n');
-    return text('not found\n', 404);
-  },
-};
+    if (req.method === 'GET' && path === '/days') {
+      if (!guarded(req, res)) return;
+      return days(res);
+    }
+    if (req.method === 'GET' && path === '/') return text(res, 200, 'dummy brawl telemetry collector\n');
+    text(res, 404, 'not found\n');
+  });
+  server.on('close', () => clearInterval(sweeper));
+  // A client that opens a socket and says nothing is holding a file descriptor; the body timeout in
+  // limits.ts only starts once there is a request to read.
+  server.headersTimeout = 15_000;
+  server.requestTimeout = 30_000;
+  return server;
+}
+
+/** The game posts from a portal's page, cross-origin, and never reads the answer. */
+function cors(req: IncomingMessage): Record<string, string> {
+  const origin = req.headers.origin;
+  return {
+    // The Origin echoed rather than `*`: `sendBeacon` always sends credentialed, and a credentialed
+    // request against `*` fails the browser's own check. The batch still arrives -- the check is on
+    // the answer -- but it fails loudly in every console, and the exit flush is the send we most need.
+    'access-control-allow-origin': typeof origin === 'string' && origin ? origin : '*',
+    'access-control-allow-methods': 'POST,OPTIONS',
+    'access-control-allow-headers': 'content-type',
+    'access-control-max-age': '86400',
+    // Without this a cache that saw one page's answer would hand it to the next page's browser, with
+    // the wrong Origin in it.
+    vary: 'origin',
+  };
+}
+
+function text(res: ServerResponse, status: number, body: string, headers: Record<string, string> = {}): void {
+  res.writeHead(status, { 'content-type': 'text/plain;charset=utf-8', ...headers });
+  res.end(body);
+}

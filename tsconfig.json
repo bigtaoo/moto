@@ -7,6 +7,10 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "skipLibCheck": true,
+    // server/*.test.ts import the collector, whose own imports name the .ts files node actually runs
+    // (server/tsconfig.json). Nothing here is emitted by tsc, so the extension costs us nothing.
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "types": ["vite/client", "node"]

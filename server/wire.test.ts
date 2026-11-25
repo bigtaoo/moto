@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { key, LIMITS, parseBatch } from './wire';
+import { LIMITS, parseBatch } from './wire.ts';
 
 const good = {
   sid: 'ab12cd34ef5',
@@ -91,23 +91,5 @@ describe('parseBatch', () => {
     const r = send({ ...good, evs: [{ e: 'quit_done', i: 0, s: 0, t: 1, d: { fence: 0, won: false, fps: NaN } }] });
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.batch.evs[0].d).toEqual({ fence: 0, won: false });
-  });
-});
-
-describe('key', () => {
-  it('files a batch under the day it arrived, in order within its session', () => {
-    const rt = Date.UTC(2026, 10, 24, 9, 30);
-    expect(key({ ...good, n: 7 }, rt)).toBe(`v1/2026-11-24/ab12cd34ef5/0007-${rt}.json`);
-  });
-
-  it('sorts a session batch by batch, past ten', () => {
-    const rt = Date.UTC(2026, 10, 24);
-    const ten = key({ ...good, n: 10 }, rt);
-    const nine = key({ ...good, n: 9 }, rt);
-    expect([ten, nine].sort()).toEqual([nine, ten]);
-  });
-
-  it('never lets a resend overwrite the first attempt', () => {
-    expect(key(good, 1)).not.toBe(key(good, 2));
   });
 });

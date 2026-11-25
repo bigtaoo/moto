@@ -1,9 +1,9 @@
 // The wire contract between the game and our own collector, and the only place that decides what is
-// allowed through it. Both ends import these types (src/beacon.ts sends them, server/index.ts receives
-// them), so the two cannot drift apart without the typechecker saying so.
+// allowed through it. Both ends import these types (src/collect.ts sends them, server/index.ts
+// receives them), so the two cannot drift apart without the typechecker saying so.
 //
 // Validation here is not politeness, it is the privacy rule and the abuse guard in one: the endpoint is public — anyone who opens the game can see its
-// address — so nothing reaches the bucket that we did not ask for. Unknown fields are dropped rather
+// address — so nothing reaches the disk that we did not ask for. Unknown fields are dropped rather
 // than rejected: an old build must keep being readable after the client adds a field.
 
 /** The wire batch. The envelope is per batch, not per event: ~200 events a session, so it adds up. */
@@ -36,7 +36,7 @@ export interface WireEvent {
 export const LIMITS = {
   /** Bytes of JSON. The client's own cap is 24 events; 64 KB is also sendBeacon's ceiling in Chrome. */
   body: 64 * 1024,
-  /** Ids are 11 random chars (src/beacon.ts); allow room without allowing a paragraph. */
+  /** Ids are 11 random chars (src/collect.ts); allow room without allowing a paragraph. */
   id: 40,
   /** `0.2.0+e348781.dirty`, or `test`. */
   version: 32,
@@ -137,15 +137,4 @@ export function parseBatch(text: string): Parsed {
   const batch: Batch = { sid, v, n, t, evs };
   if (uid && ID.test(uid)) batch.uid = uid;
   return { ok: true, batch };
-}
-
-/**
- * Where a batch is stored. Sorted by the server's clock, not the player's, and grouped by the day it
- * arrived: a day's reading is one `list` with a prefix, and a flood is one prefix to delete.
- */
-export function key(b: Batch, rt: number): string {
-  const day = new Date(rt).toISOString().slice(0, 10);
-  // `n` padded so a session's batches sort in order, and `rt` so a retried batch number cannot
-  // overwrite the first attempt.
-  return `v1/${day}/${b.sid}/${String(b.n).padStart(4, '0')}-${rt}.json`;
 }

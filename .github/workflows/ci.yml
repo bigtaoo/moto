@@ -8,6 +8,14 @@
 #              CLOUDFLARE_ACCOUNT_ID
 #   Variables  WEB_DEPLOY_ENABLED = true   (unset: the deploy is skipped, so CI stays green
 #                                           before the secrets are in)
+#
+# A push to main also ships the telemetry collector (server/) to the box blight bloom owns, where
+# it answers https://dx.gamestao.com -- the URL the build posts its events to. It needs:
+#
+#   Secrets    COLLECTOR_DEPLOY_KEY   ssh key that can only run dummy-brawl-ci-deploy.sh on the box
+#                                     (server/README.md says how it is registered)
+#   Variables  COLLECTOR_DEPLOY_ENABLED = true   (unset: skipped, as above)
+#              COLLECTOR_SSH_KNOWN_HOSTS   the box's pinned host key line
 name: ci
 
 on:
@@ -40,6 +48,50 @@ jobs:
         with:
           name: dummy-brawl-playgama
           path: dummy-brawl-playgama.zip
+
+  # The collector is four .ts files node runs as they are: nothing to build, nothing to install.
+  # The forced command on the box takes them out of this tar.gz and restarts the containers; the
+  # Dockerfile and compose file there stay as they were installed by hand (server/ci-deploy.sh).
+  deploy-collector:
+    needs: check
+    runs-on: ubuntu-latest
+    if: ${{ vars.COLLECTOR_DEPLOY_ENABLED == 'true' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+    concurrency:
+      group: collector-deploy
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: still main's tip?
+        id: tip
+        run: |
+          set -eu
+          git fetch -q --depth=1 origin main
+          if [ "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA" ]; then echo "go=1" >> "$GITHUB_OUTPUT"
+          else echo "main has moved on from $GITHUB_SHA; its own run deploys" | tee -a "$GITHUB_STEP_SUMMARY"; fi
+      - name: deploy over ssh
+        if: steps.tip.outputs.go == '1'
+        env:
+          DEPLOY_KEY: ${{ secrets.COLLECTOR_DEPLOY_KEY }}
+          SSH_KNOWN_HOSTS: ${{ vars.COLLECTOR_SSH_KNOWN_HOSTS }}
+        run: |
+          set -eu
+          install -m 700 -d ~/.ssh
+          echo "$DEPLOY_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          # pinned, never StrictHostKeyChecking=no: the key and the payload go to this box or nowhere
+          echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          tar czf - -C server main.ts index.ts limits.ts wire.ts |
+            ssh -T -i ~/.ssh/deploy_key -o IdentitiesOnly=yes deploy@62.238.1.182
+      - name: verify from the outside
+        if: steps.tip.outputs.go == '1'
+        run: |
+          set -eu
+          for i in $(seq 1 10); do
+            if curl -fsS --max-time 10 https://dx.gamestao.com/health; then echo; exit 0; fi
+            sleep 3
+          done
+          echo "dx.gamestao.com/health did not answer" >&2
+          exit 1
 
   deploy-web:
     needs: check

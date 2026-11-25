@@ -1,0 +1,82 @@
+# Dummy Brawl's telemetry collector on the box blight bloom ("blightbloom") owns, next to Potion
+# Siege, Holy Kicker and fight and apart from all of them: its own compose project in
+# /home/deploy/dummy-brawl, its own network. The box's ports 80/443 are blight bloom's Caddy, so this
+# publishes none; `tunnel` (cloudflared) dials out to Cloudflare, which serves https://dx.gamestao.com
+# and sends its requests down that connection to `collector`. Same shape as D:\fang's server/.
+name: dummy-brawl
+
+services:
+  collector:
+    build: .
+    image: dummy-brawl-collector
+    container_name: dx-collector
+    restart: unless-stopped
+    mem_limit: 128m
+    environment:
+      # Read by /export and /days only. Without it both answer 404 and collecting carries on, which
+      # is why a missing one is a warning in the log rather than a container that will not start.
+      EXPORT_TOKEN: ${DX_EXPORT_TOKEN:?DX_EXPORT_TOKEN missing from .env}
+    volumes:
+      # one NDJSON file per UTC day (deploy user = uid 1000 = the image's `node`)
+      - ./data:/data
+    logging: &logging
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8787/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  # A remotely managed tunnel: its route (dx.gamestao.com -> http://collector:8787) is set on
+  # Cloudflare's side; the token in .env is all it needs here. It is also what puts cf-connecting-ip
+  # and cf-ipcountry on every request, which is the whole of what server/limits.ts reads.
+  tunnel:
+    image: cloudflare/cloudflared:2026.9.3
+    container_name: dx-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${DX_TUNNEL_TOKEN:?DX_TUNNEL_TOKEN missing from .env}
+    depends_on:
+      collector:
+        condition: service_healthy
+    mem_limit: 128m
+    logging: *logging
+
+  # A nightly gzipped copy of the day before's event file in ./backups (server/README.md "Backups"),
+  # each kept DX_BACKUP_DAYS (30) days. It reads ./data only and nothing depends on it. Twenty past
+  # three rather than three: Potion Siege's runs at three, on the same disk.
+  backup:
+    image: node:22.23.4-alpine
+    container_name: dx-backup
+    restart: unless-stopped
+    user: "1000:1000"
+    environment:
+      DX_BACKUP_DAYS: ${DX_BACKUP_DAYS:-30}
+    volumes:
+      - ./data:/data:ro
+      - ./backups:/backups
+    mem_limit: 32m
+    logging: *logging
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        while :; do
+          now=$$(date -u +%s); next=$$(date -u -d "$$(date -u +%F) 03:20" +%s)
+          [ "$$next" -gt "$$now" ] || next=$$((next + 86400))
+          sleep $$((next - now))
+          day=$$(date -u -d @$$(($$(date -u +%s) - 86400)) +%F)
+          src=/data/events-$$day.ndjson; f=/backups/events-$$day.ndjson.gz
+          if [ ! -f "$$src" ]; then
+            echo "backup: no $$src"
+          elif gzip -c "$$src" > "$$f.part"; then
+            mv "$$f.part" "$$f"; echo "backup $$f $$(du -h "$$f" | cut -f1)"
+          else
+            rm -f "$$f.part"; echo "backup of $$src failed" >&2
+          fi
+          find /backups -name 'events-*.ndjson.gz' -mtime +$$DX_BACKUP_DAYS -delete
+        done

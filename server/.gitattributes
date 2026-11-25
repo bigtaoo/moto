@@ -1,0 +1,7 @@
+# The files that are shipped to the box and read by /bin/sh and docker there. core.autocrlf=true on
+# the machine these are written on would otherwise check them out with CRLF, and a CRLF shell script
+# fails on the first line, where the interpreter becomes "/bin/sh\r".
+*.sh text eol=lf
+Dockerfile text eol=lf
+docker-compose.yml text eol=lf
+*.ts text eol=lf

@@ -1,9 +1,9 @@
 {
-  // The Worker is checked on its own: it runs in the Cloudflare runtime, not in a browser and not in
-  // node, so it must not see the DOM or node globals the game's tsconfig provides.
+  // The collector is checked on its own: it runs in node on our box, not in a browser, so it must not
+  // see the DOM globals the game's tsconfig provides -- the whole point of a separate config here.
   // Check it with: npm run typecheck:server
   "compilerOptions": {
-    "target": "ES2022",
+    "target": "ES2023",
     "module": "ESNext",
     "moduleResolution": "bundler",
     "strict": true,
@@ -11,10 +11,15 @@
     "noUnusedParameters": true,
     "noEmit": true,
     "skipLibCheck": true,
-    "lib": ["ES2022", "WebWorker"],
-    "types": []
+    "lib": ["ES2023"],
+    // node runs these files as they are, stripping the types (no build step, no bundler): so the
+    // imports carry their real extension, and nothing TS-only that node cannot simply erase --
+    // an enum or a parameter property would typecheck here and crash in the container.
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "types": ["node"]
   },
   "include": ["."],
-  // The tests run under vitest with node's globals; they are checked by the game's tsconfig instead.
+  // The tests run under vitest with its own globals; they are checked by the game's tsconfig instead.
   "exclude": ["**/*.test.ts"]
 }

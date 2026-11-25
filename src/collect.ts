@@ -10,9 +10,9 @@
 // to `sendBeacon` when the page goes away. Playgama keeps getting its copy unchanged — the sandbox
 // readings have to stay comparable with the ones already written down.
 //
-// The server end is `server/` (a Cloudflare Worker over R2, deployed from `wrangler/collect.jsonc`),
-// and `server/wire.ts` is the contract both ends import, so they cannot drift apart without the
-// typechecker saying so. With no `VITE_TELEMETRY` configured nothing is sent and the game is
+// The server end is `server/` (a small node service on the box blight bloom owns, writing one
+// NDJSON file per day -- server/README.md), and `server/wire.ts` is the contract both ends import,
+// so they cannot drift apart without the typechecker saying so. With no `VITE_TELEMETRY` configured nothing is sent and the game is
 // unchanged: that is what a dev run and a test are.
 
 import type { Batch, WireEvent } from '../server/wire';

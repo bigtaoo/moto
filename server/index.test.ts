@@ -1,241 +1,204 @@
-import { beforeEach, describe, expect, it } from 'vitest';
-import worker, { type Env } from './index';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import type { AddressInfo } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { collector, type Options } from './index.ts';
+import { RATE } from './limits.ts';
+import type { Stored } from './wire.ts';
 
-/** R2, as far as this Worker is concerned: a map with a cursor. */
-class FakeBucket implements R2Bucket {
-  readonly items = new Map<string, string>();
-  /** How many keys one `list` answers with, so the cursor loop is actually walked. */
-  page = 1000;
-  failGet = false;
+// A real server on a real port against a real directory. Nothing here is mocked: the whole point of
+// moving off the Worker was that the storage is now a file, and a fake file system would only prove
+// that the fake behaves. One temp directory per test, thrown away after.
 
-  async put(k: string, v: string): Promise<unknown> {
-    this.items.set(k, v);
-    return undefined;
-  }
+const TOKEN = 'test-token';
 
-  async get(k: string): Promise<R2Body | null> {
-    if (this.failGet) throw new Error('r2 is down');
-    const v = this.items.get(k);
-    return v === undefined ? null : { text: async () => v };
-  }
+let dir: string;
+let base: string;
+let server: ReturnType<typeof collector>;
 
-  async list(o: { prefix?: string; cursor?: string; limit?: number; delimiter?: string; startAfter?: string } = {}): Promise<R2Objects> {
-    const prefix = o.prefix ?? '';
-    let all = [...this.items.keys()].filter((k) => k.startsWith(prefix)).sort();
-    if (o.startAfter) all = all.filter((k) => k > o.startAfter!);
-    if (o.delimiter) {
-      // R2 folds everything past the next delimiter into one prefix, and those page like objects do.
-      const folded = new Set<string>();
-      for (const k of all) {
-        const at = k.indexOf(o.delimiter, prefix.length);
-        if (at >= 0) folded.add(k.slice(0, at + o.delimiter.length));
-      }
-      const names = [...folded].sort();
-      const at = o.cursor ? names.indexOf(o.cursor) + 1 : 0;
-      const page = names.slice(at, at + this.page);
-      const cut = at + page.length < names.length;
-      return {
-        objects: [],
-        delimitedPrefixes: page,
-        truncated: cut,
-        ...(cut ? { cursor: page[page.length - 1] } : {}),
-      };
-    }
-    const from = o.cursor ? all.indexOf(o.cursor) + 1 : 0;
-    const take = all.slice(from, from + this.page);
-    const truncated = from + take.length < all.length;
-    return {
-      objects: take.map((key) => ({ key, size: 1, uploaded: new Date() })),
-      truncated,
-      ...(truncated ? { cursor: take[take.length - 1] } : {}),
-    };
-  }
+async function start(options: Partial<Options> = {}): Promise<void> {
+  server = collector({ dir, token: TOKEN, ...options });
+  await new Promise<void>((up) => server.listen(0, '127.0.0.1', up));
+  const { port } = server.address() as AddressInfo;
+  base = `http://127.0.0.1:${port}`;
 }
 
-const batch = (over: Record<string, unknown> = {}) =>
+/** Close the one `beforeEach` started and put another in its place, with different caps. */
+async function restart(options: Partial<Options>): Promise<void> {
+  await new Promise((done) => server.close(done));
+  await start(options);
+}
+
+beforeEach(async () => {
+  dir = mkdtempSync(join(tmpdir(), 'collect-'));
+  await start();
+});
+
+afterEach(async () => {
+  await new Promise((done) => server.close(done));
+  rmSync(dir, { recursive: true, force: true });
+});
+
+const today = (): string => new Date().toISOString().slice(0, 10);
+const dayFile = (day = today()): string => join(dir, `events-${day}.ndjson`);
+const lines = (day = today()): Stored[] =>
+  readFileSync(dayFile(day), 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l) as Stored);
+
+const body = (over: Record<string, unknown> = {}): string =>
   JSON.stringify({ sid: 'ab12cd34ef5', v: '0.0.42', n: 0, t: 1, evs: [{ e: 'load', i: 0, s: 1, t: 1 }], ...over });
 
-let bucket: FakeBucket;
-let env: Env;
+const post = (text: string, headers: Record<string, string> = {}): Promise<Response> =>
+  fetch(`${base}/c`, { method: 'POST', body: text, headers: { 'content-type': 'text/plain', ...headers } });
 
-beforeEach(() => {
-  bucket = new FakeBucket();
-  env = { RAW: bucket };
-});
+const read = (path: string, token: string | null = TOKEN): Promise<Response> =>
+  fetch(`${base}${path}`, { headers: token ? { authorization: `Bearer ${token}` } : {} });
 
-const post = (body: string, headers: Record<string, string> = {}, cf?: IncomingCf) => {
-  const r = new Request('https://dx.gamestao.com/c', { method: 'POST', body, headers });
-  if (cf) Object.defineProperty(r, 'cf', { value: cf });
-  return worker.fetch(r, env);
-};
-
-const get = (path: string, headers: Record<string, string> = {}) =>
-  worker.fetch(new Request(`https://dx.gamestao.com${path}`, { headers }), env);
-
-describe('collect', () => {
-  it('stores a batch and says nothing back', async () => {
-    const res = await post(batch());
-    expect(res.status).toBe(204);
-    expect(res.headers.get('access-control-allow-origin')).toBe('*');
-    expect(bucket.items.size).toBe(1);
-    const [k] = [...bucket.items.keys()];
-    expect(k).toMatch(/^v1\/\d{4}-\d{2}-\d{2}\/ab12cd34ef5\/0000-\d+\.json$/);
-    const stored = JSON.parse(bucket.items.get(k)!) as { rt: number; c?: string; sid: string };
-    expect(stored.sid).toBe('ab12cd34ef5');
-    expect(stored.rt).toBeGreaterThan(0);
-    expect(stored.c).toBeUndefined();
+describe('taking a batch', () => {
+  it('writes one line per batch and says nothing back', async () => {
+    const r = await post(body());
+    expect(r.status).toBe(204);
+    expect(await r.text()).toBe('');
+    await post(body({ n: 1 }));
+    const all = lines();
+    expect(all).toHaveLength(2);
+    expect(all[0].sid).toBe('ab12cd34ef5');
+    expect(all[0].evs[0].e).toBe('load');
+    // The server's own clock, which is what a day is grouped by: the client's `t` is not trusted for it.
+    expect(all[0].rt).toBeGreaterThan(1_700_000_000_000);
+    expect(all[1].n).toBe(1);
   });
 
-  it('adds the country the edge saw, and never the address', async () => {
-    const res = await post(batch(), { 'cf-connecting-ip': '203.0.113.9' }, { country: 'DE' });
-    expect(res.status).toBe(204);
-    const body = [...bucket.items.values()][0];
-    expect(JSON.parse(body).c).toBe('DE');
-    expect(body).not.toContain('203.0.113.9');
+  it('keeps the country the edge put on it, and nothing else about where it came from', async () => {
+    await post(body(), { 'cf-ipcountry': 'DE', 'cf-connecting-ip': '203.0.113.9' });
+    const [one] = lines();
+    expect(one.c).toBe('DE');
+    // The address is used for the minute's counting and is never written down.
+    expect(JSON.stringify(one)).not.toContain('203.0.113');
   });
 
-  it('answers 400 on junk and stores nothing', async () => {
-    const res = await post('not json at all');
-    expect(res.status).toBe(400);
-    expect(await res.text()).toContain('not json');
-    expect(bucket.items.size).toBe(0);
+  it('leaves the country off when the edge did not say', async () => {
+    await post(body(), { 'cf-ipcountry': 'XX' });
+    expect(lines()[0].c).toBeUndefined();
   });
 
-  it('keeps the origin list when there is one', async () => {
-    env.ORIGINS = 'crazygames.com, playgama.ai';
-    expect((await post(batch(), { origin: 'https://www.crazygames.com' })).status).toBe(204);
-    expect((await post(batch({ n: 1 }), { origin: 'https://playgama.ai' })).status).toBe(204);
-    expect((await post(batch({ n: 2 }), { origin: 'https://crazygames.com.evil.test' })).status).toBe(403);
-    // A beacon from a page that is already gone can arrive with no Origin at all: take it.
-    expect((await post(batch({ n: 3 }))).status).toBe(204);
-    expect(bucket.items.size).toBe(3);
+  it('refuses what wire.ts will not have, without storing it', async () => {
+    const r = await post(JSON.stringify({ sid: 'nope!', v: '1', n: 0, t: 1, evs: [] }));
+    expect(r.status).toBe(400);
+    expect(readdirSync(dir)).toHaveLength(0);
   });
 
-  it('takes the "null" Origin a sandboxed iframe sends', async () => {
-    env.ORIGINS = 'crazygames.com';
-    // Most portals embed the game in a sandboxed iframe, which puts the literal string there.
-    expect((await post(batch(), { origin: 'null' })).status).toBe(204);
-    expect(bucket.items.size).toBe(1);
+  it('refuses a body over the cap before reading it', async () => {
+    const r = await post(body({ pad: 'x'.repeat(100_000) }));
+    expect(r.status).toBe(413);
+    expect(readdirSync(dir)).toHaveLength(0);
   });
 
-  it('turns an oversized body away without holding it', async () => {
-    const huge = batch({ evs: [{ e: 'load', i: 0, s: 1, t: 1, d: { pad: 'x'.repeat(70 * 1024) } }] });
-    const res = await post(huge);
-    expect(res.status).toBe(413);
-    expect(bucket.items.size).toBe(0);
+  it('stops taking batches once the day is as big as we are willing to keep', async () => {
+    await restart({ maxFile: 200 });
+    // The first is always taken: the cap is on what is already down, so a day is never refused empty.
+    expect((await post(body())).status).toBe(204);
+    expect((await post(body({ n: 1 }))).status).toBe(204);
+    const r = await post(body({ n: 2 }));
+    expect(r.status).toBe(507);
+    expect(lines()).toHaveLength(2);
   });
 
-  it('turns a flood away at the rate limit', async () => {
-    let asked = '';
-    env.LIMIT = {
-      limit: async ({ key }) => {
-        asked = key;
-        return { success: false };
-      },
-    };
-    const res = await post(batch(), { 'cf-connecting-ip': '198.51.100.4' });
-    expect(res.status).toBe(429);
-    expect(asked).toBe('198.51.100.4');
-    expect(bucket.items.size).toBe(0);
-  });
-
-  it('answers a preflight', async () => {
-    const res = await worker.fetch(new Request('https://dx.gamestao.com/c', { method: 'OPTIONS' }), env);
-    expect(res.status).toBe(204);
-    expect(res.headers.get('access-control-allow-methods')).toContain('POST');
-  });
-});
-
-describe('export', () => {
-  beforeEach(async () => {
-    await post(batch());
-    await post(batch({ n: 1, sid: 'zz99yy88xx7' }));
-  });
-
-  it('stays shut without a token, and to a wrong one', async () => {
-    expect((await get('/export?day=2026-11-24')).status).toBe(404);
-    expect((await get('/days')).status).toBe(404);
-    env.EXPORT_TOKEN = 'secret';
-    expect((await get('/days', { authorization: 'Bearer wrong' })).status).toBe(404);
-    expect((await get('/days', { authorization: 'secret' })).status).toBe(404);
-  });
-
-  it('gives a day as one line per batch', async () => {
-    env.EXPORT_TOKEN = 'secret';
-    const day = [...bucket.items.keys()][0].slice(3, 13);
-    const res = await get(`/export?day=${day}`, { authorization: 'Bearer secret' });
-    expect(res.headers.get('content-type')).toBe('application/x-ndjson');
-    const lines = (await res.text()).trim().split('\n');
-    expect(lines).toHaveLength(2);
-    expect(lines.map((l) => JSON.parse(l).sid).sort()).toEqual(['ab12cd34ef5', 'zz99yy88xx7']);
-  });
-
-  it('wants a real day', async () => {
-    env.EXPORT_TOKEN = 'secret';
-    const res = await get('/export?day=yesterday', { authorization: 'Bearer secret' });
-    expect(res.status).toBe(400);
-  });
-
-  it('walks R2 past one page', async () => {
-    env.EXPORT_TOKEN = 'secret';
-    bucket.page = 1;
-    const day = [...bucket.items.keys()][0].slice(3, 13);
-    const res = await get(`/export?day=${day}`, { authorization: 'Bearer secret' });
-    expect((await res.text()).trim().split('\n')).toHaveLength(2);
-  });
-
-  it('says so in the body when the read breaks halfway', async () => {
-    env.EXPORT_TOKEN = 'secret';
-    bucket.failGet = true;
-    const day = [...bucket.items.keys()][0].slice(3, 13);
-    const res = await get(`/export?day=${day}`, { authorization: 'Bearer secret' });
-    // The status line went out before the first read: a pull that only checks the status would read
-    // a broken day as an empty one.
-    expect(res.status).toBe(200);
-    expect(await res.text()).toContain('"error"');
-  });
-
-  it('hands back a big day in pieces, and carries on where it stopped', async () => {
-    env.EXPORT_TOKEN = 'secret';
-    bucket.items.clear();
-    const day = '2026-01-02';
-    for (let i = 0; i < 905; i++) {
-      bucket.items.set(`v1/${day}/s${String(i).padStart(4, '0')}/0000-1.json`, JSON.stringify({ sid: `s${i}`, n: i }));
+  it('turns one address away once it has had its minute', async () => {
+    let refused = 0;
+    for (let i = 0; i < RATE.reqs + 5; i++) {
+      const r = await post(body({ n: i }), { 'cf-connecting-ip': '198.51.100.7' });
+      if (r.status === 429) {
+        refused++;
+        expect(r.headers.get('retry-after')).toBe('60');
+      }
     }
-    const first = (await (await get(`/export?day=${day}`, { authorization: 'Bearer secret' })).text()).trim().split('\n');
-    // 900 batches and the line that says where to carry on from.
-    expect(first).toHaveLength(901);
-    const tail = JSON.parse(first[900]) as { more: string };
-    expect(tail.more).toBe(`v1/${day}/s0899/0000-1.json`);
-    const rest = (await (await get(`/export?day=${day}&after=${encodeURIComponent(tail.more)}`, { authorization: 'Bearer secret' })).text()).trim().split('\n');
-    expect(rest).toHaveLength(5);
-    expect((JSON.parse(rest[0]) as { sid: string }).sid).toBe('s900');
-    expect(rest.some((l) => l.includes('"more"'))).toBe(false);
-  });
-
-  it('says where it stopped when the read breaks partway', async () => {
-    env.EXPORT_TOKEN = 'secret';
-    bucket.failGet = true;
-    const day = [...bucket.items.keys()][0].slice(3, 13);
-    const body = await (await get(`/export?day=${day}`, { authorization: 'Bearer secret' })).text();
-    const err = JSON.parse(body.trim()) as { error: string; more: string };
-    expect(err.error).toContain('r2 is down');
-    // Nothing was written, so there is nothing to carry on from -- but the field is there to be read.
-    expect(err.more).toBe('');
-  });
-
-  it('lists the days that hold anything', async () => {
-    env.EXPORT_TOKEN = 'secret';
-    const res = await get('/days', { authorization: 'Bearer secret' });
-    expect((await res.text()).trim()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(refused).toBe(5);
+    // ...and only that address: the next one starts with its own budget.
+    expect((await post(body(), { 'cf-connecting-ip': '198.51.100.8' })).status).toBe(204);
   });
 });
 
-describe('the rest', () => {
-  it('says what it is, and 404s everything else', async () => {
-    expect(await (await get('/')).text()).toContain('dummy brawl');
-    expect((await get('/wat')).status).toBe(404);
-    expect((await post(batch())).status).toBe(204);
-    expect((await worker.fetch(new Request('https://dx.gamestao.com/c', { method: 'GET' }), env)).status).toBe(404);
+describe('answering the browser', () => {
+  it('echoes the Origin rather than a star, so a credentialed beacon passes the check', async () => {
+    const r = await post(body(), { origin: 'https://playgama.com' });
+    expect(r.headers.get('access-control-allow-origin')).toBe('https://playgama.com');
+    expect(r.headers.get('vary')).toBe('origin');
+  });
+
+  it('answers a preflight without one', async () => {
+    const r = await fetch(`${base}/c`, { method: 'OPTIONS', headers: { origin: 'https://crazygames.com' } });
+    expect(r.status).toBe(204);
+    expect(r.headers.get('access-control-allow-origin')).toBe('https://crazygames.com');
+    expect(r.headers.get('access-control-allow-headers')).toContain('content-type');
+  });
+});
+
+describe('reading it back', () => {
+  it('hands a day back exactly as it was stored', async () => {
+    await post(body());
+    await post(body({ n: 1 }));
+    const r = await read(`/export?day=${today()}`);
+    expect(r.status).toBe(200);
+    expect(r.headers.get('content-type')).toContain('ndjson');
+    const got = (await r.text()).trim().split('\n');
+    expect(got).toHaveLength(2);
+    expect(got.map((l) => (JSON.parse(l) as Stored).n)).toEqual([0, 1]);
+  });
+
+  it('reads an empty day the same as a missing one', async () => {
+    const r = await read('/export?day=2020-01-01');
+    expect(r.status).toBe(200);
+    expect(await r.text()).toBe('');
+  });
+
+  it('wants a day that is a day', async () => {
+    expect((await read('/export')).status).toBe(400);
+    expect((await read('/export?day=yesterday')).status).toBe(400);
+  });
+
+  it('lists the days that hold something', async () => {
+    writeFileSync(dayFile('2026-01-02'), '{}\n');
+    writeFileSync(join(dir, 'notes.txt'), 'not a day');
+    await post(body());
+    const got = (await read('/days')).text();
+    expect((await got).trim().split('\n')).toEqual(['2026-01-02', today()].sort());
+  });
+
+  it('is a 404 to anyone without the token, so it does not advertise itself', async () => {
+    for (const path of ['/days', `/export?day=${today()}`]) {
+      expect((await read(path, null)).status).toBe(404);
+      expect((await read(path, 'wrong')).status).toBe(404);
+    }
+    // And with no token configured at all, the door is not there for us either.
+    await restart({ token: '' });
+    expect((await read('/days')).status).toBe(404);
+  });
+});
+
+describe('the rest of it', () => {
+  it('says what it is, and nothing about anything else', async () => {
+    const root = await fetch(base);
+    expect(root.status).toBe(200);
+    expect(await root.text()).toContain('dummy brawl');
+    expect((await fetch(`${base}/wp-admin`)).status).toBe(404);
+    expect((await fetch(`${base}/c`)).status).toBe(404);
+  });
+
+  it('answers the healthcheck while the disk takes writes', async () => {
+    const r = await fetch(`${base}/health`);
+    expect(r.status).toBe(200);
+    expect(await r.text()).toContain('ok');
+  });
+
+  it('drops the days that are past the window, on the first batch of a day', async () => {
+    await restart({ keepDays: 30 });
+    const old = new Date(Date.now() - 40 * 86_400_000).toISOString().slice(0, 10);
+    const recent = new Date(Date.now() - 10 * 86_400_000).toISOString().slice(0, 10);
+    writeFileSync(dayFile(old), '{}\n');
+    writeFileSync(dayFile(recent), '{}\n');
+    await post(body());
+    const left = readdirSync(dir).sort();
+    expect(left).toEqual([`events-${recent}.ndjson`, `events-${today()}.ndjson`].sort());
   });
 });
