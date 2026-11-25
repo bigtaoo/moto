@@ -114,8 +114,10 @@ export function machine(s: Session): string {
   if (s.c) bits.push(s.c);
   if (typeof f.device === 'string') bits.push(f.device);
   // `form` is what the host says it is and `device` what the user agent says: worth seeing when they
-  // disagree, which is how a phone ends up being sent the desktop controls.
-  if (typeof f.form === 'string' && f.form !== f.device) bits.push(`form:${f.form}`);
+  // disagree, which is how a phone ends up being sent the desktop controls. A host that says nothing
+  // -- CrazyGames, where there is no bridge at all -- leaves it 'unknown', which is not a disagreement
+  // and would otherwise stand on every line of that package's data.
+  if (typeof f.form === 'string' && f.form !== f.device && f.form !== 'unknown') bits.push(`form:${f.form}`);
   if (typeof f.orient === 'string') bits.push(f.orient);
   if (f.touch === true) bits.push('touch');
   if (typeof f.lang === 'string') bits.push(f.lang);

@@ -17,6 +17,7 @@
     "check:filelength": "node scripts/checkFileLength.mjs",
     "check:bundle": "node scripts/checkBundle.mjs dist",
     "build:playgama": "npm run build && (python3 scripts/pack_playgama.py || python scripts/pack_playgama.py)",
+    "build:crazygames": "npm run build && (python3 scripts/pack_crazygames.py || python scripts/pack_crazygames.py)",
     "check": "npm run typecheck && npm run typecheck:server && npm run check:filelength && npm run test && vite build && npm run check:bundle"
   },
   "dependencies": {

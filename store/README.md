@@ -1,6 +1,8 @@
 # Store listing
 
-Material for the Playgama publication form. Nothing here ships in the game build.
+Material for the publication forms. Nothing here ships in the game build. The Playgama form is
+what the fields below are shaped for; `crazygames.md` says which of them CrazyGames takes and
+what it wants that we do not have yet.
 
 ## Texts
 

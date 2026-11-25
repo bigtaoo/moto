@@ -98,6 +98,13 @@ describe('who was behind it', () => {
     expect(facts(s).device).toBe('android');
     expect(machine(s)).toBe('FI android form:mobile port touch en gfx2');
   });
+
+  it('says nothing about the form where the host said nothing', () => {
+    seq = 0;
+    // No bridge, as on CrazyGames: `form` is 'unknown', which is an absence and not a disagreement.
+    const s = one([ev('game_loaded', 1.4, { ...C, device: 'desktop', form: 'unknown' })], { c: 'DE' });
+    expect(machine(s)).toBe('DE desktop land en gfx2');
+  });
 });
 
 describe('what an event says of its own', () => {
