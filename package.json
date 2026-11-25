@@ -10,6 +10,8 @@
     "typecheck:server": "tsc --noEmit -p server/tsconfig.json",
     "bot": "tsx scripts/bot.ts",
     "first20": "tsx scripts/first20.ts",
+    "telemetry:pull": "tsx scripts/telemetry-pull.ts",
+    "telemetry:trace": "tsx scripts/telemetry-trace.ts",
     "test": "vitest run",
     "coverage": "vitest run --coverage",
     "check:filelength": "node scripts/checkFileLength.mjs",

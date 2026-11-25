@@ -6,3 +6,5 @@ dist-cg
 wrangler/.dev.vars
 __pycache__/
 .wrangler/
+# what scripts/telemetry-pull.ts brings down: real players' sessions, kept on this machine only
+telemetry-archive/
