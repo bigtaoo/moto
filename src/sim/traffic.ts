@@ -36,7 +36,8 @@ export function spawnCar(w: World, z: number): void {
   const pt = w.patrol;
   if (pt.active && Math.abs(pt.x - x) < C.CAR.halfW + C.PATROL.halfW + 0.5 && Math.abs(pt.z - z) < C.TRAFFIC.gap) return;
   const oncoming = lane === C.ONCOMING_LANE;
-  const speed = oncoming ? C.CAR.oncoming : C.CAR.minSpeed + w.traffic.float() * (C.CAR.maxSpeed - C.CAR.minSpeed);
+  const flow = oncoming ? 0 : w.div.flow; // only the cars going our way: a head-on closes fast enough
+  const speed = oncoming ? C.CAR.oncoming : C.CAR.minSpeed + flow + w.traffic.float() * (C.CAR.maxSpeed - C.CAR.minSpeed);
   w.cars.push({ id: w.nextId++, x, z, pz: z, speed, cruise: speed, lane, color: w.traffic.pick(CAR_COLORS), brushed: false });
 }
 

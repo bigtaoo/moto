@@ -8,9 +8,10 @@
 //
 // Prints a row per rung and a line per season, then what put each field on the tarmac and how much of that
 // was a shove. Average place is the headline -- it should get worse, or at least not better, the higher the
-// ladder goes. Doc 3.3.55 left it at 2.15 / 1.98 / 1.58 and 3.3.85 made it monotone (1.89 / 2.31 / 2.39).
-// Thirty seeds a rung is a glance; the swing between two runs of 120 is about 0.12 of a place, so do not
-// read anything smaller than that out of it.
+// ladder goes. Run it at more than one skill: 3.3.85 made it monotone at skill 1 while skill 0.6 -- closer to
+// a real player -- was still inverted, Pro the wall and Legend backing off. 3.3.86 left it monotone at both
+// (skill 1: 1.89 / 2.66 / 2.79; skill 0.6: 2.27 / 2.81 / 3.12). Thirty seeds a rung is a glance; the swing
+// between two runs of 120 is about 0.12 of a place, so do not read anything smaller than that out of it.
 
 import { World } from '../src/sim/world';
 import * as C from '../src/sim/config';

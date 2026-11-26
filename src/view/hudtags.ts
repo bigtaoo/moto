@@ -32,6 +32,21 @@ const TAG_LIFT = 7;
  */
 const TAG_WIDE = 6;
 const TAG_WIDE_FULL = 11;
+/**
+ * A name that stays up is a name in the way (3.3.86). A rival the player has nothing to settle with says
+ * who it is when it comes within reach and then stands down: `TAG_HOLD` seconds up, `TAG_OUT` fading out,
+ * and it does not come back until the rider drops out of reach and rides up again. The ones carrying
+ * something to act on keep their tag for as long as they carry it -- that is the whole point of the chip.
+ */
+const TAG_HOLD = 2.5;
+const TAG_OUT = 0.5;
+/**
+ * The most a tag is ever drawn at. Only a name the player must act on this second -- the nemesis, or a
+ * swing already telegraphed -- is drawn solid; a rival that merely has a grudge or an opening is drawn at
+ * `TAG_SOFT`, and a plain name at `TAG_PLAIN`, so the road reads through the chip either way.
+ */
+const TAG_SOFT = 0.82;
+const TAG_PLAIN = 0.62;
 
 /** Set a class only when it would change: a no-op `toggle` still dirties the element's style. (hud.ts has the twin.) */
 const cls = (el: HTMLElement, name: string, on: boolean) => {
@@ -49,6 +64,8 @@ export class Tags {
   private tagW: number[] = [];
   /** Each tag's drawn scale, in hundredths: the transform carries it, so a change there has to rewrite it. */
   private tagS: number[] = [];
+  /** When each rival last rode up within reach, or -1 while it is out of reach: a plain name's clock. */
+  private tagSince: number[] = [];
   /** Scratch for the tags already placed this frame: x, y, half-width per tag. */
   private readonly placed: number[] = [];
   /** The HUD's width: a tag is kept inside it, so a name never hangs off the screen. */
@@ -73,6 +90,7 @@ export class Tags {
     this.tagY = w.riders.map(() => NaN);
     this.tagA = w.riders.map(() => -1);
     this.tagS = w.riders.map(() => -1);
+    this.tagSince = w.riders.map(() => -1);
     this.tagW = this.labels.map((l) => l.offsetWidth); // one layout per race, read before anything moves
   }
 
@@ -107,7 +125,12 @@ export class Tags {
       // Past arm's reach a name is worth no more than the road it covers, and the road up there is where
       // the player reads their lane and the traffic coming down it. Out of reach only the rivals carrying
       // something to act on keep a tag; the rest of the pack rides anonymously and the lane stays clear.
-      const worth = dz <= TAG_NEAR || flag;
+      // A plain name's clock runs while its rider is within reach, and resets when it drops out again.
+      const near = dz > -6 && dz <= TAG_NEAR;
+      if (!near) this.tagSince[i] = -1;
+      else if (this.tagSince[i] < 0) this.tagSince[i] = w.time;
+      const age = near ? w.time - this.tagSince[i] : 0;
+      const worth = flag || (near && age < TAG_HOLD);
       const show = worth && r.state === 'ride' && dz > -6 && dz < 45 && view.projectRider(i, 2.55, this.pt);
       l.classList.toggle('on', show);
       if (!show) {
@@ -120,7 +143,11 @@ export class Tags {
       // ones stay solid; past 14 m the tag thins out to a quarter by the time it leaves the draw range.
       const fade = dz <= TAG_NEAR ? 1 : Math.max(TAG_FAINT, 1 - ((dz - TAG_NEAR) / (TAG_FAR - TAG_NEAR)) * (1 - TAG_FAINT));
       // quantized, so a tag rewrites its opacity about twenty times over the whole fade, not every frame
-      const step = Math.round(fade * 20);
+      // Full strength is for a name the player has to act on now; everything else reads through (3.3.86),
+      // and a plain name fades out of the frame as its clock runs down rather than blinking off.
+      const cap = nem || tell ? 1 : flag ? TAG_SOFT : TAG_PLAIN;
+      const out = flag ? 1 : Math.max(0, Math.min(1, (TAG_HOLD - age) / TAG_OUT));
+      const step = Math.round(fade * cap * out * 20);
       const refade = step !== this.tagA[i];
       if (refade) { this.tagA[i] = step; l.style.opacity = String(step / 20); }
       cls(l, 'nem', nem);

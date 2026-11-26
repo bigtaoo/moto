@@ -16,7 +16,8 @@ import { World, type WorldOpts } from './world';
 // its determinism (find out why before touching anything).
 // 3.3.85: a rival's sideways speed is tied to its top speed now (ladder.ts RIVAL_STEER), so every rival in
 // this race steers a little differently and the race ends sooner.
-const GOLDEN = { version: 48, mid: '5be7612a', end: 'eb8462ea', endTick: 4181 };
+// 3.3.86: this season's traffic rolls faster (ladder.ts TIERS flow), so the race's cars sit differently.
+const GOLDEN = { version: 49, mid: 'b4fe1443', end: '89bc00fb', endTick: 4172 };
 
 const OPTS: WorldOpts = { seed: 1, upgrades: { top: 2, steer: 2, hp: 2 }, div: 2, nemesis: 3, tier: 1, vehicle: 2 };
 const MID = 60 * TICK_HZ;

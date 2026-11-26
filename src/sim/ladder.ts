@@ -79,6 +79,14 @@ export interface Tier {
    */
   dmg: number;
   traffic: number;
+  /**
+   * How much faster the cars on this season's roads roll (m/s on top of `CAR.minSpeed`..`maxSpeed`).
+   * Traffic used to crawl at the same 9-16 m/s all the way up the ladder while the pack went from 30 to
+   * 40 m/s, so the closing speed on a car doubled and the cars, not the rivals, decided the race: 3.3.86
+   * measured the field hitting traffic 5.9 times a race in Amateur and 16.5 in Legend, until even the
+   * rival out in front spent more of the race on the tarmac than the player did and the season got easier.
+   */
+  flow: number;
   patrol: number;
   prize: number;
   len: number;
@@ -88,9 +96,9 @@ export interface Tier {
 export const LEAD = [2, 0.6] as const;
 
 export const TIERS: readonly Tier[] = [
-  { name: 'Amateur', top: [-2.5, 4.6, 7.0, 7.0, 8.3], mind: 0, hp: 0, dmg: 0, traffic: 1, patrol: 0, prize: 1, len: 1 },
-  { name: 'Pro', top: [11.1, 12.5, 12.6, 12.7, 14.6], mind: 0.12, hp: 1, dmg: 0.8, traffic: 1.15, patrol: 1, prize: 2, len: 1.12 },
-  { name: 'Legend', top: [17.5, 17.6, 19.4, 19.5, 19.6], mind: 0.24, hp: 2, dmg: 1.6, traffic: 1.3, patrol: 1, prize: 3, len: 1.18 },
+  { name: 'Amateur', top: [-2.5, 4.6, 7.0, 7.0, 8.3], mind: 0, hp: 0, dmg: 0, traffic: 1, flow: 0, patrol: 0, prize: 1, len: 1 },
+  { name: 'Pro', top: [11.1, 12.5, 12.6, 12.7, 14.6], mind: 0.12, hp: 1, dmg: 0.8, traffic: 1.15, flow: 1, patrol: 1, prize: 2, len: 1.12 },
+  { name: 'Legend', top: [17.5, 17.6, 19.4, 19.5, 19.6], mind: 0.24, hp: 2, dmg: 1.6, traffic: 1.3, flow: 5, patrol: 1, prize: 3, len: 1.18 },
 ];
 
 /** A division as raced in a tier. */
@@ -104,6 +112,8 @@ export interface Stage extends Division {
   dmg: number;
   /** Race length, times RACE_LEN. */
   len: number;
+  /** How much faster this season's traffic rolls (m/s). */
+  flow: number;
 }
 
 /**
@@ -122,7 +132,8 @@ export function stage(div: number, tier: number, plus = 0): Stage {
   return {
     ...d, name: (ti ? `${t.name} ${d.name}` : d.name) + (n ? ` +${n}` : ''), tier: ti, top: t.top[DIVISIONS.indexOf(d)] + n * E.top,
     mind: d.mind + t.mind + Math.min(E.mindMax, n * E.mind), hp: t.hp + Math.floor(n / E.hpEvery), dmg: t.dmg,
-    traffic: d.traffic * t.traffic * (1 + Math.min(n, E.trafficMax) * E.traffic), patrol: d.patrol + t.patrol, prize: d.prize * t.prize * (1 + n * E.prize), len: t.len,
+    traffic: d.traffic * t.traffic * (1 + Math.min(n, E.trafficMax) * E.traffic), flow: t.flow, patrol: d.patrol + t.patrol,
+    prize: d.prize * t.prize * (1 + n * E.prize), len: t.len,
   };
 }
 
