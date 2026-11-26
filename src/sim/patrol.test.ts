@@ -127,7 +127,10 @@ describe('security buggy', () => {
     }
     expect(squeezed).toBeGreaterThan(60);
     expect(lost / squeezed).toBeGreaterThan(0.05); // m/s per tick, net of the scooter's own acceleration
-  });
+    // Its own budget: 3.3.85 took this one to 24 seeds -- three times the file's others -- and left it on
+    // vitest's 5 s default, where it ran 4919 ms green and 5393 ms red on the next commit, which had not
+    // touched the sim. A test that counts episodes needs the seeds; what it needed was the room to run.
+  }, 30_000);
   it('charges a ticket in the money of the division it was written in (3.3.52)', () => {
     // Flat fines meant a ticket was most of a first prize in Rookie Meadow and petty cash in
     // Legend Neon Coast. Each one is now the stage's prize multiplier times the base.
