@@ -8,3 +8,5 @@ __pycache__/
 .wrangler/
 # what scripts/telemetry-pull.ts brings down: real players' sessions, kept on this machine only
 telemetry-archive/
+# the jpegs scripts/make_trailer.mjs cuts the store trailer from
+.trailer-frames/

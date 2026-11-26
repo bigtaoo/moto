@@ -32,18 +32,33 @@ their docs ask for no logo and no screenshots.
 
 They are real in-game frames with the title over them and no other text, no borders and no store
 logos, which is what their cover rules ask. `cover_portrait_1080x1920.png` is the 9:16 one Playgama
-wants and has no use here.
+wants; here it is only the first frame of the portrait trailer, cut down to 2:3.
 
 ## Texts
 
 `store/en/` -- the same four fields Playgama takes: `name.txt`, `short_description.txt`,
 `description.txt`, `controls.txt`. English only: CrazyGames takes one listing.
 
-## Not ready yet
+## Preview videos
 
-A **preview video**: 15-20 seconds, no sound, no fast-forwarding, opening on the static cover frame,
-50 MB at most, and they want both 1080p 16:9 and 1080p 2:3. We have no capture pipeline for this --
-the covers were stills from headless Chrome (`store/README.md`), which is not the same job.
+`store/video/`, built by `npm run build:crazygames && node scripts/make_trailer.mjs` (about four
+minutes, needs Chrome and ffmpeg). Both are 18 s, silent, h264, under 10 MB.
+
+| CrazyGames | File |
+|---|---|
+| landscape 16:9, 1080p | `trailer_1920x1080.mp4` |
+| portrait 2:3, 1080 wide | `trailer_1080x1620.mp4` |
+
+Their rules: 15-20 seconds, no sound, no fast-forwarding, opening on the static cover frame, 50 MB at
+most. So each one is one second of the cover, then three shots of the bot riding -- the first race of
+all, then a season on with a better ride, then the last division after dark.
+
+`scripts/capture_trailer.mjs` records one shot. It serves `dist-cg` to a headless Chrome and, before
+any of the game's code runs, replaces `requestAnimationFrame` and `performance.now` with a clock it
+advances itself in fixed 1/60 s beats, taking a screenshot every other beat. Every frame of the video
+is then exactly 1/30 s of game time however long the machine took to draw it, so nothing stutters and
+nothing is sped up. The same shim writes the save that decides which division and which ride the shot
+has, and answers our own collector itself -- a recording is not a player.
 
 ## Telemetry, and the thing to decide
 
@@ -66,3 +81,15 @@ Two CrazyGames rules touch it, neither of them a ban:
 Basic is a 7-21 day test: the SDK is optional, monetisation is off and ads are not allowed, which is
 exactly this package. Full would mean the CrazyGames SDK with its Gameplay start/stop events -- a
 change to `src/platform.ts`, not to `scripts/pack_crazygames.py`.
+
+## What is already in the portal
+
+The draft is filled to the last step and waiting there; nothing has been submitted.
+
+- **1 Upload**: `dist-cg/`, 35 files, orientation locked to BOTH at build time.
+- **2 QA**: all six requirement rows answered Yes, except the Terms & Conditions / Privacy Policy
+  row, answered N/A on the grounds in the section above. That row is the one judgement call here.
+- **3 Details**: category Driving (they have no Racing); tags 3D, Physics, Fighting, Stunt, 1 Player;
+  the texts from `store/en/`; the three covers; both trailers; tools: Claude.
+- **4 Submit**: two boxes left to tick -- the Developer Portal's Terms & Conditions, and PEGI 12 --
+  and then Submit for approval.
