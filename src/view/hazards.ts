@@ -7,7 +7,7 @@ import type { Hazard } from '../sim/types';
 import { HAZARD as H, OIL } from '../sim/fun';
 import { spraying } from '../sim/hazards';
 import { ROAD_HALF } from '../sim/config';
-import { place } from './track';
+import { place } from './road';
 import { rbox, ball } from './rider';
 import { Kit, cached, kitMaterial, toonMaterial } from './toon';
 import { sfx } from './audio';

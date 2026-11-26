@@ -3,7 +3,8 @@
 import * as THREE from 'three';
 import type { World } from '../sim/world';
 import { CAR, CHARGE, DOWN, TICK_HZ, VEHICLES, rung } from '../sim/config';
-import { Track, toWorld, place, rampLift, RAMP_LOOK } from './track';
+import { Track } from './track';
+import { place, rampLift, RAMP_LOOK } from './road';
 import { ENVS } from './env';
 import { RiderView } from './rider';
 import type { Hat, Paint } from '../shop';
@@ -14,9 +15,9 @@ import { standTicks } from '../sim/down';
 import { Traffic, PatrolView, Pickups, Shadows } from './props';
 import { Fx } from './fx';
 import { isShared } from './toon';
-import { MOTION } from './motion';
 import type { Stage } from './stage';
 import { Sight } from './sight';
+import { RaceCamera } from './raceCamera';
 import type { Box } from './sight';
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -34,26 +35,6 @@ function rivalRide(w: World, id: number, thug: boolean): number {
   return (id * 7 + w.divIndex + w.div.tier) % open; // 7 is coprime with every count of rides, so the field is mixed
 }
 
-/** Camera framing per orientation: portrait sees more road ahead from higher up. */
-const CAM = {
-  portrait: { fov: 66, h: 8.6, back: 10, look: 12, lookY: 0, follow: 0.45 },
-  landscape: { fov: 54, h: 3.8, back: 6.6, look: 12, lookY: 0.8, follow: 0.6 },
-};
-
-
-/**
- * Degrees the camera widens by at `speed`. The old single slope (0.55 deg per m/s, capped at 10) ran out at
- * 30.2 m/s, which the player passes about the Mobility Scooter -- and 60% of a mid- or late-career race was
- * spent over that line, so every top-speed upgrade after it bought a bigger number on the HUD and no change
- * on screen at all (doc 3.3.31). The first slope is untouched, so the early career looks exactly as it did;
- * past the old ceiling a shallower one carries on to 14 degrees, which the fastest bike in the game
- * (49.3 m/s) still does not quite reach.
- */
-function speedFov(speed: number): number {
-  const over = Math.max(0, speed - 12) * 0.55;
-  return over <= 10 ? over : Math.min(14, 10 + (over - 10) * (0.18 / 0.55));
-}
-
 export class RaceView {
   readonly group = new THREE.Group();
   readonly riders: RiderView[];
@@ -67,19 +48,8 @@ export class RaceView {
   private readonly hazards: HazardView;
   /** Each rider's bowling slide already applied to its ragdoll. */
   private readonly slid: number[] = [];
-  private readonly camPos = new THREE.Vector3();
-  private readonly camLook = new THREE.Vector3();
-  private readonly v = new THREE.Vector3();
+  private readonly cam: RaceCamera;
   private readonly v2 = new THREE.Vector3();
-  /** A spare camera the steering gain is measured on, so the real one is never disturbed. */
-  private readonly probe = new THREE.PerspectiveCamera(60, 1, 0.3, 600);
-  private gain = 0;
-  private gainKey = '';
-  private focusX = 0;
-  private focusZ = 0;
-  private fovBoost = 0;
-  private shakeAmp = 0;
-  private first = true;
   /** The highlight's side camera: which side of the player it stands on (0: the race camera). */
   cine = 0;
   /** Drawn lateral position and speed per rider: a short spring over the sim's x, so contact can't shake. */
@@ -96,6 +66,7 @@ export class RaceView {
 
   /** `paint`, `hat`: the player's paint job and hat (looks only: the sim keeps the stock colours). */
   constructor(private readonly stage: Stage, public w: World, seed: number, paint?: Paint, hat: Hat = 'none') {
+    this.cam = new RaceCamera(stage);
     const env = ENVS[w.div.env];
     stage.setEnv(env);
     this.sight = new Sight(stage, (i, h, out) => this.projectRider(i, h, out));
@@ -185,8 +156,7 @@ export class RaceView {
     this.drawX = [];
     this.drawVx = [];
     this.slid.length = 0;
-    this.first = true;
-    this.shakeAmp = 0;
+    this.cam.reset();
     w.riders.forEach((r, i) => {
       const down = r.state === 'down';
       this.riders[i].setDown(down);
@@ -220,62 +190,22 @@ export class RaceView {
   }
 
   shake(amount: number): void {
-    if (MOTION.calm) return;
-    this.shakeAmp = Math.max(this.shakeAmp, amount);
+    this.cam.shake(amount);
   }
 
   /** Screen position (CSS px) of a sim point, or null when behind the camera. */
   project(x: number, y: number, z: number, out: { x: number; y: number }): boolean {
-    toWorld(x, y, z, this.v).project(this.stage.camera);
-    if (this.v.z > 1) return false;
-    out.x = (this.v.x * 0.5 + 0.5) * this.stage.cssW;
-    out.y = (-this.v.y * 0.5 + 0.5) * this.stage.cssH;
-    return true;
+    return this.cam.project(x, y, z, out);
   }
 
   /** Screen position (CSS px) of a point h metres above rider i as drawn this frame (interpolated). */
   projectRider(i: number, h: number, out: { x: number; y: number }): boolean {
-    this.v.copy(this.riders[i].root.position);
-    this.v.y += h;
-    this.v.project(this.stage.camera);
-    if (this.v.z > 1) return false;
-    out.x = (this.v.x * 0.5 + 0.5) * this.stage.cssW;
-    out.y = (-this.v.y * 0.5 + 0.5) * this.stage.cssH;
-    return true;
+    return this.cam.projectAbove(this.riders[i].root.position, h, out);
   }
 
-  /**
-   * Screen px the player slides sideways for one metre across the road. It is far less than the projection's
-   * px per metre, because the camera follows them sideways (CAM.follow) and the look-at point tracks them as
-   * well, so most of the move is taken straight back out again: 22 px/m of a projected 41 in landscape,
-   * 31 of 45 in portrait (doc 3.3.30). A drag is scaled by this, so the bike keeps up with the thumb.
-   *
-   * Measured on a straight, flat reference rather than on the road under the player: the bends and hills
-   * would make the number differ by the metre, and a steering scale that moved under the thumb would be
-   * worse than one a few per cent out. The speed boost is in it, though -- at a racing 26 m/s it widens the
-   * fov by 8 degrees and takes a sixth off the bike's travel, which is far too much to leave out. A drag
-   * holds the number it was given when the finger went down, so none of this moves mid-drag.
-   */
+  /** Screen px the player slides sideways for one metre across the road (raceCamera.ts). */
   steerPxPerMetre(): number {
-    const st = this.stage;
-    const key = `${st.cssW}x${st.cssH}x${Math.round(this.fovBoost * 4)}`;
-    if (this.gainKey !== key) {
-      const cfg = st.portrait ? CAM.portrait : CAM.landscape;
-      const cam = this.probe;
-      cam.fov = cfg.fov + this.fovBoost;
-      cam.aspect = st.cssW / Math.max(1, st.cssH);
-      cam.updateProjectionMatrix();
-      // inside the barrier CAM's `out` term is 0, so the camera takes exactly `follow` of the player's move
-      const screenX = (fx: number): number => {
-        cam.position.set(-fx * cfg.follow, cfg.h, -cfg.back);
-        cam.lookAt(this.v.set(-fx * cfg.follow * 0.8, cfg.lookY, cfg.look));
-        cam.updateMatrixWorld();
-        return (this.v.set(-fx, 0.8, 0).project(cam).x * 0.5 + 0.5) * st.cssW;
-      };
-      this.gain = Math.abs(screenX(1) - screenX(-1)) / 2;
-      this.gainKey = key;
-    }
-    return this.gain;
+    return this.cam.steerPxPerMetre();
   }
 
   update(dt: number, alpha: number): void {
@@ -283,8 +213,7 @@ export class RaceView {
     const pz = lerp(w.player.pz, w.player.z, alpha);
     // What covers what, measured once before anything is placed; the box it keeps clear is the player's,
     // which the loop below fills in as soon as they are drawn.
-    const cam = this.stage.portrait ? CAM.portrait : CAM.landscape;
-    this.sight.begin(w, this.drawX, this.drawX[0] ?? lerp(w.player.px, w.player.x, alpha), pz, alpha, cam.back);
+    this.sight.begin(w, this.drawX, this.drawX[0] ?? lerp(w.player.px, w.player.x, alpha), pz, alpha, this.cam.back);
     this.shadows.begin();
     for (let i = 0; i < w.riders.length; i++) {
       const r = w.riders[i];
@@ -371,9 +300,9 @@ export class RaceView {
     return x;
   }
 
+  /** The point the camera follows: the player, or their dummy for as long as it is sliding down the road. */
   private updateCamera(dt: number, alpha: number): void {
     const p = this.w.player;
-    const cfg = this.stage.portrait ? CAM.portrait : CAM.landscape;
     let fx = this.drawX[0] ?? lerp(p.px, p.x, alpha);
     let fz = lerp(p.pz, p.z, alpha);
     const rd = this.ragdolls[0];
@@ -382,35 +311,6 @@ export class RaceView {
       fx = this.v2.x;
       fz = Math.max(fz, this.v2.z - 2);
     }
-    const k = this.first ? 1 : Math.min(1, dt * 6);
-    // partway across the road; out past it (on a trail) the camera goes all the way with the rider
-    const out = Math.max(0, Math.abs(fx) - 5) * Math.sign(fx);
-    const follow = this.cine ? 1 : cfg.follow;
-    this.focusX += ((fx - out) * follow + out - this.focusX) * k;
-    this.focusZ = this.first ? fz : this.focusZ + (fz - this.focusZ) * Math.min(1, dt * 14);
-    this.first = false;
-    const cam = this.stage.camera;
-    if (this.cine) {
-      // low at the roadside, a little ahead, looking back across at the player
-      toWorld(this.focusX + this.cine * 6.5, 1.6, this.focusZ + 4, this.camPos);
-      toWorld(this.focusX, 1, this.focusZ, this.camLook);
-    } else {
-      toWorld(this.focusX, cfg.h, this.focusZ - cfg.back, this.camPos);
-      toWorld(this.focusX * 0.8, cfg.lookY, this.focusZ + cfg.look, this.camLook);
-    }
-    if (this.shakeAmp > 0.001) {
-      const s = this.shakeAmp;
-      this.camPos.x += (Math.random() - 0.5) * s;
-      this.camPos.y += (Math.random() - 0.5) * s;
-      this.shakeAmp *= Math.exp(-dt * 10);
-    }
-    cam.position.copy(this.camPos);
-    cam.lookAt(this.camLook);
-    this.fovBoost += (speedFov(p.speed) * (MOTION.calm ? 0.4 : 1) - this.fovBoost) * Math.min(1, dt * 3);
-    const fov = cfg.fov + this.fovBoost;
-    if (Math.abs(cam.fov - fov) > 0.05) {
-      cam.fov = fov;
-      cam.updateProjectionMatrix();
-    }
+    this.cam.follow(fx, fz, p.speed, dt, this.cine);
   }
 }

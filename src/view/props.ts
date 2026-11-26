@@ -2,7 +2,7 @@
 
 import * as THREE from 'three';
 import type { World } from '../sim/world';
-import { place } from './track';
+import { place } from './road';
 import { makeWeapon } from './rider';
 import { Kit, cached, kitMaterial, paintedMaterial, prim, roundedBox, shared } from './toon';
 

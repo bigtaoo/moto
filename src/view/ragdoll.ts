@@ -1,128 +1,28 @@
-// View-only ragdoll for a dummy thrown off its scooter: 12 Verlet points in sim space (x across, y up,
-// z along) with elbows and knees, drawn with the same chunky parts as the riding dummy. Once the sim
-// has the rider up, the same points are posed instead: a slow climb to its feet from wherever the body
-// came to rest (on all fours, on one knee, standing up with a wobble), one of eight gags while the sim
-// keeps it standing (DOWN.stand; the poses are in getup.ts), then a panicky cartoon scurry back to the
-// scooter, legs going far faster than the body moves, arms flailing over the head, head wobbling, and
-// stars circling it from the moment it lands. This never feeds back into the sim.
+// View-only ragdoll for a dummy thrown off its scooter: what it does, and when. The body itself is two
+// independent pieces -- dollBody.ts moves 12 Verlet points, dollRig.ts draws them as one skinned mesh --
+// and this holds the state machine between them: a tumble under physics until the sim has the rider up,
+// then the same points posed instead, a slow climb to its feet from wherever the body came to rest (on
+// all fours, on one knee, standing up with a wobble), one of eight gags while the sim keeps it standing
+// (DOWN.stand; the poses are in getup.ts), then a panicky cartoon scurry back to the scooter, legs going
+// far faster than the body moves, arms flailing over the head, head wobbling, and stars circling it from
+// the moment it lands. This never feeds back into the sim.
 
 import * as THREE from 'three';
-import { ROAD_HALF } from '../sim/config';
-import { toWorld } from './track';
-import { Kit, cached, rigidParts, rigidMesh } from './toon';
-import { JOINT, TARGET, INK_W, rbox, ball, rod, headKit } from './rider';
-
-import { HEAD, SH_L, SH_R, PELVIS, EL_L, HAND_L, EL_R, HAND_R, KNEE_L, FOOT_L, KNEE_R, FOOT_R, L, GagState, nextGag, getUpPose } from './getup';
-import { RunState, nextRun, gaitOf, runArm, setArmLengths } from './runback';
-// Rest pose, roughly as it stands on the scooter. Sim -x is the dummy's left.
-const REST: [number, number, number][] = [
-  [0, 1.94, 0.12], [-0.27, 1.64, 0.05], [0.27, 1.64, 0.05], [0, 1.1, -0.05],
-  [-0.3, 1.45, 0.3], [-0.3, 1.3, 0.6], [0.3, 1.45, 0.3], [0.3, 1.3, 0.6],
-  [-0.11, 0.66, 0], [-0.11, 0.25, 0], [0.11, 0.66, 0], [0.11, 0.25, 0],
-];
-/** Ground contact radius per point. */
-const RAD = [0.18, 0.12, 0.12, 0.15, 0.08, 0.08, 0.08, 0.08, 0.08, 0.1, 0.08, 0.1];
-// [a, b, stiffness, kind]: 0 holds the rest length, 1 only stops the pair getting closer than `min` x rest
-// (elbows and knees can bend but not fold flat; legs and feet don't pass through each other).
-const STICKS: [number, number, number, number, number][] = [
-  [SH_L, SH_R, 1, 0, 0], [SH_L, PELVIS, 1, 0, 0], [SH_R, PELVIS, 1, 0, 0], [HEAD, SH_L, 1, 0, 0], [HEAD, SH_R, 1, 0, 0], [HEAD, PELVIS, 0.5, 0, 0],
-  [SH_L, EL_L, 1, 0, 0], [EL_L, HAND_L, 1, 0, 0], [SH_R, EL_R, 1, 0, 0], [EL_R, HAND_R, 1, 0, 0],
-  [PELVIS, KNEE_L, 1, 0, 0], [KNEE_L, FOOT_L, 1, 0, 0], [PELVIS, KNEE_R, 1, 0, 0], [KNEE_R, FOOT_R, 1, 0, 0],
-  [SH_L, HAND_L, 0.6, 1, 0.55], [SH_R, HAND_R, 0.6, 1, 0.55], [PELVIS, FOOT_L, 0.6, 1, 0.6], [PELVIS, FOOT_R, 0.6, 1, 0.6],
-  [KNEE_L, KNEE_R, 0.5, 1, 0.9], [FOOT_L, FOOT_R, 0.5, 1, 0.9], [HAND_L, PELVIS, 0.3, 1, 0.7], [HAND_R, PELVIS, 0.3, 1, 0.7],
-];
-// limb meshes: from point, to point, part (0 upper arm, 1 forearm, 2 thigh, 3 shin), hip offset (thighs start at the hip)
-const LIMBS: [number, number, number, number][] = [
-  [SH_L, EL_L, 0, 0], [EL_L, HAND_L, 1, 0], [SH_R, EL_R, 0, 0], [EL_R, HAND_R, 1, 0],
-  [PELVIS, KNEE_L, 2, 0.11], [KNEE_L, FOOT_L, 3, 0], [PELVIS, KNEE_R, 2, -0.11], [KNEE_R, FOOT_R, 3, 0],
-];
-const GRAVITY = -20;
-const STEP = 1 / 60;
-/**
- * How far past the road's own edge a limb may flop: out onto the shoulder, never as far as the barrier.
- * The sprawl is the joke, so the body is let over the paint -- but it climbs to its feet and runs back
- * from wherever it lands, and a dummy getting up out on the verge read as the player having been thrown
- * clean off the track, which the sim itself never does (it clamps every downed rider to the road).
- */
-const SPILL = 0.8;
-
-const dist = (i: number, j: number) => Math.hypot(REST[i][0] - REST[j][0], REST[i][1] - REST[j][1], REST[i][2] - REST[j][2]);
-const LEN = [dist(SH_L, EL_L), dist(EL_L, HAND_L), dist(PELVIS, KNEE_L), dist(KNEE_L, FOOT_L)];
-setArmLengths(LEN[0], LEN[1]);
+import { DollBody, REST } from './dollBody';
+import { DollRig } from './dollRig';
+import { TARGET } from './rider';
+import { SH_L, SH_R, PELVIS, EL_L, HAND_L, EL_R, HAND_R, KNEE_L, FOOT_L, KNEE_R, FOOT_R, L, GagState, nextGag, getUpPose } from './getup';
+import { RunState, nextRun, gaitOf, runArm } from './runback';
 
 const a = new THREE.Vector3();
-const dir = new THREE.Vector3();
-const bx = new THREE.Vector3();
-const by = new THREE.Vector3();
-const bz = new THREE.Vector3();
-const tx = new THREE.Vector3();
-const m4 = new THREE.Matrix4();
 const spinV = new THREE.Vector3();
-const vel = new THREE.Vector3();
-const w = REST.map(() => new THREE.Vector3());
-
-/** Parts along +y from 0 to the limb's length. */
-const along = (g: THREE.BufferGeometry, len: number) => g.rotateX(-Math.PI / 2).translate(0, len / 2, 0);
-
-/** The body from the hips to the neck, in the pelvis frame: y towards the shoulders, x to the dummy's left, z forward. */
-function torsoKit(body: number, ride: number, mark: number): Kit {
-  return new Kit(INK_W)
-    .add(rbox(0.4, 0.22, 0.27), ride, { at: [0, 0, 0] })
-    .add(rbox(0.46, 0.54, 0.29, 0.09), body, { at: [0, 0.33, 0] })
-    .add(rbox(0.48, 0.06, 0.31, 0.02), JOINT, { at: [0, 0.12, 0], ink: false })
-    .add(new THREE.CylinderGeometry(0.055, 0.065, 0.14, 8), JOINT, { at: [0, 0.64, 0], ink: false })
-    .decal(0.085, mark, { at: [0, 0.4, 0.151] })
-    .decal(0.085, mark, { at: [0, 0.4, -0.151], rot: [0, Math.PI, 0] });
-}
-
-/** A chunky five-pointed star (puffed out to a point front and back), for the ones circling a dazed head. */
-function starGeo(): THREE.BufferGeometry {
-  const at = (i: number) => { const r = i % 2 ? 0.045 : 0.11, t = (i / 10) * Math.PI * 2; return [Math.sin(t) * r, Math.cos(t) * r, 0]; };
-  const pts: number[] = [];
-  for (let i = 0; i < 10; i++) pts.push(0, 0, 0.035, ...at(i + 1), ...at(i), 0, 0, -0.035, ...at(i), ...at(i + 1));
-  const g = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
-  g.computeVertexNormals();
-  return new Kit(INK_W * 0.6).add(g, 0xffd23a).build();
-}
-const STARS = 3;
-
-
-/** Upper arm, forearm, thigh, shin (LIMBS' part numbers). */
-const LIMB_KITS: ((body: number) => Kit)[] = [
-  (body) => new Kit(INK_W).add(ball(0.075), JOINT, { ink: false }).add(along(rod(0.06, LEN[0]), LEN[0]), body),
-  (body) => new Kit(INK_W).add(ball(0.062), JOINT, { ink: false }).add(along(rod(0.055, LEN[1]), LEN[1]), body)
-    .add(ball(0.078), JOINT, { at: [0, LEN[1], 0] }),
-  (body) => new Kit(INK_W).add(along(rod(0.08, LEN[2]), LEN[2]), body),
-  (body) => new Kit(INK_W).add(ball(0.072), JOINT, { ink: false }).add(along(rod(0.07, LEN[3]), LEN[3]), body)
-    .add(rbox(0.15, 0.1, 0.28, 0.04), JOINT, { at: [0, LEN[3], 0.06] }),
-];
-
-/** Bones, one per rigid part: the torso, the head, the limbs (LIMBS' order), the stars. */
-const TORSO = 0, HEADB = 1, LIMB0 = 2, STAR0 = LIMB0 + LIMBS.length, BONES = STAR0 + STARS;
-
-/** The whole body as one skinned geometry (see rigidParts), bone order as above. */
-function bodyGeo(body: number, ride: number, mark: number): THREE.BufferGeometry {
-  const limb = LIMB_KITS.map((kit) => kit(body).build());
-  const star = starGeo();
-  return rigidParts([torsoKit(body, ride, mark).build(), headKit(body, mark).build(),
-    ...LIMBS.map(([, , part]) => limb[part]), ...Array.from({ length: STARS }, () => star)]);
-}
 
 export class Ragdoll {
-  readonly group = new THREE.Group();
-  private readonly p = REST.map(() => new THREE.Vector3());
-  private readonly q = REST.map(() => new THREE.Vector3());
-  private readonly len = STICKS.map(([i, j]) => dist(i, j));
-  private readonly mesh: THREE.SkinnedMesh;
-  private readonly bones = Array.from({ length: BONES }, () => new THREE.Bone());
-  private readonly torso = this.bones[TORSO];
-  private readonly head = this.bones[HEADB];
-  private readonly limbs = this.bones.slice(LIMB0, STAR0);
-  private readonly stars = this.bones.slice(STAR0);
+  private readonly body = new DollBody();
+  private readonly rig: DollRig;
+  readonly group: THREE.Group;
   /** Head roll (radians) on top of the torso's turn: the wobble while running. */
   private roll = 0;
-  private acc = 0;
-  private bumpT = 0;
   /** Tumbling (the physics), getting up (posed, standing still) or running back (posed). */
   private mode: 'tumble' | 'up' | 'run' = 'tumble';
   /** Running: blend from the pose it was in (0) to the run cycle (1), how long that takes, stride phase. */
@@ -141,9 +41,6 @@ export class Ragdoll {
   private sx = 0;
   private sz = 0;
   private simD0 = 0;
-  /** Where the body may be, in sim x: the road under it widened by SPILL (see `band`). */
-  private lo = -(ROAD_HALF + 1.4);
-  private hi = ROAD_HALF + 1.4;
   active = false;
   /** Seconds since the throw. */
   age = 0;
@@ -152,11 +49,9 @@ export class Ragdoll {
 
   /** `mat` is the rider's own vertex-coloured toon material, so a hit flash shows here too. */
   constructor(body: number, ride: number, mat: THREE.Material, mark = TARGET) {
-    // One draw call for the whole body instead of 13 (two thrown dummies were a quarter of the phone
-    // budget); built once per colours and kept across races (see `cached` in toon.ts).
-    this.mesh = rigidMesh(cached(`rag:${body}:${ride}:${mark}`, () => bodyGeo(body, ride, mark)), mat, this.bones, new THREE.Sphere(new THREE.Vector3(), 2.4));
-    this.group.add(this.mesh, ...this.bones);
-    this.shown(false);
+    this.rig = new DollRig(body, ride, mat, mark);
+    this.group = this.rig.group;
+    this.body.onImpact = (x, z, v) => this.onImpact?.(x, z, v);
   }
 
   /**
@@ -169,40 +64,23 @@ export class Ragdoll {
     const side = vx === 0 ? (rnd() < 0.5 ? 1 : -1) : Math.sign(vx);
     // Spin about the body's middle: head over heels, and a roll the way it was knocked.
     const spin = spinV.set((3 + rnd() * 3) * power, (rnd() - 0.5) * 4, -side * (1.5 + rnd() * 2) * power);
-    const v = vel;
-    for (let i = 0; i < REST.length; i++) {
-      const [rx, ry, rz] = REST[i];
-      this.p[i].set(x + rx, ry, z + rz);
-      a.set(rx, ry - 1.3, rz);
-      v.set(vx * (0.9 + 0.3 * power), lift, fwd).add(dir.copy(spin).cross(a));
-      this.q[i].copy(this.p[i]).addScaledVector(v, -STEP);
-    }
-    this.active = true;
-    this.mode = 'tumble';
-    this.roll = 0;
-    this.age = 0;
-    this.acc = 0;
-    this.bumpT = 0.15;
-    this.shown(true);
+    this.body.launch(x, 0, z, vx * (0.9 + 0.3 * power), lift, fwd, spin, 1.3);
+    this.thrown();
   }
 
   /** Let go from sim (x, y, z) at velocity (vx, vy, vz), tumbling head over heels: the launch mode's dummy. */
   fling(x: number, y: number, z: number, vx: number, vy: number, vz: number, rnd: () => number): void {
     const spin = spinV.set(4 + rnd() * 3, (rnd() - 0.5) * 3, (rnd() - 0.5) * 3);
-    for (let i = 0; i < REST.length; i++) {
-      const [rx, ry, rz] = REST[i];
-      this.p[i].set(x + rx, y + ry, z + rz);
-      a.set(rx, ry - 1.1, rz);
-      vel.set(vx, vy, vz).add(dir.copy(spin).cross(a));
-      this.q[i].copy(this.p[i]).addScaledVector(vel, -STEP);
-    }
+    this.body.launch(x, y, z, vx, vy, vz, spin, 1.1);
+    this.thrown();
+  }
+
+  private thrown(): void {
     this.active = true;
     this.mode = 'tumble';
     this.roll = 0;
     this.age = 0;
-    this.acc = 0;
-    this.bumpT = 0.15;
-    this.shown(true);
+    this.rig.show(true);
   }
 
   /**
@@ -211,36 +89,19 @@ export class Ragdoll {
    */
   pull(x: number, y: number | null, z: number, k: number): void {
     if (!this.active || this.mode !== 'tumble') return;
-    const c = this.p[PELVIS];
-    const dx = (x - c.x) * k;
-    const dy = y === null ? 0 : (y - c.y) * k;
-    const dz = (z - c.z) * k;
-    for (let i = 0; i < this.p.length; i++) {
-      this.p[i].x += dx;
-      this.p[i].y += dy;
-      this.p[i].z += dz;
-      this.q[i].x += dx;
-      this.q[i].y += dy;
-      this.q[i].z += dz;
-    }
+    const c = this.body.pelvis;
+    this.body.shift((x - c.x) * k, y === null ? 0 : (y - c.y) * k, (z - c.z) * k);
   }
 
   /** A hat on the head, and a head `scale` times the size (the big-heads week). */
   dress(hat: THREE.Object3D | null, scale = 1): void {
-    this.head.scale.setScalar(scale);
-    this.mesh.boundingSphere!.radius = 2.4 + scale - 1;
-    if (!hat) return;
-    hat.position.y = 0.17;
-    this.head.add(hat);
+    this.rig.dress(hat, scale);
   }
 
   /** The player leaning the tumbling body sideways (sim metres): the whole body moves with it. */
   nudge(dx: number): void {
     if (!this.active || this.mode !== 'tumble' || dx === 0) return;
-    for (let i = 0; i < this.p.length; i++) {
-      this.p[i].x += dx;
-      this.q[i].x += dx;
-    }
+    this.body.shift(dx, 0, 0);
   }
 
   /**
@@ -248,43 +109,23 @@ export class Ragdoll {
    * launch mode's open field keeps the default). Only the tumble is held to them; the limbs still spill.
    */
   band(lo: number, hi: number): void {
-    this.lo = lo - SPILL;
-    this.hi = hi + SPILL;
-  }
-
-  /** The get-up and the run back both start from where the body came to rest, so that spot has to be on the road. */
-  private onRoad(x: number): number {
-    return x < this.lo ? this.lo : x > this.hi ? this.hi : x;
+    this.body.band(lo, hi);
   }
 
   hide(): void {
     this.active = false;
-    this.shown(false);
-  }
-
-  /**
-   * Out on the road or put away. A body put away also drops out of the renderer's matrix walk, so its
-   * fourteen bones cost nothing while it waits; the walk picks them up again the frame it is thrown.
-   */
-  private shown(on: boolean): void {
-    this.group.visible = on;
-    this.group.matrixWorldAutoUpdate = on;
+    this.rig.show(false);
   }
 
   /** Pelvis in sim space, for the camera. */
   centre(out: THREE.Vector3): THREE.Vector3 {
-    return out.copy(this.p[PELVIS]);
+    return out.copy(this.body.pelvis);
   }
 
   update(dt: number): void {
     if (!this.active || this.mode !== 'tumble') return;
     this.age += dt;
-    this.bumpT -= dt;
-    this.acc += Math.min(dt, 0.1);
-    while (this.acc >= STEP) {
-      this.acc -= STEP;
-      this.simulate();
-    }
+    this.body.update(dt);
     this.draw();
   }
 
@@ -295,7 +136,6 @@ export class Ragdoll {
    */
   run(x: number, z: number, tx: number, tz: number, pace: number, reach: number, dt: number): void {
     if (!this.active) return;
-    const { p } = this;
     const simD = Math.hypot(tx - x, tz - z);
     if (this.mode !== 'run') {
       // from standing after the gag a quick blend; straight off the road (no get-up seen) a slower one
@@ -304,9 +144,7 @@ export class Ragdoll {
       this.upT = 0;
       this.stride = 0;
       nextRun(this.run_);
-      for (let i = 0; i < p.length; i++) this.from[i].copy(p[i]);
-      this.sx = this.onRoad(p[PELVIS].x);
-      this.sz = p[PELVIS].z;
+      this.restFrom();
       this.simD0 = Math.max(simD, reach + 0.01);
     }
     this.age += dt;
@@ -353,8 +191,7 @@ export class Ragdoll {
       lz += Math.max(0, ly - 1) * lean; // lean into it
       const wx = ox + fz * lx + fx * lz;
       const wz = oz - fx * lx + fz * lz;
-      p[i].lerpVectors(this.from[i], a.set(wx, ly, wz), k);
-      this.q[i].copy(p[i]);
+      this.body.place(i, this.from[i], a.set(wx, ly, wz), k);
     }
     this.draw();
   }
@@ -365,12 +202,9 @@ export class Ragdoll {
    */
   getUp(t: number, tx: number, tz: number, dt: number): void {
     if (!this.active) return;
-    const { p } = this;
     if (this.mode !== 'up') {
       this.mode = 'up';
-      for (let i = 0; i < p.length; i++) this.from[i].copy(p[i]);
-      this.sx = this.onRoad(p[PELVIS].x);
-      this.sz = p[PELVIS].z;
+      this.restFrom();
       // the scooter slid on ahead: face up the road, turned a little towards it
       const fx = tx - this.sx;
       const fz = Math.max(2, tz - this.sz);
@@ -384,100 +218,23 @@ export class Ragdoll {
     this.roll = roll;
     const c = Math.cos(yaw);
     const sn = Math.sin(yaw);
-    for (let i = 0; i < p.length; i++) {
+    for (let i = 0; i < REST.length; i++) {
       const lx = L[i].x * c + L[i].z * sn;
       const lz = L[i].z * c - L[i].x * sn;
       a.set(this.sx + this.fz * lx + this.fx * lz, L[i].y, this.sz - this.fx * lx + this.fz * lz);
-      p[i].lerpVectors(this.from[i], a, k);
-      this.q[i].copy(p[i]);
+      this.body.place(i, this.from[i], a, k);
     }
     this.draw();
   }
 
-  private simulate(): void {
-    const { p, q } = this;
-    for (let i = 0; i < p.length; i++) {
-      const v = a.copy(p[i]).sub(q[i]);
-      q[i].copy(p[i]);
-      p[i].add(v).y += GRAVITY * STEP * STEP;
-    }
-    for (let k = 0; k < 5; k++) {
-      for (let s = 0; s < STICKS.length; s++) {
-        const [i, j, stiff, kind, min] = STICKS[s];
-        dir.copy(p[j]).sub(p[i]);
-        const d = dir.length() || 1e-4;
-        const rest = kind ? this.len[s] * min : this.len[s];
-        if (kind && d >= rest) continue;
-        const diff = ((d - rest) / d / 2) * stiff;
-        p[i].addScaledVector(dir, diff);
-        p[j].addScaledVector(dir, -diff);
-      }
-    }
-    let slam = 0;
-    for (let i = 0; i < p.length; i++) {
-      const pt = p[i];
-      const r = RAD[i];
-      if (pt.y < r) {
-        const vy = pt.y - q[i].y;
-        if (i <= PELVIS) slam = Math.max(slam, -vy / STEP);
-        pt.y = r;
-        q[i].y = r + vy * 0.4; // bounce
-        q[i].x += (pt.x - q[i].x) * 0.15; // friction
-        q[i].z += (pt.z - q[i].z) * 0.15;
-      }
-      // The road under the body rather than one pair of fixed walls: a trail is wider than the road and a
-      // works zone narrower, and the old wall stood out at the barrier, two metres past anywhere the sim
-      // would put a rider -- which is how a fall ended with the dummy getting up off the track.
-      if (pt.x < this.lo || pt.x > this.hi) {
-        pt.x = pt.x < this.lo ? this.lo : this.hi;
-        q[i].x = pt.x + (pt.x - q[i].x) * 0.4;
-      }
-    }
-    if (slam > 4 && this.bumpT <= 0) {
-      this.bumpT = 0.18;
-      this.onImpact?.(p[PELVIS].x, p[PELVIS].z, slam);
-    }
+  /** A posed stretch starts from where the body is now, on the road (the physics may have spilled it off). */
+  private restFrom(): void {
+    for (let i = 0; i < this.from.length; i++) this.from[i].copy(this.body.p[i]);
+    this.sx = this.body.onRoad(this.body.pelvis.x);
+    this.sz = this.body.pelvis.z;
   }
 
   private draw(): void {
-    for (let i = 0; i < REST.length; i++) toWorld(this.p[i].x, this.p[i].y, this.p[i].z, w[i]);
-    // Torso frame: x from the right shoulder to the left, y from the pelvis up to between the shoulders.
-    by.copy(w[SH_L]).add(w[SH_R]).multiplyScalar(0.5).sub(w[PELVIS]).normalize();
-    bx.copy(w[SH_L]).sub(w[SH_R]);
-    bx.addScaledVector(by, -bx.dot(by)).normalize();
-    bz.crossVectors(bx, by);
-    m4.makeBasis(bx, by, bz);
-    this.torso.position.copy(w[PELVIS]);
-    this.torso.quaternion.setFromRotationMatrix(m4);
-    this.head.position.copy(w[HEAD]);
-    this.mesh.boundingSphere!.center.copy(w[PELVIS]);
-    this.head.quaternion.copy(this.torso.quaternion);
-    if (this.roll) this.head.rotateZ(this.roll);
-    // dazed: stars round the head once the body has hit the road
-    const dazed = this.age > 0.5;
-    for (let k = 0; k < STARS; k++) {
-      const st = this.stars[k];
-      st.scale.setScalar(dazed ? 1 : 0);
-      if (!dazed) continue;
-      const t = this.age * 5 + (k / STARS) * Math.PI * 2;
-      const h = this.p[HEAD];
-      toWorld(h.x + Math.cos(t) * 0.3, h.y + 0.32 + Math.sin(t * 2) * 0.03, h.z + Math.sin(t) * 0.3, st.position);
-      st.rotation.set(0, t * 1.5, 0);
-    }
-    const fwd = a.copy(bz);
-    tx.copy(bx);
-    for (let k = 0; k < LIMBS.length; k++) {
-      const [i, j, , hip] = LIMBS[k];
-      const m = this.limbs[k];
-      m.position.copy(w[i]).addScaledVector(tx, hip);
-      by.copy(w[j]).sub(m.position).normalize();
-      // keep feet and hands facing the way the body faces
-      bz.copy(fwd).addScaledVector(by, -fwd.dot(by));
-      if (bz.lengthSq() < 1e-6) bz.set(0, 0, 1);
-      bz.normalize();
-      bx.crossVectors(by, bz);
-      m4.makeBasis(bx, by, bz);
-      m.quaternion.setFromRotationMatrix(m4);
-    }
+    this.rig.pose(this.body.p, this.roll, this.age);
   }
 }

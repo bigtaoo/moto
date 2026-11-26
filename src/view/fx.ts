@@ -2,7 +2,7 @@
 // "pow" burst where a blow lands: a flat spiky star facing the camera that pops and fades.
 
 import * as THREE from 'three';
-import { toWorld } from './track';
+import { toWorld } from './road';
 import { Kit, INK, cached, shared } from './toon';
 
 const MAX = 160;

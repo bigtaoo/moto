@@ -37,6 +37,7 @@ import { raceOpts } from './raceOpts';
 import { openFree, openStop } from './view/scenes';
 import { blocker } from './view/blocker';
 import { SlapCoach, StartCoach, hintNeed, usedControl } from './coach';
+import { KeyWait } from './keyWait';
 import { unlock, visit, dayMult, type Unlocked } from './rewards';
 
 const params = new URLSearchParams(location.search);
@@ -94,16 +95,8 @@ let paused = false;
 let hostPaused = false;
 /** The WebGL context is gone: nothing runs until it is back. */
 let glLost = false;
-/** Seconds this race's countdown has stood waiting for the keys to reach the game. */
-let keysWait = 0;
-/**
- * Seconds the countdown waits for a keyboard player's click before starting anyway -- but only once the keys
- * have reached the game at least once this session (`keysEver`). A player who has never had the focus has
- * never played a tick, and is better held on the countdown with the ask on screen than dropped into a race
- * they cannot steer; one who had it and lost it to an ad only needs the race to go on while `grab()` works.
- */
-const KEYS_HOLD_S = 3;
-let keysEver = false;
+/** The countdown's wait for a keyboard player's click, and the telemetry for it (src/keyWait.ts). */
+const keys = new KeyWait((seconds, held) => funnel.event('keys_wait', { seconds, held: held ? 1 : 0 }));
 let acc = 0;
 /** Hitstop, slow motion and the grudge call-outs, which the events set (src/events.ts). */
 let feel = newFeel();
@@ -348,11 +341,10 @@ function frame(now: number): void {
   const ms = now - lastT;
   const dt = Math.min(0.1, ms / 1000);
   lastT = now;
-  // a keyboard player in a portal's iframe has no keys until a click in it (they scroll the portal page, and
-  // the Bridge holds the game paused while it lacks the focus): the HUD asks for that click, paused or not,
-  // and a countdown waits for it so the race doesn't start without them
-  if (!keysEver && keysReach()) keysEver = true;
-  const askKeys = state === 'race' && !BOT && !paused && controlKind() === 'key' && !keysReach();
+  // the HUD asks a keyboard player in a portal's iframe for the click that gets them the keys, paused or
+  // not, and the countdown waits for it so the race doesn't start without them (src/keyWait.ts)
+  const reach = keysReach();
+  const askKeys = state === 'race' && !BOT && !paused && controlKind() === 'key' && !reach;
   // 3.3.82: the countdown stops on its last beat and asks a new player for one steer, and the grid is
   // steerable so the answer shows. Read from `controls` rather than from the tick, since this is settled
   // before the world steps. It lets go on that steer or after START_LIMIT_S, whichever comes first.
@@ -361,16 +353,7 @@ function frame(now: number): void {
   hud.coach(startCoach.on && state === 'race', 'steer');
   // the line yields to either big card, which asks for the same control in bigger letters (src/coach.ts)
   hud.showHint(askKeys ? null : hintNeed(state === 'race' && !BOT && !paused && save.races < 2 && !coach.on && !startCoach.on));
-  // held only so long: a player whose keys never arrive is better off racing with the ask still on screen
-  // than staring at a frozen countdown (any click in the game fixes it). keysWait keeps counting past the
-  // hold so the telemetry still reports the whole wait.
-  const asking = askKeys && world.countdown > 0;
-  if (asking) keysWait += dt;
-  else if (keysWait > 0) {
-    funnel.event('keys_wait', { seconds: Math.round(keysWait), held: keysEver ? 1 : 0 });
-    keysWait = 0;
-  }
-  const waiting = asking && (!keysEver || keysWait < KEYS_HOLD_S);
+  const waiting = keys.frame(dt, reach, askKeys && world.countdown > 0);
   const stopped = paused || hostPaused || glLost;
   tele.frame(ms, state === 'race' && !BOT, !stopped && !waiting);
   stage.frame(ms, state === 'race' && !stopped && !waiting && !document.hidden);
