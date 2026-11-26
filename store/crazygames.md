@@ -82,14 +82,13 @@ Basic is a 7-21 day test: the SDK is optional, monetisation is off and ads are n
 exactly this package. Full would mean the CrazyGames SDK with its Gameplay start/stop events -- a
 change to `src/platform.ts`, not to `scripts/pack_crazygames.py`.
 
-## What is already in the portal
+## Submitted
 
-The draft is filled to the last step and waiting there; nothing has been submitted.
+Sent for review on 26.11.2026 -- game id 186303, build `0dff5d31`, Basic, awaiting review.
 
 - **1 Upload**: `dist-cg/`, 35 files, orientation locked to BOTH at build time.
 - **2 QA**: all six requirement rows answered Yes, except the Terms & Conditions / Privacy Policy
   row, answered N/A on the grounds in the section above. That row is the one judgement call here.
 - **3 Details**: category Driving (they have no Racing); tags 3D, Physics, Fighting, Stunt, 1 Player;
   the texts from `store/en/`; the three covers; both trailers; tools: Claude.
-- **4 Submit**: two boxes left to tick -- the Developer Portal's Terms & Conditions, and PEGI 12 --
-  and then Submit for approval.
+- **4 Submit**: the Developer Portal's Terms & Conditions and PEGI 12, both agreed to.
