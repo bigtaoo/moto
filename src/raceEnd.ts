@@ -1,7 +1,7 @@
 // A cup race is over: pay it into the save (the race, the day's challenges, achievements, the leaderboard)
 // and put together what the results screen shows. The screen and its ads are main.ts'.
 
-import * as C from './sim/config';
+import * as L from './sim/ladder';
 import type { World } from './sim/world';
 import { stuntPay } from './sim/flair';
 import type { Save } from './meta';
@@ -40,7 +40,7 @@ export function settleWorld(save: Save, w: World, falls: number): RaceResult {
   const res: RaceResult = {
     place, total: w.racers, prize: s.prize, kos: w.kos, koBonus: s.koBonus, grudgeKos: w.grudgeKos, grudgeBonus: s.grudgeBonus,
     shoves: w.shoves, shoveBonus: s.shoveBonus, flair: { ...w.flair }, fines: s.fines, earned: s.earned, show: s.show, time: w.time, grudges: save.grudges.map((id) => w.riders[id].name),
-    league: { div: w.div.name, race: s.cupRace, races: s.cupOf, table, end: s.end, goal: s.end ? undefined : goalOf(save), next: C.stage(save.div, save.tier, save.endless).name, season: C.TIERS[save.tier].name },
+    league: { div: w.div.name, race: s.cupRace, races: s.cupOf, table, end: s.end, goal: s.end ? undefined : goalOf(save), next: L.stage(save.div, save.tier, save.endless).name, season: L.TIERS[save.tier].name },
     feud: { out: s.feud, nemesis: save.feud.nemesis, name: riderName },
     daily,
     ach,

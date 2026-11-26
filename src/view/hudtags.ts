@@ -129,6 +129,11 @@ export class Tags {
       const near = dz > -6 && dz <= TAG_NEAR;
       if (!near) this.tagSince[i] = -1;
       else if (this.tagSince[i] < 0) this.tagSince[i] = w.time;
+      // A tag that carries something keeps its clock pinned to the top of the fade, so the frame it stands
+      // down there is always TAG_OUT left to fade over -- otherwise a rival that had been in reach longer
+      // than TAG_HOLD lost its name in one frame, from full, every time a swing or an opening ran out.
+      // Pinned rather than reset: standing in reach and swinging once does not buy a fresh hold.
+      else if (flag) this.tagSince[i] = Math.max(this.tagSince[i], w.time - (TAG_HOLD - TAG_OUT));
       const age = near ? w.time - this.tagSince[i] : 0;
       const worth = flag || (near && age < TAG_HOLD);
       const show = worth && r.state === 'ride' && dz > -6 && dz < 45 && view.projectRider(i, 2.55, this.pt);

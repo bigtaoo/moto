@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { World, type Rider, type SimEvent } from './world';
+import { World } from './world';
+import type { Rider, SimEvent } from './types';
 import { botInput } from './ai';
 import { crash } from './combat';
 import { Recorder, playReplay } from './replay';

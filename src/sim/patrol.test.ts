@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { World } from './world';
 import { botInput } from './ai';
 import * as C from './config';
+import * as L from './ladder';
+import * as LAW from './law';
 
 describe('security buggy', () => {
   it('drives round traffic instead of through it', () => {
@@ -15,7 +17,7 @@ describe('security buggy', () => {
         const pt = w.patrol;
         if (!pt.active) continue;
         for (const c of w.cars) {
-          if (Math.abs(c.x - pt.x) < C.CAR.halfW + C.PATROL.halfW && Math.abs(c.z - pt.z) < C.CAR.halfL + C.PATROL.halfL) overlaps++;
+          if (Math.abs(c.x - pt.x) < C.CAR.halfW + LAW.PATROL.halfW && Math.abs(c.z - pt.z) < C.CAR.halfL + LAW.PATROL.halfL) overlaps++;
         }
       }
     }
@@ -38,7 +40,7 @@ describe('security buggy', () => {
         if (pt.mode === 'block' || pt.mode === 'squeeze') pressTicks++;
         for (const r of w.riders) {
           if (r.state !== 'ride' || r.airT > 0) continue; // off a ramp, riders fly over it
-          if (Math.abs(r.x - pt.x) < C.PATROL.halfW + C.PATROL.riderHalfW - 0.01 && Math.abs(r.z - pt.z) < C.PATROL.halfL + 0.59) inside++;
+          if (Math.abs(r.x - pt.x) < LAW.PATROL.halfW + LAW.PATROL.riderHalfW - 0.01 && Math.abs(r.z - pt.z) < LAW.PATROL.halfL + 0.59) inside++;
         }
       }
     }
@@ -86,7 +88,7 @@ describe('security buggy', () => {
           for (const e of w.events) {
             if (e.type === 'patrolTicket') {
               acc.tickets++;
-              expect(e.fine).toBeGreaterThanOrEqual(C.PATROL.ticket);
+              expect(e.fine).toBeGreaterThanOrEqual(LAW.PATROL.ticket);
             }
             if (e.type === 'patrolLetGo') acc.letGo++;
           }
@@ -103,7 +105,7 @@ describe('security buggy', () => {
     expect(stop.letGo).toBeGreaterThan(0);
     expect(run.fines).toBeGreaterThan(stop.fines * 2);
     // every ticket is on the bill
-    expect(run.fines).toBeGreaterThanOrEqual(run.tickets * C.PATROL.ticket);
+    expect(run.fines).toBeGreaterThanOrEqual(run.tickets * LAW.PATROL.ticket);
   });
 
   it('slows you while it squeezes you', () => {
@@ -148,8 +150,8 @@ describe('security buggy', () => {
               tickets++;
               total += e.fine;
               // never less than the base, never more than the base with every star, times the purse
-              expect(e.fine).toBeGreaterThanOrEqual(Math.round(C.PATROL.ticket * w.div.prize));
-              expect(e.fine).toBeLessThanOrEqual(Math.round((C.PATROL.ticket + C.HEAT.max * C.PATROL.ticketStar) * w.div.prize));
+              expect(e.fine).toBeGreaterThanOrEqual(Math.round(LAW.PATROL.ticket * w.div.prize));
+              expect(e.fine).toBeLessThanOrEqual(Math.round((LAW.PATROL.ticket + LAW.HEAT.max * LAW.PATROL.ticketStar) * w.div.prize));
             }
           }
           w.events.length = 0;
@@ -161,7 +163,7 @@ describe('security buggy', () => {
     const rookie = bill(0, 0);
     const legend = bill(4, 2);
     // the top of the ladder pays 10.8x the purse of the first race, so its tickets cost about that much more
-    const mul = C.stage(4, 2).prize;
+    const mul = L.stage(4, 2).prize;
     expect(legend / rookie).toBeGreaterThan(mul * 0.7);
     expect(legend / rookie).toBeLessThan(mul * 1.4);
   });

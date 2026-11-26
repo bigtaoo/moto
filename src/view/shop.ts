@@ -5,7 +5,8 @@
 import type { Save } from '../meta';
 import { PAINTS, HATS, wearState, wearPrice, wearTier, carryPrice } from '../shop';
 import { hatThumb, weaponThumb } from './thumbs';
-import { TIERS, type WeaponKind } from '../sim/config';
+import { type WeaponKind } from '../sim/config';
+import { TIERS } from '../sim/ladder';
 import { icon } from './icons';
 import { t, money, type Key } from '../i18n';
 

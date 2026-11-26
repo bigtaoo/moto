@@ -2,7 +2,8 @@
 
 import * as THREE from 'three';
 import type { World } from '../sim/world';
-import { CAR, CHARGE, DOWN, TICK_HZ, VEHICLES, rung } from '../sim/config';
+import { CAR, CHARGE, DOWN, TICK_HZ } from '../sim/config';
+import { VEHICLES, rung } from '../sim/ladder';
 import { Track } from './track';
 import { place, rampLift, RAMP_LOOK } from './road';
 import { ENVS } from './env';

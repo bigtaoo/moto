@@ -4,6 +4,7 @@ import './style.css';
 import { World } from './sim/world';
 import { react, newFeel } from './events';
 import * as C from './sim/config';
+import * as L from './sim/ladder';
 import { botInput } from './sim/ai';
 import { Recorder } from './sim/replay';
 import { RaceView } from './view/scene';
@@ -207,7 +208,7 @@ function finishRace(): void {
   const res = settleWorld(save, w, falls);
   const place = res.place;
   setState('results');
-  platform.lifecycle(place <= C.PROMOTE ? 'level_completed' : 'level_failed', { world: w.div.name, level: String(res.league.race) });
+  platform.lifecycle(place <= L.PROMOTE ? 'level_completed' : 'level_failed', { world: w.div.name, level: String(res.league.race) });
   const show = () => hud.results.show(res, save, {
     garage: () => { hud.results.hide(); garage(shop, show, 'results'); },
     double, again: () => {
@@ -431,7 +432,7 @@ async function boot(): Promise<void> {
   stage.setQualityMode(save.quality);
   stage.onQuality = (tier, prev) => tele.qualityChanged(tier, prev, stage.qualityMode);
   // the day's visit: the streak goes on or starts over; a new player's first is their tutorial and pays nothing
-  const streakPay = visit(save.streak, today(), dayMult(C.stage(save.div, save.tier, save.endless).prize), save.races > 0);
+  const streakPay = visit(save.streak, today(), dayMult(L.stage(save.div, save.tier, save.endless).prize), save.races > 0);
   save.cash += streakPay;
   if (streakPay) funnel.event('streak', { n: save.streak.n, cash: streakPay });
   bootAch = counted(save, unlock(save));

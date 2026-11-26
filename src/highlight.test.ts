@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { SimEvent, World } from './sim/world';
+import type { World } from './sim/world';
+import type { SimEvent } from './sim/types';
 import { HIGHLIGHT, Moments } from './highlight';
 
 /** `note` reads only the tick and who the nemesis is. */

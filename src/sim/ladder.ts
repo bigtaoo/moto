@@ -1,6 +1,6 @@
 // The career ladder: the divisions, the seasons on top of them, and the rides that open along the way.
-// Split out of config.ts, which was near the 500-line cap; config.ts re-exports all of it, so the rest
-// of the game still reads these through `import * as C from './config'`.
+// Read it on its own: everything that asks where in the career a player stands takes
+// `import * as L from './ladder'`, not the whole of config.ts.
 
 export const UPGRADE_STEP = { top: 1.4, steer: 0.9, hp: 1 };
 /**

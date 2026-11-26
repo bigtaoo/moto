@@ -1,6 +1,6 @@
 // Per-division look: sky, fog, light, ground and tree colours. Same meshes everywhere; only paint changes.
 
-import type { Division } from '../sim/config';
+import type { Division } from '../sim/ladder';
 
 export interface Env {
   sky: number;

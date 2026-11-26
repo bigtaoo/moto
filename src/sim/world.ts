@@ -3,6 +3,8 @@
 
 import { Prng } from './rng';
 import * as C from './config';
+import * as L from './ladder';
+import * as LAW from './law';
 import { rivalThink, laneClearance, nearestLane } from './ai';
 import { Road } from './road';
 import { clamp, type Rider, type Car, type Pickup, type Patrol, type SimEvent, type Input, type WorldOpts, type Seen, type Hazard, type Slick } from './types';
@@ -17,8 +19,6 @@ import { spawnCar, updateTraffic } from './traffic';
 import { updatePatrol } from './patrol';
 import { leaderThreats } from './threats';
 import { newFlair, updateFlair } from './flair';
-
-export * from './types';
 
 /**
  * The share of its `accel` the player's bike still has at its current speed: all of it below C.PULL.knee of
@@ -86,7 +86,7 @@ export class World {
   /** Near misses with traffic and KO chains (src/sim/flair.ts). */
   readonly flair = newFlair();
   crashes = 0;
-  /** Fines paid for pulling over, and the heat (see C.HEAT). */
+  /** Fines paid for pulling over, and the heat (see LAW.HEAT). */
   fines = 0;
   heat = 0;
   /** Dice for blows (weapons knocked loose): their own stream. */
@@ -98,7 +98,7 @@ export class World {
   readonly aiRng: Prng;
   readonly seed: number;
   readonly divIndex: number;
-  readonly div: C.Stage;
+  readonly div: L.Stage;
   readonly vehicle: number;
   /** Construction zones, trails and ramps this race. */
   readonly road: Road;
@@ -124,12 +124,12 @@ export class World {
     this.mutator = opts.mutator ?? null;
     const mut = this.mutator;
     const bats = mut === 'bats';
-    this.divIndex = clamp(Math.floor(opts.div ?? 0), 0, C.DIVISIONS.length - 1);
-    this.div = C.stage(this.divIndex, Math.floor(opts.tier ?? 0), opts.endless ?? 0);
+    this.divIndex = clamp(Math.floor(opts.div ?? 0), 0, L.DIVISIONS.length - 1);
+    this.div = L.stage(this.divIndex, Math.floor(opts.tier ?? 0), opts.endless ?? 0);
     this.rookie = Math.floor(opts.rookie ?? -1);
     const rk = this.chase ? -1 : this.rookie;
     this.length = opts.length ?? Math.round(C.RACE_LEN * this.div.len * C.rookieEase(rk, 'len'));
-    this.vehicle = clamp(Math.floor(opts.vehicle ?? 0), 0, C.VEHICLES.length - 1);
+    this.vehicle = clamp(Math.floor(opts.vehicle ?? 0), 0, L.VEHICLES.length - 1);
     this.road = new Road(this.length, this.div, new Prng(opts.seed * 23 + 7));
     const busier = this.div.traffic * C.rookieEase(rk, 'traffic') * (mut === 'traffic' ? MUTATOR.traffic : 1);
     this.trafficBase = Math.round(C.TRAFFIC.base * busier);
@@ -139,24 +139,24 @@ export class World {
     this.patrolRng = new Prng(opts.seed * 17 + 11);
     this.combatRng = new Prng(opts.seed * 19 + 3);
     this.funRng = new Prng(opts.seed * 29 + 13);
-    const [lo, hi] = C.PATROL.count;
+    const [lo, hi] = LAW.PATROL.count;
     const count = lo + this.patrolRng.int(hi - lo + 1);
-    this.patrolRate = C.PATROL.busyGap[0] + (C.PATROL.busyGap[1] - C.PATROL.busyGap[0]) * (count - lo) / (hi - lo);
+    this.patrolRate = LAW.PATROL.busyGap[0] + (LAW.PATROL.busyGap[1] - LAW.PATROL.busyGap[0]) * (count - lo) / (hi - lo);
     const busy = (count - lo) / (hi - lo);
     this.patrolCount = count + this.div.patrol + (mut === 'police' ? MUTATOR.patrol : 0);
-    const [s0, s1] = C.PATROL.startAt;
+    const [s0, s1] = LAW.PATROL.startAt;
     this.patrolFrom = this.length * clamp(s1 - (s1 - s0) * busy + (this.patrolRng.float() - 0.5) * 0.1, s0, s1);
     this.grudges = new Set(opts.grudges ?? []);
     this.nemesis = opts.nemesis !== undefined && opts.nemesis >= 1 && opts.nemesis <= C.ROSTER.length ? opts.nemesis : -1;
     const up = opts.upgrades ?? { top: 0, steer: 0, hp: 0 };
-    const v = C.VEHICLES[this.vehicle];
+    const v = L.VEHICLES[this.vehicle];
     const grid = (i: number) => ({ x: C.LANE_X[1 + (i % 3)] + (i >= 3 ? -0.9 : 0.9), z: 14 - Math.floor(i / 3) * 6 });
     // Player starts at the back of the grid so the first fight comes within seconds.
     this.addRider({
       name: 'You', isPlayer: true, x: C.LANE_X[2], z: 2,
-      top: C.PLAYER_BASE.top + v.top + up.top * C.UPGRADE_STEP.top,
-      steer: C.PLAYER_BASE.steer + v.steer + up.steer * C.UPGRADE_STEP.steer,
-      hp: C.PLAYER_BASE.hp + v.hp + up.hp * C.UPGRADE_STEP.hp, accel: C.PLAYER_BASE.accel + v.accel,
+      top: C.PLAYER_BASE.top + v.top + up.top * L.UPGRADE_STEP.top,
+      steer: C.PLAYER_BASE.steer + v.steer + up.steer * L.UPGRADE_STEP.steer,
+      hp: C.PLAYER_BASE.hp + v.hp + up.hp * L.UPGRADE_STEP.hp, accel: C.PLAYER_BASE.accel + v.accel,
       aggr: 0, aware: 1, body: C.PLAYER_BODY, ride: C.PLAYER_RIDE, weapon: opts.weapon ?? (bats ? 'bat' : undefined), strap: opts.weapon !== undefined,
     });
     this.gridX = this.player.x;
@@ -165,7 +165,7 @@ export class World {
       const d = this.div;
       const nem = i + 1 === this.nemesis;
       this.addRider({
-        name: s.name, isPlayer: false, x: g.x, z: g.z, top: s.top + d.top + C.rookieTop(rk) + (nem ? C.NEMESIS.top : 0), steer: C.RIVAL_STEER * (s.top + d.top) / C.RIVAL_SPEED, hp: C.RIVAL_HP + d.hp + (nem ? C.NEMESIS.hp : 0), hit: d.dmg,
+        name: s.name, isPlayer: false, x: g.x, z: g.z, top: s.top + d.top + C.rookieTop(rk) + (nem ? C.NEMESIS.top : 0), steer: L.RIVAL_STEER * (s.top + d.top) / L.RIVAL_SPEED, hp: C.RIVAL_HP + d.hp + (nem ? C.NEMESIS.hp : 0), hit: d.dmg,
         aggr: Math.min(1, s.aggr + d.mind + (nem ? C.NEMESIS.aggr : 0)), aware: Math.min(1, s.aware + d.mind), body: s.body, ride: s.ride, weapon: bats ? 'bat' : s.weapon,
       });
     });

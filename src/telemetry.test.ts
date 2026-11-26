@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as C from './sim/config';
+import * as L from './sim/ladder';
 import { CUP_RACES, settleRace, type Settlement } from './career';
 import { parseSave, type Save } from './meta';
 import { World } from './sim/world';
@@ -74,7 +75,7 @@ describe('the session the analytics see', () => {
 
     const f = host.common!();
     expect(f).toMatchObject({ build: tele.BUILD, new_player: true, session_n: 1, days: 0, gfx: 1, orient: 'land', focus: true });
-    expect(f.rung).toBe(C.rung(s.div, s.tier));
+    expect(f.rung).toBe(L.rung(s.div, s.tier));
 
     s.sessions = 40; // the field is capped, so the bucket stays a bucket
     expect(host.common!()).toMatchObject({ new_player: false, session_n: 20 });
@@ -111,7 +112,7 @@ describe('a race, start to finish', () => {
     const s = settled(save, w);
     tele.raceEnd(s);
 
-    const name = w.standing <= C.PROMOTE ? 'progression_completed' : 'progression_failed';
+    const name = w.standing <= L.PROMOTE ? 'progression_completed' : 'progression_failed';
     const d = one(name);
     expect(d).toMatchObject({
       place: w.standing, racers: w.racers, kos: w.kos, shoves: w.shoves,

@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { World, type Rider, type SimEvent as WorldEvent } from './world';
+import { World } from './world';
+import type { Rider, SimEvent as WorldEvent } from './types';
 import { knockOff } from './combat';
 import { botInput } from './ai';
 import * as C from './config';
+import * as LAW from './law';
 
 /** A world past the countdown, the road cleared of traffic and the rivals sent far back, all of them placid. */
 function quietRoad(seed = 1): World {
@@ -216,14 +218,14 @@ describe('heat and fines', () => {
     const w = quietRoad();
     w.heat = 2;
     run(w, 10 * C.TICK_HZ, []);
-    expect(w.heat).toBeCloseTo(2 - 10 * C.HEAT.decay, 1);
+    expect(w.heat).toBeCloseTo(2 - 10 * LAW.HEAT.decay, 1);
   });
 
   it('pulling over costs a fine that grows with the heat, and cools it', () => {
     let letGo = 0;
     for (const seed of [1, 2, 3, 4, 5, 6]) {
       const w = new World({ seed, upgrades: { top: 3, steer: 3, hp: 0 } });
-      w.heat = C.HEAT.max;
+      w.heat = LAW.HEAT.max;
       let paid = 0;
       while (!w.over && w.tick < 300 * C.TICK_HZ) {
         botInput(w, 1, false, true);
@@ -232,9 +234,9 @@ describe('heat and fines', () => {
         for (const e of w.events) if (e.type === 'patrolLetGo') {
           letGo++;
           paid += e.fine;
-          expect(e.fine).toBeGreaterThanOrEqual(C.PATROL.fine);
-          expect((e.fine - C.PATROL.fine) % C.PATROL.fineStar).toBe(0);
-          expect(w.heat).toBeLessThanOrEqual(Math.max(0, before - C.HEAT.comply) + 0.01);
+          expect(e.fine).toBeGreaterThanOrEqual(LAW.PATROL.fine);
+          expect((e.fine - LAW.PATROL.fine) % LAW.PATROL.fineStar).toBe(0);
+          expect(w.heat).toBeLessThanOrEqual(Math.max(0, before - LAW.HEAT.comply) + 0.01);
         }
         w.events.length = 0;
       }

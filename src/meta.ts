@@ -1,8 +1,9 @@
 // What carries over between races: cash, upgrades, grudges, the career, the feuds. Stored through the
 // platform (src/platform.ts) as one JSON string.
 
-import type { Upgrades } from './sim/world';
-import { DIVISIONS, TIERS, VEHICLES, UPGRADE_MAX, upgradeCost, ROSTER, WEAPON, type WeaponKind } from './sim/config';
+import type { Upgrades } from './sim/types';
+import { upgradeCost, ROSTER, WEAPON, type WeaponKind } from './sim/config';
+import { DIVISIONS, TIERS, VEHICLES, UPGRADE_MAX } from './sim/ladder';
 import { PAINTS, HATS } from './shop';
 import { newCup, newFeud, GATE_AT, FIRST_CUP, CUP_RACES, type Cup, type Feud } from './career';
 import { TUNE_MAX } from './tune';

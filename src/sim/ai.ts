@@ -4,7 +4,9 @@
 // while, so they never mirror the player's moves.
 
 import * as C from './config';
-import type { Rider, Side, World } from './world';
+import * as LAW from './law';
+import type { World } from './world';
+import type { Rider, Side } from './types';
 import { Prng } from './rng';
 import { cowAhead } from './hazards';
 
@@ -368,9 +370,9 @@ function thugThink(w: World, r: Rider): void {
       // ride just in front of them in their lane (the lane, not their every twitch), a bit slower, so
       // they ride up into the fight; once they draw level it fights from that side like the other one
       const s = w.seen(p, r.react);
-      if (r.intentT === 0 && Math.abs(s.x - C.LANE_X[r.lane]) > 1.75 + C.PATROL.laneCommit) {
+      if (r.intentT === 0 && Math.abs(s.x - C.LANE_X[r.lane]) > 1.75 + LAW.PATROL.laneCommit) {
         r.lane = nearestLane(s.x, false);
-        r.intentT = C.PATROL.laneHold;
+        r.intentT = LAW.PATROL.laneHold;
       }
       want = C.LANE_X[r.lane] + Math.max(-0.6, Math.min(0.6, s.x - C.LANE_X[r.lane]));
       const dz = s.z + G.blockAhead - r.z;

@@ -3,7 +3,7 @@ import { parseSave, type Save } from './meta';
 import { settleRace } from './career';
 import { raceOpts } from './raceOpts';
 import { buyTune, tunePrice, repair, repairPrice, dent, fitted, tuneSpent, WEAR_AT, WEAR_BITE, WEAR_PER_KO, TUNE_MAX, TUNE_STEP, OVER_WEAR } from './tune';
-import * as C from './sim/config';
+import * as L from './sim/ladder';
 
 /** A save at the given season with money in it and the garage's levels already bought. */
 function at(tier: number, cash = 100000): Save {
@@ -60,7 +60,7 @@ describe('the tune-up, a level rented for one race (3.3.70)', () => {
     const all = (s: Save) => tunePrice(s, 'top') + tunePrice(s, 'steer') + tunePrice(s, 'hp');
     const first = at(0);
     const last = at(2);
-    last.div = C.DIVISIONS.length - 1;
+    last.div = L.DIVISIONS.length - 1;
     // the purse multiplies x10.8 from the first stage to the last; the tune-up must not
     expect(all(last) / all(first)).toBeGreaterThan(2);
     expect(all(last) / all(first)).toBeLessThan(4);
@@ -68,12 +68,12 @@ describe('the tune-up, a level rented for one race (3.3.70)', () => {
 
   it('rides past the season cap, and only in a career race', () => {
     const save = at(0);
-    save.up.top = C.UPGRADE_CAP[0].top;
+    save.up.top = L.UPGRADE_CAP[0].top;
     buyTune(save, 'top');
-    expect(fitted(save, false).top).toBe(C.UPGRADE_CAP[0].top + 1);
-    expect(fitted(save, true).top).toBe(C.UPGRADE_CAP[0].top); // a shift or a free race gets none of it
-    expect(raceOpts(save, { chase: false, free: null, n: 0 }).upgrades?.top).toBe(C.UPGRADE_CAP[0].top + 1);
-    expect(raceOpts(save, { chase: true, free: null, n: 0 }).upgrades?.top).toBe(C.UPGRADE_CAP[0].top);
+    expect(fitted(save, false).top).toBe(L.UPGRADE_CAP[0].top + 1);
+    expect(fitted(save, true).top).toBe(L.UPGRADE_CAP[0].top); // a shift or a free race gets none of it
+    expect(raceOpts(save, { chase: false, free: null, n: 0 }).upgrades?.top).toBe(L.UPGRADE_CAP[0].top + 1);
+    expect(raceOpts(save, { chase: true, free: null, n: 0 }).upgrades?.top).toBe(L.UPGRADE_CAP[0].top);
   });
 
   it('is spent by the race it was bought for', () => {

@@ -1,7 +1,6 @@
 // The law and the heat: the test-site security buggies, and how much attention the player has drawn.
-// Split out of config.ts, which was sitting exactly on the 500-line cap with no room for the next
-// balance round; config.ts re-exports all of it, so the rest of the game still reads these through
-// `import * as C from './config'`.
+// Read it on its own: the files that police anyone take `import * as LAW from './law'`, not the whole
+// of config.ts.
 
 /**
  * The test-site security buggies want the player to pull over. None ever rams anyone, and none sticks

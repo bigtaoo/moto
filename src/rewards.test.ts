@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { visit, newStreak, dayMult, STREAK_PAY, unlock, afterRace, ACHIEVEMENTS } from './rewards';
 import { parseSave } from './meta';
-import * as C from './sim/config';
+import * as L from './sim/ladder';
 
 describe('login streak', () => {
   it('grows on days in a row, holds on the same day and starts over after a gap', () => {
@@ -22,7 +22,7 @@ describe('login streak', () => {
 
   it('pays the day rewards at the root of the stage multiplier, so the last stage pays about 3×, not 11×', () => {
     expect(dayMult(1)).toBe(1);
-    const last = C.stage(C.DIVISIONS.length - 1, C.TIERS.length - 1).prize;
+    const last = L.stage(L.DIVISIONS.length - 1, L.TIERS.length - 1).prize;
     expect(last).toBeGreaterThan(10);
     expect(dayMult(last)).toBeGreaterThan(3);
     expect(dayMult(last)).toBeLessThan(3.5);
@@ -47,7 +47,7 @@ describe('achievements', () => {
 
   it('keeps known ids only, and every one has a name in the save round trip', () => {
     const save = parseSave(null);
-    save.tier = C.TIERS.length - 1;
+    save.tier = L.TIERS.length - 1;
     unlock(save);
     const back = parseSave(JSON.stringify({ ...save, ach: [...save.ach, 'nope', 7], streak: { day: 9, n: -3, pay: 'x' } }));
     expect(back.ach).toEqual(['promo', 'legend']);

@@ -2,7 +2,7 @@
 // race's own stutter count, as Playgama's telemetry guide defines them (the same as Holy Kicker's), and the
 // bounded dimensions: the career bucket, the progression step, the device. No DOM here, so it is tested.
 
-import * as C from './sim/config';
+import * as L from './sim/ladder';
 
 export type Props = Record<string, string | number | boolean>;
 
@@ -144,14 +144,14 @@ export function careerBucket(races: number): string {
 
 /** A division of a season as one bounded step: `amateur_rookie_meadow`, `legend_neon_coast` (15 of them). */
 export function stepId(div: number, tier: number): string {
-  const d = C.DIVISIONS[Math.max(0, Math.min(C.DIVISIONS.length - 1, div))];
-  const t = C.TIERS[Math.max(0, Math.min(C.TIERS.length - 1, tier))];
+  const d = L.DIVISIONS[Math.max(0, Math.min(L.DIVISIONS.length - 1, div))];
+  const t = L.TIERS[Math.max(0, Math.min(L.TIERS.length - 1, tier))];
   return `${t.name}_${d.name}`.toLowerCase().replace(/\s+/g, '_');
 }
 
 /** The step and the race in its cup as the ordered position on the whole ladder, 1 the career's first race. */
 export function stepIndex(div: number, tier: number, cupRace: number, cupRaces: number): number {
-  return C.rung(div, tier) * cupRaces + cupRace;
+  return L.rung(div, tier) * cupRaces + cupRace;
 }
 
 /**

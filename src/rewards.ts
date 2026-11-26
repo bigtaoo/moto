@@ -2,7 +2,7 @@
 // doubles it) and achievements (each paid once). Pure functions over the save, so they are tested.
 
 import type { Save } from './meta';
-import { TIERS, VEHICLES } from './sim/config';
+import { TIERS, VEHICLES } from './sim/ladder';
 
 export interface Streak {
   /** UTC day (days since 1970) of the last visit, and days in a row up to it. */

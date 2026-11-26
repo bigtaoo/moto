@@ -4,7 +4,8 @@
 
 import { icon } from './icons';
 import { t, money, type Key } from '../i18n';
-import { UPGRADE_MAX, UPGRADE_CAP, VEHICLES, DIVISIONS, stage, careerGear, upgradeCost, type Vehicle, type WeaponKind } from '../sim/config';
+import { upgradeCost, type WeaponKind } from '../sim/config';
+import { UPGRADE_MAX, UPGRADE_CAP, VEHICLES, DIVISIONS, stage, careerGear, type Vehicle } from '../sim/ladder';
 import { rideState, upgradeLock, upgradePrice, type UpKey } from '../career';
 import { PAINTS, HATS, wearState, wearPrice } from '../shop';
 import { tunePrice, repairPrice, WEAR_AT, TUNE_MAX } from '../tune';

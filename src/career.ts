@@ -2,6 +2,7 @@
 // standings go up a division. Pure functions over the save, so it can be tested without the game.
 
 import * as C from './sim/config';
+import * as L from './sim/ladder';
 import { MUTATOR } from './sim/fun';
 import type { Save } from './meta';
 import { t } from './i18n';
@@ -82,7 +83,7 @@ export const cupOver = (cup: Cup) => cup.race >= cupRaces(cup);
  */
 export function cupGoal(cup: Cup, div: number, gate = 0): CupGoal | null {
   if (cup.race === 0) return null;
-  const line = div >= C.DIVISIONS.length - 1 && gate + 1 < GATE_AT ? 1 : C.PROMOTE;
+  const line = div >= L.DIVISIONS.length - 1 && gate + 1 < GATE_AT ? 1 : L.PROMOTE;
   const table = standings(cup);
   const me = table.find((s) => s.id === 0)!;
   if (me.rank <= line) return { gap: 0, line };
@@ -94,7 +95,7 @@ export function cupGoal(cup: Cup, div: number, gate = 0): CupGoal | null {
 
 export interface CupGoal {
   gap: number;
-  /** The place the player has to be at or above: 1 or C.PROMOTE. */
+  /** The place the player has to be at or above: 1 or L.PROMOTE. */
   line: number;
 }
 
@@ -128,13 +129,13 @@ export const GATE_AT = 2;
 /** Close a finished cup: the player's rank, the bonus, and whether they go up (or won the top division). */
 export function endCup(cup: Cup, div: number, tier = 0, plus = 0, gate = 0): CupEnd {
   const rank = standings(cup).find((s) => s.id === 0)!.rank;
-  const top = rank <= C.PROMOTE;
-  const last = div >= C.DIVISIONS.length - 1;
-  const bonus = Math.round((CUP_BONUS[rank - 1] ?? 0) * C.stage(div, tier, plus).prize);
+  const top = rank <= L.PROMOTE;
+  const last = div >= L.DIVISIONS.length - 1;
+  const bonus = Math.round((CUP_BONUS[rank - 1] ?? 0) * L.stage(div, tier, plus).prize);
   const onGate = last && rank > 1 && top && gate + 1 >= GATE_AT;
   const champion = last && (rank === 1 || onGate);
   const gateNext = last && top && !champion ? gate + 1 : 0;
-  return { rank, promoted: top && !last, champion, nextTier: champion && tier < C.TIERS.length - 1, bonus, last, onGate, gateNext };
+  return { rank, promoted: top && !last, champion, nextTier: champion && tier < L.TIERS.length - 1, bonus, last, onGate, gateNext };
 }
 
 /** What the race left behind, per rider id where it is a list (0 the player). Thugs are not in the lists. */
@@ -186,7 +187,7 @@ export interface Settlement {
  */
 export function settleRace(save: Save, s: RaceSummary): Settlement {
   const { div, tier } = save;
-  const st = C.stage(div, tier, save.endless);
+  const st = L.stage(div, tier, save.endless);
   const prize = Math.round((C.PRIZE[s.place - 1] ?? 0) * st.prize * (s.mutator ? MUTATOR.prize : 1));
   const stuntPay = s.stuntPay ?? 0;
   const koBonus = s.kos * C.KO_BONUS;
@@ -212,7 +213,7 @@ export function settleRace(save: Save, s: RaceSummary): Settlement {
     save.gate = end.gateNext;
     if (end.promoted) save.div++;
     if (end.champion) save.titles++;
-    // the last season won: each title from here raises the stakes (C.ENDLESS)
+    // the last season won: each title from here raises the stakes (L.ENDLESS)
     if (end.champion && !end.nextTier) save.endless++;
     if (end.nextTier) {
       save.tier++;
@@ -240,13 +241,13 @@ export type UpKey = 'top' | 'steer' | 'hp';
 
 /** Price of the next level of an upgrade; null at the top, or at this season's cap (see `upgradeLock`). */
 export const upgradePrice = (save: Save, k: UpKey): number | null =>
-  save.up[k] >= C.UPGRADE_CAP[save.tier][k] ? null : C.upgradeCost(save.up[k]);
+  save.up[k] >= L.UPGRADE_CAP[save.tier][k] ? null : C.upgradeCost(save.up[k]);
 
 /** The season that opens the next level, when this one has it capped; null if open or maxed. */
 export function upgradeLock(save: Save, k: UpKey): string | null {
-  if (save.up[k] >= C.UPGRADE_MAX[k] || save.up[k] < C.UPGRADE_CAP[save.tier][k]) return null;
-  const t = C.UPGRADE_CAP.findIndex((c) => c[k] > save.up[k]);
-  return C.TIERS[t].name;
+  if (save.up[k] >= L.UPGRADE_MAX[k] || save.up[k] < L.UPGRADE_CAP[save.tier][k]) return null;
+  const t = L.UPGRADE_CAP.findIndex((c) => c[k] > save.up[k]);
+  return L.TIERS[t].name;
 }
 
 export function buyUpgrade(save: Save, k: UpKey): boolean {
@@ -278,7 +279,7 @@ export function rideState(save: Save, v: number): RideState {
   if (save.garage.owned.includes(v)) return 'owned';
   // what the career has reached, not where this cup happens to be run: dropping back a division to race
   // somewhere else must not take the next ride off the shelf
-  return C.rung(reached(save), save.tier) >= C.VEHICLES[v].rung ? 'buy' : 'locked';
+  return L.rung(reached(save), save.tier) >= L.VEHICLES[v].rung ? 'buy' : 'locked';
 }
 
 /** Buy (if need be, and affordable) and ride vehicle `v`. */
@@ -286,7 +287,7 @@ export function chooseRide(save: Save, v: number): boolean {
   const st = rideState(save, v);
   if (st === 'locked') return false;
   if (st === 'buy') {
-    const price = C.VEHICLES[v].price;
+    const price = L.VEHICLES[v].price;
     if (save.cash < price) return false;
     save.cash -= price;
     save.garage.owned.push(v);

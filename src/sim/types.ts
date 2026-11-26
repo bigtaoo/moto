@@ -293,13 +293,13 @@ export interface WorldOpts {
   /** The player's nemesis (a rival id), if they have one. */
   nemesis?: number;
   length?: number;
-  /** Division (C.DIVISIONS index): where the race is and how hard. */
+  /** Division (L.DIVISIONS index): where the race is and how hard. */
   div?: number;
-  /** Season (C.TIERS index): harder again on top of the division. */
+  /** Season (L.TIERS index): harder again on top of the division. */
   tier?: number;
-  /** Levels past the career (the last season only, see C.ENDLESS). */
+  /** Levels past the career (the last season only, see L.ENDLESS). */
   endless?: number;
-  /** The player's ride (C.VEHICLES index). */
+  /** The player's ride (L.VEHICLES index). */
   vehicle?: number;
   /** A weapon the player brings to the start (bought in the shop). */
   weapon?: C.WeaponKind;

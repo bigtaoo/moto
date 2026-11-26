@@ -4,6 +4,7 @@
 
 import * as THREE from 'three';
 import * as C from './sim/config';
+import * as L from './sim/ladder';
 import { LAUNCH, Launch, launchCash } from './sim/launch';
 import { LaunchView } from './view/launch';
 import { ENVS } from './view/env';
@@ -56,8 +57,8 @@ export class LaunchMode {
     this.start();
   }
 
-  private get div(): C.Stage {
-    return C.stage(this.save.div, this.save.tier, this.save.endless);
+  private get div(): L.Stage {
+    return L.stage(this.save.div, this.save.tier, this.save.endless);
   }
 
   private start(): void {

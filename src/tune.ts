@@ -10,10 +10,10 @@
 import type { Save } from './meta';
 import type { UpKey } from './career';
 import type { Upgrades } from './sim/types';
-import * as C from './sim/config';
+import * as L from './sim/ladder';
 
 /** The stage's purse, which both prices below are charged in. */
-const purse = (save: Save): number => C.stage(save.div, save.tier, save.endless).prize;
+const purse = (save: Save): number => L.stage(save.div, save.tier, save.endless).prize;
 
 /**
  * Prices here follow src/shop.ts's weapon: `purse ** CURVE` rather than the purse itself. The purse

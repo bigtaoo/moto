@@ -8,7 +8,7 @@ import { wireBoard, openBoard } from './board';
 import { streakDouble } from '../shopping';
 import { cupGoal, cupRaces, goalText } from '../career';
 import { today } from '../daily';
-import * as C from '../sim/config';
+import * as L from '../sim/ladder';
 import * as platform from '../platform';
 import * as tele from '../telemetry';
 import { t } from '../i18n';
@@ -39,7 +39,7 @@ export interface TitleCardActions {
 export function drawTitle(save: Save, on: TitleCardActions): void {
   const best = document.getElementById('best');
   if (best && save.races > 0) {
-    best.textContent = t('best', { div: C.stage(save.div, save.tier, save.endless).name, n: save.cup.race + 1, m: cupRaces(save.cup), cash: save.cash })
+    best.textContent = t('best', { div: L.stage(save.div, save.tier, save.endless).name, n: save.cup.race + 1, m: cupRaces(save.cup), cash: save.cash })
       + (save.titles ? t('champs', { n: save.titles }) : '');
     const g = cupGoal(save.cup, save.div, save.gate);
     if (g) best.textContent += ` · ${goalText(g)}`;

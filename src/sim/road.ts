@@ -3,6 +3,7 @@
 // where a rider may ride (bounds), what a car can drive through, and what a rider rode over this tick.
 
 import * as C from './config';
+import * as L from './ladder';
 import type { Prng } from './rng';
 
 export type Side = -1 | 1;
@@ -38,7 +39,7 @@ export class Road {
   /** Per lane: stretches [from, to] a car can't drive through. */
   private readonly blocks: [number, number][][] = [[], [], [], []];
 
-  constructor(readonly length: number, div: C.Division, rng: Prng) {
+  constructor(readonly length: number, div: L.Division, rng: Prng) {
     const kinds: Kind[] = [];
     for (let i = 0; i < div.works; i++) kinds.push('works');
     for (let i = 0; i < div.cuts; i++) kinds.push('cut');

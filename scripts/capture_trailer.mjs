@@ -14,7 +14,7 @@
 
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
-import { createReadStream, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { createReadStream, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { extname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -84,15 +84,28 @@ const PORT = server.address().port;
 // ---------------------------------------------------------------- chrome + CDP
 
 const profile = mkdtempSync(join(tmpdir(), 'trailer-'));
-const DEBUG_PORT = 9300 + (process.pid % 300);
 const chrome = spawn(CHROME, [
-  '--headless=new', `--remote-debugging-port=${DEBUG_PORT}`, `--user-data-dir=${profile}`,
+  '--headless=new', '--remote-debugging-port=0', `--user-data-dir=${profile}`,
   '--no-first-run', '--no-default-browser-check', '--mute-audio', '--hide-scrollbars',
   `--window-size=${W},${H}`, '--force-device-scale-factor=1', '--autoplay-policy=no-user-gesture-required',
   '--disable-background-timer-throttling', '--disable-renderer-backgrounding',
   '--disable-backgrounding-occluded-windows', '--enable-unsafe-swiftshader', '--use-angle=d3d11',
   'about:blank',
 ], { stdio: 'ignore' });
+
+// Port 0 asks the OS for a free one and Chrome writes the one it got into the fresh profile. The port
+// used to be derived from the pid, which a leftover Chrome from an interrupted run could already be
+// holding: ours would fail to bind, every screenshot below would come off the stale browser's page
+// (its shim answers the readiness probe just the same), and the kill at the end would take the wrong
+// process. A fresh profile per run means this file can only be the one we just started.
+const portFile = join(profile, 'DevToolsActivePort');
+let DEBUG_PORT = 0;
+for (let i = 0; i < 400 && !DEBUG_PORT; i++) {
+  if (chrome.exitCode !== null) throw new Error(`Chrome exited (${chrome.exitCode}) without opening a debugging port`);
+  try { DEBUG_PORT = Number(readFileSync(portFile, 'utf8').split('\n')[0]) || 0; } catch { /* not written yet */ }
+  if (!DEBUG_PORT) await new Promise((r) => setTimeout(r, 50));
+}
+if (!DEBUG_PORT) throw new Error('Chrome never wrote DevToolsActivePort');
 
 const json = async (path) => {
   for (let i = 0; i < 100; i++) {
@@ -102,6 +115,7 @@ const json = async (path) => {
   throw new Error('Chrome never answered on the debugging port');
 };
 const page = (await json('/json/list')).find((t) => t.type === 'page');
+if (!page) throw new Error('Chrome opened no page to drive');
 const ws = new WebSocket(page.webSocketDebuggerUrl);
 await new Promise((r, j) => { ws.onopen = r; ws.onerror = j; });
 

@@ -1,12 +1,13 @@
 // The daily challenge: one race a day, and the same race for everybody who rides it that day. The UTC day
 // picks the seed, the stage and the twist (and picks them so that no two days running are alike); everyone rides the gear the ladder is balanced around at that
-// stage (C.careerGear), so the day is the same fight whether the player's own garage is empty or full;
+// stage (L.careerGear), so the day is the same fight whether the player's own garage is empty or full;
 // and the run comes out as one number, so two days' worth of riding can be compared. Nothing in the career
 // moves -- no cup points, no promotion, no races count, no dailies, no achievements, no feud -- the rule
 // src/free.ts set in 3.3.69. Today's challenges (three goals tracked across the cup's races) are the other
 // file, src/daily.ts; this is a race.
 
 import * as C from './sim/config';
+import * as L from './sim/ladder';
 import { MUTATORS, type Mutator } from './sim/fun';
 import { dayMult } from './rewards';
 import type { World } from './sim/world';
@@ -52,10 +53,10 @@ function spin(day: number, salt: number): number {
  * who opens the game to the track they rode yesterday has no reason to believe the day picked anything.
  */
 const STEP = 7;
-const RUNGS = C.DIVISIONS.length * C.TIERS.length;
+const RUNGS = L.DIVISIONS.length * L.TIERS.length;
 export const dailyStage = (day: number): { div: number; tier: number } => {
   const rung = (((day * STEP) % RUNGS) + RUNGS) % RUNGS;
-  return { div: rung % C.DIVISIONS.length, tier: Math.floor(rung / C.DIVISIONS.length) };
+  return { div: rung % L.DIVISIONS.length, tier: Math.floor(rung / L.DIVISIONS.length) };
 };
 
 export const dailyMutator = (day: number): Mutator => MUTATORS[spin(day, 3) % MUTATORS.length];
@@ -68,7 +69,7 @@ export const dailyMutator = (day: number): Mutator => MUTATORS[spin(day, 3) % MU
  */
 export function dailyOpts(day: number): WorldOpts {
   const { div, tier } = dailyStage(day);
-  const gear = C.careerGear(div, tier);
+  const gear = L.careerGear(div, tier);
   return {
     seed: (spin(day, 4) % 99991) + 1,
     upgrades: gear.up, vehicle: gear.vehicle, div, tier, endless: 0,
@@ -165,7 +166,7 @@ export function settleDailyRace(save: Save, w: World, falls: number, day: number
   save.drace = d;
   const score = dailyScore(w, falls);
   const was = d.best;
-  const paid = d.runs === 0 ? Math.round(DAILY_PAY * dayMult(C.stage(save.div, save.tier, save.endless).prize)) : 0;
+  const paid = d.runs === 0 ? Math.round(DAILY_PAY * dayMult(L.stage(save.div, save.tier, save.endless).prize)) : 0;
   d.runs++;
   d.best = Math.max(d.best, score.total);
   // only what this run added to today's best, so a second run cannot bank the same day twice

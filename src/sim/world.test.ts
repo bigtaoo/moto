@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import * as C from './config';
+import * as L from './ladder';
 import { SIM_VERSION, TICK_HZ } from './config';
 import { botInput } from './ai';
 import { hashState } from './hash';
 import { Recorder, playReplay, type InputRow, type Replay } from './replay';
-import { World, type WorldOpts } from './world';
+import { World } from './world';
+import type { WorldOpts } from './types';
 
 // 3.3.82: the hashes and endTick both moved -- the countdown is steerable now (World.gridSteer), so a bot
 // race that steers from tick 0 reaches GO a little across from where it used to sit.
@@ -236,24 +238,24 @@ describe('seasons and rides', () => {
     const base = new World({ seed: 4, upgrades: up });
     const v = 4;
     const rode = new World({ seed: 4, upgrades: up, vehicle: v });
-    const V = C.VEHICLES[v];
+    const V = L.VEHICLES[v];
     expect(rode.vehicle).toBe(v);
     expect(rode.player.top).toBeCloseTo(base.player.top + V.top, 6);
     expect(rode.player.steer).toBeCloseTo(base.player.steer + V.steer, 6);
     expect(rode.player.hp).toBe(base.player.hp + V.hp);
     expect(rode.player.accel).toBeCloseTo(base.player.accel + V.accel, 6);
-    expect(new World({ seed: 4, vehicle: 99 }).vehicle).toBe(C.VEHICLES.length - 1);
+    expect(new World({ seed: 4, vehicle: 99 }).vehicle).toBe(L.VEHICLES.length - 1);
   });
 
   it('makes a later season faster, tougher and longer than the same division before it', () => {
     const am = new World({ seed: 6, div: 1 });
     const pro = new World({ seed: 6, div: 1, tier: 1 });
-    expect(pro.div.name).toBe(`${C.TIERS[1].name} ${C.DIVISIONS[1].name}`);
-    expect(pro.length).toBe(Math.round(C.RACE_LEN * C.TIERS[1].len));
+    expect(pro.div.name).toBe(`${L.TIERS[1].name} ${L.DIVISIONS[1].name}`);
+    expect(pro.length).toBe(Math.round(C.RACE_LEN * L.TIERS[1].len));
     expect(pro.length).toBeGreaterThan(am.length);
     for (let i = 1; i <= C.ROSTER.length; i++) {
-      expect(pro.riders[i].top - am.riders[i].top).toBeCloseTo(C.TIERS[1].top[1] - C.TIERS[0].top[1], 6);
-      expect(pro.riders[i].hp).toBe(am.riders[i].hp + C.TIERS[1].hp);
+      expect(pro.riders[i].top - am.riders[i].top).toBeCloseTo(L.TIERS[1].top[1] - L.TIERS[0].top[1], 6);
+      expect(pro.riders[i].hp).toBe(am.riders[i].hp + L.TIERS[1].hp);
     }
   });
 });

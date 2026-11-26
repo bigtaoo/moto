@@ -44,6 +44,10 @@ wants; here it is only the first frame of the portrait trailer, cut down to 2:3.
 `store/video/`, built by `npm run build:crazygames && node scripts/make_trailer.mjs` (about four
 minutes, needs Chrome and ffmpeg). Both are 18 s, silent, h264, under 10 MB.
 
+**`store/video/` is not tracked** -- 16 MB a pair of derived files that four minutes of Chrome and
+ffmpeg make again. Render them when you need them. The pair that went to CrazyGames on 26.11.2026
+is in commit `18ba78f`, the last one before the directory was gitignored.
+
 | CrazyGames | File |
 |---|---|
 | landscape 16:9, 1080p | `trailer_1920x1080.mp4` |

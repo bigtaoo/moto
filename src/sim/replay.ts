@@ -4,7 +4,8 @@
 
 import { SIM_VERSION } from './config';
 import { hashState } from './hash';
-import { World, type Input, type WorldOpts } from './world';
+import { World } from './world';
+import type { Input, WorldOpts } from './types';
 
 /** [tick, targetX, steer, brake (0/1), bits: 1 attack and 8 taunt (taps: they last one tick), 4 charge (held); 2 was the remount ad, dropped in 3.3.36] */
 export type InputRow = [number, number | null, number, number, number];

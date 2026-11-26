@@ -5,7 +5,7 @@
 import { icon } from './icons';
 import { dailyHtml } from './results';
 import { garageButton, rideName } from './garage';
-import { VEHICLES, DIVISIONS, stage } from '../sim/config';
+import { VEHICLES, DIVISIONS, stage } from '../sim/ladder';
 import type { Save } from '../meta';
 import { BREAK_AT, reached, riderName, rideState } from '../career';
 import { rows, FIRST_WIN_PAY } from '../daily';

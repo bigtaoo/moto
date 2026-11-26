@@ -15,7 +15,9 @@
 // stacks or names: every value is a number, a flag or one of a fixed few words.
 
 import * as C from './sim/config';
-import type { World, CrashCause } from './sim/world';
+import * as L from './sim/ladder';
+import type { World } from './sim/world';
+import type { CrashCause } from './sim/types';
 import type { Save } from './meta';
 import { CUP_RACES, upgradePrice, type Settlement, type UpKey } from './career';
 import { track, setCommonFields, flushEarly, deviceType, interstitialOpen } from './platform';
@@ -123,7 +125,7 @@ export function begin(s: Save, c: HTMLCanvasElement, gfx: () => number): void {
     build: BUILD,
     new_player: s.sessions <= 1,
     career: careerBucket(s.races),
-    rung: C.rung(s.div, s.tier),
+    rung: L.rung(s.div, s.tier),
     session_n: Math.min(20, s.sessions),
     days: Math.max(0, Math.min(30, today - s.firstDay)),
     focus: document.hasFocus(),
@@ -205,7 +207,7 @@ export function raceEnd(s: Settlement): void {
   race = null;
   sendSample(sampler.flush());
   const place = r.world.standing;
-  const done = place <= C.PROMOTE;
+  const done = place <= L.PROMOTE;
   track(done ? 'progression_completed' : 'progression_failed', {
     ...raceFields(r), ...(done ? {} : { reason: 'place' }), career_race: save.races, earned: s.earned, cash: save.cash, up_total: upTotal(save), up_top: save.up.top,
   });
@@ -219,12 +221,12 @@ function milestones(s: Settlement): void {
   const e = s.end;
   if (e) {
     track('cup_completed', { step_id: from, rank: e.rank, promoted: e.promoted, champion: e.champion, next_tier: e.nextTier, bonus: e.bonus });
-    if (e.promoted) track('division_reached', { step_id: stepId(save.div, save.tier), rung: C.rung(save.div, save.tier) });
+    if (e.promoted) track('division_reached', { step_id: stepId(save.div, save.tier), rung: L.rung(save.div, save.tier) });
     if (e.champion) track('title_won', { step_id: from, tier: s.tier, titles: save.titles, endless: save.endless });
-    if (e.nextTier) track('season_reached', { tier: save.tier, season: C.TIERS[save.tier].name.toLowerCase() });
-    const was = C.rung(s.div, s.tier);
-    const is = C.rung(save.div, save.tier);
-    C.VEHICLES.forEach((v, i) => { if (i > 0 && v.rung > was && v.rung <= is) track('ride_unlocked', { ride: i, rung: v.rung, cash: save!.cash, affordable: save!.cash >= v.price }); });
+    if (e.nextTier) track('season_reached', { tier: save.tier, season: L.TIERS[save.tier].name.toLowerCase() });
+    const was = L.rung(s.div, s.tier);
+    const is = L.rung(save.div, save.tier);
+    L.VEHICLES.forEach((v, i) => { if (i > 0 && v.rung > was && v.rung <= is) track('ride_unlocked', { ride: i, rung: v.rung, cash: save!.cash, affordable: save!.cash >= v.price }); });
   }
   const f = s.feud;
   if (f.fresh !== null) track('nemesis', { result: 'new', step_id: from });

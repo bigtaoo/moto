@@ -5,6 +5,7 @@
 // where you went, and a stage you liked was gone the moment its cup was won.
 
 import * as C from './sim/config';
+import * as L from './sim/ladder';
 import type { World } from './sim/world';
 import type { Save } from './meta';
 import { reached } from './career';
@@ -34,7 +35,7 @@ export interface Free {
 export const freeOpen = (save: Save): boolean => save.races >= C.CHASE.unlock;
 
 /** The purse of the stage the career is on: the yardstick for every other stage's odds. */
-export const careerPrize = (save: Save): number => C.stage(save.div, save.tier, save.endless).prize;
+export const careerPrize = (save: Save): number => L.stage(save.div, save.tier, save.endless).prize;
 
 /**
  * A stage below the one the career is on pays its share and no more: its purse against the career's.
@@ -48,9 +49,9 @@ export function scenes(save: Save): Scene[] {
   const at = careerPrize(save);
   const out: Scene[] = [];
   for (let tier = 0; tier <= save.tier; tier++) {
-    const last = tier < save.tier ? C.DIVISIONS.length - 1 : reached(save);
+    const last = tier < save.tier ? L.DIVISIONS.length - 1 : reached(save);
     for (let div = 0; div <= last; div++) {
-      const st = C.stage(div, tier, tier === save.tier ? save.endless : 0);
+      const st = L.stage(div, tier, tier === save.tier ? save.endless : 0);
       out.push({ div, tier, name: st.name, prize: st.prize, edge: freeEdge(st.prize, at), here: tier === save.tier && div === save.div });
     }
   }

@@ -7,7 +7,8 @@
 // you ride -- a fall, security, a hunt, the nemesis -- and everything that repeats (a KO, a dodge, a
 // weapon picked up, a jump) goes to the pops, where it can be read next to the one before it.
 
-import type { World, SimEvent } from './sim/world';
+import type { World } from './sim/world';
+import type { SimEvent } from './sim/types';
 import * as C from './sim/config';
 import type { RaceView } from './view/scene';
 import type { Hud } from './view/hud';

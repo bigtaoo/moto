@@ -11,6 +11,7 @@
 
 import { World } from '../src/sim/world';
 import * as C from '../src/sim/config';
+import * as L from '../src/sim/ladder';
 import { botInput } from '../src/sim/ai';
 import { parseSave } from '../src/meta';
 import { settleRace, buyUpgrade, chooseRide, rideState, upgradePrice, CUP_RACES, type UpKey } from '../src/career';
@@ -54,7 +55,7 @@ for (let run = 0; run < careers; run++) {
   console.log(`--- career ${run + 1}`);
   while (!done && save.races < maxRaces) {
     if (save.races % perDay === 0) {
-      const sp = visit(save.streak, day++, dayMult(C.stage(save.div, save.tier, save.endless).prize), save.races > 0);
+      const sp = visit(save.streak, day++, dayMult(L.stage(save.div, save.tier, save.endless).prize), save.races > 0);
       save.cash += sp;
       add('streak', sp);
       add('achievements', unlock(save).reduce((a, u) => a + u.pay, 0));
@@ -101,12 +102,12 @@ for (let run = 0; run < careers; run++) {
     mins += m;
     cupMins += m;
     // spend: the next ride first, then the cheapest upgrade, until nothing is affordable
-    for (let v = C.VEHICLES.length - 1; v > save.garage.cur; v--) {
+    for (let v = L.VEHICLES.length - 1; v > save.garage.cur; v--) {
       const st = rideState(save, v);
-      if (st === 'owned' || (st === 'buy' && save.cash >= C.VEHICLES[v].price)) { chooseRide(save, v); break; }
+      if (st === 'owned' || (st === 'buy' && save.cash >= L.VEHICLES[v].price)) { chooseRide(save, v); break; }
     }
-    const nextRide = C.VEHICLES.findIndex((_, i) => i > save.garage.cur && rideState(save, i) === 'buy');
-    const saving = nextRide > 0 ? C.VEHICLES[nextRide].price : 0;
+    const nextRide = L.VEHICLES.findIndex((_, i) => i > save.garage.cur && rideState(save, i) === 'buy');
+    const saving = nextRide > 0 ? L.VEHICLES[nextRide].price : 0;
     // save up for the next ride once it is within two races' earnings
     const keep = saving && saving - save.cash < s.earned * 2 ? saving : 0;
     for (;;) {
@@ -125,7 +126,7 @@ for (let run = 0; run < careers; run++) {
       // held back: what beating out the dents this tune-up is about to put in will cost next race. Without
       // it the bot tuned itself broke, raced the next one dented -- which costs levels -- and went slower
       // for the money, which is not a trade any player would make twice.
-      const mend = Math.round(REPAIR_FULL * OVER_WEAR * 2 * C.stage(save.div, save.tier, save.endless).prize ** TUNE_CURVE);
+      const mend = Math.round(REPAIR_FULL * OVER_WEAR * 2 * L.stage(save.div, save.tier, save.endless).prize ** TUNE_CURVE);
       if (!k || save.cash - k[1] < keep + mend || !buyTune(save, k[0])) break;
       add('tune-ups', -k[1]);
     }
@@ -139,7 +140,7 @@ for (let run = 0; run < careers; run++) {
     }
     if (s.end) {
       const e = s.end;
-      console.log(`${at.padEnd(22)} cup ${e.rank}${e.promoted ? ' ↑' : e.champion ? ' ★' : '  '} [${cupPlaces}] edge ${edge.toFixed(1).padStart(4)} max ${raceSecs.toFixed(0)}s ${cupMins.toFixed(0).padStart(3)} min | total ${save.races} races ${mins.toFixed(0)} min | $${save.cash} up ${save.up.top}/${save.up.steer}/${save.up.hp} ride ${C.VEHICLES[save.garage.cur].name} | nemeses broken ${save.feud.broken}`);
+      console.log(`${at.padEnd(22)} cup ${e.rank}${e.promoted ? ' ↑' : e.champion ? ' ★' : '  '} [${cupPlaces}] edge ${edge.toFixed(1).padStart(4)} max ${raceSecs.toFixed(0)}s ${cupMins.toFixed(0).padStart(3)} min | total ${save.races} races ${mins.toFixed(0)} min | $${save.cash} up ${save.up.top}/${save.up.steer}/${save.up.hp} ride ${L.VEHICLES[save.garage.cur].name} | nemeses broken ${save.feud.broken}`);
       cupMins = 0;
       cupPlaces = '';
       raceSecs = 0;

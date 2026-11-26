@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { World, type Rider, type SimEvent } from './world';
+import { World } from './world';
+import type { Rider, SimEvent } from './types';
 import { Road } from './road';
 import { spawnCar } from './traffic';
 import { Prng } from './rng';
 import * as C from './config';
+import * as L from './ladder';
 
 /** A division-`div` world past the countdown, its rivals placid. */
 function world(div: number, seed: number): World {
@@ -53,8 +55,8 @@ const crashOf = (ev: SimEvent[], rider = 0) => {
 
 describe('road features and divisions', () => {
   it('places each division its features, apart and inside the race', () => {
-    for (let d = 0; d < C.DIVISIONS.length; d++) {
-      const div = C.DIVISIONS[d];
+    for (let d = 0; d < L.DIVISIONS.length; d++) {
+      const div = L.DIVISIONS[d];
       let placed = 0;
       for (let seed = 1; seed <= 40; seed++) {
         const road = new Road(C.RACE_LEN, div, new Prng(seed));
@@ -86,10 +88,10 @@ describe('road features and divisions', () => {
   it('makes the rivals faster and sharper, the traffic and the buggies busier up the ladder', () => {
     const lo = new World({ seed: 5, div: 0 });
     const hi = new World({ seed: 5, div: 4 });
-    const d = C.DIVISIONS[4];
+    const d = L.DIVISIONS[4];
     for (let i = 1; i <= C.ROSTER.length; i++) {
       // the first season's table starts below zero, so it is the step between the two that counts
-      expect(hi.riders[i].top).toBeCloseTo(lo.riders[i].top + C.TIERS[0].top[4] - C.TIERS[0].top[0], 6);
+      expect(hi.riders[i].top).toBeCloseTo(lo.riders[i].top + L.TIERS[0].top[4] - L.TIERS[0].top[0], 6);
       expect(hi.riders[i].aware).toBeGreaterThan(lo.riders[i].aware);
     }
     expect(hi.patrolCount).toBe(lo.patrolCount + d.patrol);

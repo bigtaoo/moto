@@ -2,7 +2,7 @@
 // 3.3.69, which was sitting on the 500-line cap with the free race still to wire in.
 
 import { buyable, gearGap, stopPick, upLevels, type Garage } from './garage';
-import { rung } from '../sim/config';
+import { rung } from '../sim/ladder';
 import * as funnel from '../funnel';
 import type { shopActions } from '../shopping';
 import type { Save } from '../meta';

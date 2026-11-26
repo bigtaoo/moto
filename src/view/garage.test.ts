@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Garage, garageButton, firstUpInReach, gearGap, stopStack, stopPick, upLevels } from './garage';
 import { garageStop } from './garageOpen';
-import { careerGear } from '../sim/config';
+import { careerGear } from '../sim/ladder';
 import { parseSave } from '../meta';
 import { upgradePrice } from '../career';
 

@@ -2,6 +2,7 @@
 // on, and how it keeps out of traffic and pushes riders aside.
 
 import * as C from './config';
+import * as LAW from './law';
 import { clamp, type Side, type Car, type Patrol } from './types';
 import type { World } from './world';
 import { nearestLane } from './ai';
@@ -19,10 +20,10 @@ function bill(w: World, base: number, star: number): number {
 export function updatePatrol(w: World): void {
   const pt = w.patrol;
   const p = w.player;
-  const P = C.PATROL;
+  const P = LAW.PATROL;
   const riding = p.state === 'ride';
-  w.heat = Math.max(0, w.heat - C.HEAT.decay * C.DT);
-  const units = w.patrolCount + Math.floor(w.heat) * C.HEAT.units;
+  w.heat = Math.max(0, w.heat - LAW.HEAT.decay * C.DT);
+  const units = w.patrolCount + Math.floor(w.heat) * LAW.HEAT.units;
   if (!pt.active) {
     if (pt.wait > 0) pt.wait--;
     else if (riding && !p.finished && pt.units < units && p.z > w.patrolFrom && p.z < w.length - P.stopBefore) sendPatrol(w);
@@ -47,7 +48,7 @@ export function updatePatrol(w: World): void {
       const fine = bill(w, P.ticket, P.ticketStar);
       w.fines += fine;
       w.events.push({ type: 'patrolTicket', fine });
-      addHeat(w, C.HEAT.flee);
+      addHeat(w, LAW.HEAT.flee);
     }
     pt.mode = 'leave';
     pt.t = 0;
@@ -152,7 +153,7 @@ export function updatePatrol(w: World): void {
         pt.push = -pt.side as Side;
         // never into a car: with one on the shoulder side coming up, it eases off and leaves them a gap
         // (unless the heat is up: then it's their own lookout)
-        want = w.heat < C.HEAT.rough && carOnShoulder(w, pt.push)
+        want = w.heat < LAW.HEAT.rough && carOnShoulder(w, pt.push)
           ? f.x + pt.side * (wide + 1)
           : f.x + pt.side * (wide - P.squeezeIn);
         steer = P.pushSteer;
@@ -170,7 +171,7 @@ export function updatePatrol(w: World): void {
       else if (pt.haltT > P.letHold * C.TICK_HZ) {
         const fine = bill(w, P.fine, P.fineStar);
         w.fines += fine;
-        addHeat(w, -C.HEAT.comply);
+        addHeat(w, -LAW.HEAT.comply);
         w.events.push({ type: 'patrolLetGo', fine });
         leave();
       } else if (s.speed > P.haltSpeed + 5) {
@@ -201,7 +202,7 @@ export function updatePatrol(w: World): void {
 
 /**
  * Is there a car the player would be shoved into: on their `push` side (alongside or within
- * C.PATROL.carWarn seconds ahead, oncoming ones included)?
+ * LAW.PATROL.carWarn seconds ahead, oncoming ones included)?
  */
 export function carOnShoulder(w: World, push: Side): boolean {
   const p = w.player;
@@ -211,20 +212,20 @@ export function carOnShoulder(w: World, push: Side): boolean {
     const dist = c.z - p.z;
     if (Math.abs(dist) < C.CAR.halfL + 1.5) return true;
     const closing = p.speed - c.speed;
-    if (dist > 0 && closing > 0.1 && (dist - C.CAR.halfL - 1.5) / closing < C.PATROL.carWarn) return true;
+    if (dist > 0 && closing > 0.1 && (dist - C.CAR.halfL - 1.5) / closing < LAW.PATROL.carWarn) return true;
   }
   return false;
 }
 
 /** This buggy is out of the race; roll when the next one comes. */
 export function patrolGone(w: World): void {
-  const P = C.PATROL;
+  const P = LAW.PATROL;
   w.patrol.active = false;
   const prog = clamp(w.player.z / w.length, 0, 1);
   const sec = w.patrolRng.float() < P.pairChance
     ? roll(w, P.pairGap)
     : (P.gapEarly + (P.gapLate - P.gapEarly) * prog) * w.patrolRate * roll(w, P.gapJitter);
-  w.patrol.wait = Math.round(sec / (1 + C.HEAT.gap * w.heat) * C.TICK_HZ);
+  w.patrol.wait = Math.round(sec / (1 + LAW.HEAT.gap * w.heat) * C.TICK_HZ);
 }
 
 export function roll(w: World, r: readonly [number, number]): number {
@@ -235,7 +236,7 @@ export function roll(w: World, r: readonly [number, number]): number {
 export function sendPatrol(w: World): void {
   const pt = w.patrol;
   const p = w.player;
-  const P = C.PATROL;
+  const P = LAW.PATROL;
   const plans = (['behind squeeze', 'ahead block', 'ahead squeeze'] as const)
     .filter((k) => pt.units === 0 || k !== `${pt.from} ${pt.move}`);
   const [from, move] = w.patrolRng.pick(plans).split(' ') as [Patrol['from'], Patrol['move']];
@@ -268,9 +269,9 @@ export function sendPatrol(w: World): void {
   Object.assign(pt, {
     active: true, mode: from === 'ahead' ? 'lurk' : 'chase', t: 0, side, push: -side as Side, hold: 0, x, z,
     speed: from === 'ahead' ? p.top * pace : p.speed,
-    from, move, pace, press: Math.round(roll(w, P.pressSec) * (1 + C.HEAT.press * w.heat) * C.TICK_HZ),
+    from, move, pace, press: Math.round(roll(w, P.pressSec) * (1 + LAW.HEAT.press * w.heat) * C.TICK_HZ),
     blockAhead: roll(w, P.blockAhead), pullOutAt: roll(w, P.pullOutAt),
-    react: Math.max(3, Math.round(roll(w, P.react) - Math.floor(w.heat) * C.HEAT.react)), top: roll(w, P.top) + w.div.top,
+    react: Math.max(3, Math.round(roll(w, P.react) - Math.floor(w.heat) * LAW.HEAT.react)), top: roll(w, P.top) + w.div.top,
     vx: 0, laneX: x, laneT: 0, slowT: 0, haltT: 0, resume: move,
   });
   pt.px = pt.x;
@@ -286,7 +287,7 @@ export function sendPatrol(w: World): void {
 export function patrolContacts(w: World): void {
   const pt = w.patrol;
   if (!pt.active) return;
-  const P = C.PATROL;
+  const P = LAW.PATROL;
   const wide = P.halfW + P.riderHalfW;
   const long = P.halfL + 0.6;
   const carW = C.CAR.halfW + P.halfW;
@@ -341,7 +342,7 @@ export function patrolContacts(w: World): void {
  */
 export function patrolTraffic(w: World, want: number, steerRate: number): void {
   const pt = w.patrol;
-  const P = C.PATROL;
+  const P = LAW.PATROL;
   const wide = C.CAR.halfW + P.halfW + 0.15;
   const long = C.CAR.halfL + P.halfL + 0.8; // margin covers the buggy's own move after traffic has moved this tick
   // seconds until the buggy reaches a car along lateral position x (0: one is already beside it)

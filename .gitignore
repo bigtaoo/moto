@@ -10,3 +10,6 @@ __pycache__/
 telemetry-archive/
 # the jpegs scripts/make_trailer.mjs cuts the store trailer from
 .trailer-frames/
+# and the trailers it renders from them: 16 MB a pair, and `node scripts/make_trailer.mjs` makes them
+# again in four minutes. The pair that went to CrazyGames on 26.11.2026 is in commit 18ba78f.
+store/video/

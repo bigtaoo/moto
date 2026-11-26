@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { World } from './world';
 import { botInput } from './ai';
 import * as C from './config';
+import * as L from './ladder';
+import * as LAW from './law';
 
 /** A world past the countdown with the road to itself: no traffic, the rivals far behind. */
 function emptyRoad(): World {
@@ -55,7 +57,7 @@ describe('riders and buggies react like drivers, not mirrors', () => {
     for (let i = 0; i < 60 && switched < 0; i++) {
       clearRoad(w);
       w.step();
-      if (crossed < 0 && p.x > C.LANE_X[2] + 1.75 + C.PATROL.laneCommit) crossed = w.tick;
+      if (crossed < 0 && p.x > C.LANE_X[2] + 1.75 + LAW.PATROL.laneCommit) crossed = w.tick;
       if (w.patrol.laneX === C.LANE_X[3]) switched = w.tick;
     }
     expect(crossed).toBeGreaterThan(0);
@@ -180,7 +182,7 @@ describe('a chaser on the shortcut trail (3.3.51)', () => {
     // in division 1 and 41 in division 3 -- and the gear is the career's own at each rung (3.3.55), so
     // retuning the ladder cannot quietly drop the player out of the pack and take the episodes with it.
     for (const div of [1, 2, 3]) for (let seed = 1; seed <= 60; seed++) {
-      const gear = C.careerGear(div, 0);
+      const gear = L.careerGear(div, 0);
       const w = new World({ seed, div, upgrades: gear.up, vehicle: gear.vehicle });
       while (!w.over && w.tick < 400 * C.TICK_HZ) {
         botInput(w);

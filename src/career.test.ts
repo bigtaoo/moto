@@ -5,6 +5,7 @@ import { PAINTS, HATS, HAT_PRICE, PAINT_TIER, HAT_TIER, choosePaint, chooseHat, 
 import { World } from './sim/world';
 import { botInput } from './sim/ai';
 import * as C from './sim/config';
+import * as L from './sim/ladder';
 
 /** One race as the career settles it: the player in `place`, nothing else going on. */
 const raceSummary = (place: number, extra: Partial<RaceSummary> = {}): RaceSummary => ({
@@ -51,7 +52,7 @@ describe('career cup', () => {
     // 4th going into the last race, then wins it: double points carry them over the line
     const cup = newCup();
     for (let i = 0; i < CUP_RACES - 1; i++) scoreRace(cup, places(4));
-    expect(standings(cup).find((r) => r.id === 0)!.rank).toBeGreaterThan(C.PROMOTE);
+    expect(standings(cup).find((r) => r.id === 0)!.rank).toBeGreaterThan(L.PROMOTE);
     scoreRace(cup, places(1));
     expect(endCup(cup, 1).promoted).toBe(true);
   });
@@ -63,7 +64,7 @@ describe('career cup', () => {
     const e = endCup(good, 1);
     expect(e.rank).toBeLessThanOrEqual(3);
     expect(e.promoted).toBe(true);
-    expect(e.bonus).toBe(Math.round(CUP_BONUS[e.rank - 1] * C.DIVISIONS[1].prize));
+    expect(e.bonus).toBe(Math.round(CUP_BONUS[e.rank - 1] * L.DIVISIONS[1].prize));
 
     const bad = newCup();
     for (let i = 0; i < CUP_RACES; i++) scoreRace(bad, places(6));
@@ -75,13 +76,13 @@ describe('career cup', () => {
   it('crowns the champion in the top division instead of promoting', () => {
     const cup = newCup();
     for (let i = 0; i < CUP_RACES; i++) scoreRace(cup, places(1));
-    const e = endCup(cup, C.DIVISIONS.length - 1);
+    const e = endCup(cup, L.DIVISIONS.length - 1);
     expect(e).toMatchObject({ rank: 1, promoted: false, champion: true });
     expect(standings(cup)[0].id).toBe(0);
   });
 
   it('lets the second top-three cup in a row through the top division', () => {
-    const last = C.DIVISIONS.length - 1;
+    const last = L.DIVISIONS.length - 1;
     const near = () => { const c = newCup(); for (let i = 0; i < CUP_RACES; i++) scoreRace(c, places(2)); return c; };
 
     // first near miss: no title, but it is remembered
@@ -96,7 +97,7 @@ describe('career cup', () => {
   });
 
   it('forgets the near miss when the player drops out of the top three', () => {
-    const last = C.DIVISIONS.length - 1;
+    const last = L.DIVISIONS.length - 1;
     const off = newCup();
     for (let i = 0; i < CUP_RACES; i++) scoreRace(off, places(6));
     const e = endCup(off, last, 0, 0, 1);
@@ -105,7 +106,7 @@ describe('career cup', () => {
 
   it('carries the near miss through the save, and a won cup clears it', () => {
     const save = parseSave(null);
-    save.div = C.DIVISIONS.length - 1;
+    save.div = L.DIVISIONS.length - 1;
     save.cup = newCup(); // past the short first cup
     expect(save.gate).toBe(0);
     for (let i = 0; i < CUP_RACES; i++) settleRace(save, raceSummary(2));
@@ -147,7 +148,7 @@ describe('cup goal', () => {
     const cup = newCup();
     expect(cupGoal(cup, 0)).toBeNull();
     scoreRace(cup, places(6)); // the rivals took 1-5 and 7-8: 3rd has POINTS[2]
-    expect(cupGoal(cup, 0)).toEqual({ gap: POINTS[2] - POINTS[5], line: C.PROMOTE });
+    expect(cupGoal(cup, 0)).toEqual({ gap: POINTS[2] - POINTS[5], line: L.PROMOTE });
     scoreRace(cup, places(1));
     expect(cupGoal(cup, 0)!.gap).toBe(0);
   });
@@ -155,14 +156,14 @@ describe('cup goal', () => {
   it('asks for 1st in the last division, which promotes nobody', () => {
     const cup = newCup();
     scoreRace(cup, places(2));
-    expect(cupGoal(cup, C.DIVISIONS.length - 1)).toEqual({ gap: POINTS[0] - POINTS[1], line: 1 });
+    expect(cupGoal(cup, L.DIVISIONS.length - 1)).toEqual({ gap: POINTS[0] - POINTS[1], line: 1 });
   });
 
   it('asks for the top 3 in the last division once a top-3 cup would pass the gate', () => {
     const cup = newCup();
     scoreRace(cup, places(5));
-    const top = C.DIVISIONS.length - 1;
-    expect(cupGoal(cup, top, GATE_AT - 1)).toEqual({ gap: POINTS[2] - POINTS[4], line: C.PROMOTE });
+    const top = L.DIVISIONS.length - 1;
+    expect(cupGoal(cup, top, GATE_AT - 1)).toEqual({ gap: POINTS[2] - POINTS[4], line: L.PROMOTE });
     expect(endCup({ ...cup, race: CUP_RACES, pts: cup.pts.map((p, i) => (i === 0 ? POINTS[2] : p)) }, top, 0, 0, GATE_AT - 1).champion).toBe(true);
   });
 
@@ -173,7 +174,7 @@ describe('cup goal', () => {
     cup.pts = cup.pts.map((_, i) => (i === 0 ? 0 : i <= 3 ? most + 1 : 0));
     expect(cupGoal(cup, 0)).toBeNull();
     cup.pts = cup.pts.map((_, i) => (i === 0 ? 0 : i <= 3 ? most : 0));
-    expect(cupGoal(cup, 0)).toEqual({ gap: most, line: C.PROMOTE });
+    expect(cupGoal(cup, 0)).toEqual({ gap: most, line: L.PROMOTE });
   });
 });
 
@@ -278,7 +279,7 @@ describe('career settlement, seasons and the garage', () => {
     const save = parseSave(null);
     save.tier = 1;
     const s = settleRace(save, summary(1, { kos: 2, fines: 50 }));
-    expect(s.prize).toBe(Math.round(C.PRIZE[0] * C.stage(0, 1).prize));
+    expect(s.prize).toBe(Math.round(C.PRIZE[0] * L.stage(0, 1).prize));
     expect(s.earned).toBe(s.prize + 2 * C.KO_BONUS - 50 + s.feud.cash);
     expect(save.cash).toBe(s.earned);
     expect(save.races).toBe(1);
@@ -288,7 +289,7 @@ describe('career settlement, seasons and the garage', () => {
 
   it('starts the next season at the first division after the top title, and stops at the last', () => {
     const save = parseSave(null);
-    save.div = C.DIVISIONS.length - 1;
+    save.div = L.DIVISIONS.length - 1;
     save.cup = newCup(); // past the short first cup
     let s;
     for (let i = 0; i < CUP_RACES; i++) s = settleRace(save, summary(1));
@@ -299,30 +300,30 @@ describe('career settlement, seasons and the garage', () => {
     expect(save.titles).toBe(1);
     expect(save.cup.race).toBe(0);
 
-    save.tier = C.TIERS.length - 1;
-    save.div = C.DIVISIONS.length - 1;
+    save.tier = L.TIERS.length - 1;
+    save.div = L.DIVISIONS.length - 1;
     for (let i = 0; i < CUP_RACES; i++) s = settleRace(save, summary(1));
     expect(s!.end!.champion).toBe(true);
     expect(s!.end!.nextTier).toBe(false);
-    expect(save.tier).toBe(C.TIERS.length - 1);
-    expect(save.div).toBe(C.DIVISIONS.length - 1);
+    expect(save.tier).toBe(L.TIERS.length - 1);
+    expect(save.div).toBe(L.DIVISIONS.length - 1);
     expect(save.endless).toBe(1);
   });
 
   it('raises the stakes with every title past the career', () => {
     const save = parseSave(null);
-    save.tier = C.TIERS.length - 1;
-    save.div = C.DIVISIONS.length - 1;
-    const base = C.stage(save.div, save.tier);
+    save.tier = L.TIERS.length - 1;
+    save.div = L.DIVISIONS.length - 1;
+    const base = L.stage(save.div, save.tier);
     for (let n = 1; n <= 3; n++) for (let i = 0; i < CUP_RACES; i++) settleRace(save, summary(1));
     expect(save.endless).toBe(3);
-    const st = C.stage(save.div, save.tier, save.endless);
+    const st = L.stage(save.div, save.tier, save.endless);
     expect(st.name).toBe(`${base.name} +3`);
     expect(st.top).toBeGreaterThan(base.top);
     expect(st.prize).toBeGreaterThan(base.prize);
     expect(st.hp).toBe(base.hp + 1);
     // the +N is the last season's only
-    expect(C.stage(0, 0, 5)).toEqual(C.stage(0, 0));
+    expect(L.stage(0, 0, 5)).toEqual(L.stage(0, 0));
     // a lost cup holds the level
     for (let i = 0; i < CUP_RACES; i++) settleRace(save, summary(8));
     expect(save.endless).toBe(3);
@@ -332,12 +333,12 @@ describe('career settlement, seasons and the garage', () => {
     const save = parseSave(null);
     save.cash = 1e7;
     while (buyUpgrade(save, 'top'));
-    expect(save.up.top).toBe(C.UPGRADE_CAP[0].top);
+    expect(save.up.top).toBe(L.UPGRADE_CAP[0].top);
     expect(upgradePrice(save, 'top')).toBeNull();
-    expect(upgradeLock(save, 'top')).toBe(C.TIERS[1].name);
-    save.tier = C.TIERS.length - 1;
+    expect(upgradeLock(save, 'top')).toBe(L.TIERS[1].name);
+    save.tier = L.TIERS.length - 1;
     while (buyUpgrade(save, 'top'));
-    expect(save.up.top).toBe(C.UPGRADE_MAX.top);
+    expect(save.up.top).toBe(L.UPGRADE_MAX.top);
     expect(upgradeLock(save, 'top')).toBeNull();
   });
 
@@ -347,10 +348,10 @@ describe('career settlement, seasons and the garage', () => {
     expect(rideState(save, 0)).toBe('riding');
     expect(rideState(save, v)).toBe('locked');
     expect(chooseRide(save, v)).toBe(false);
-    save.div = C.VEHICLES[v].rung;
+    save.div = L.VEHICLES[v].rung;
     expect(rideState(save, v)).toBe('buy');
     expect(chooseRide(save, v)).toBe(false); // no cash
-    save.cash = C.VEHICLES[v].price + 5;
+    save.cash = L.VEHICLES[v].price + 5;
     expect(chooseRide(save, v)).toBe(true);
     expect(save.cash).toBe(5);
     expect(save.garage).toEqual({ cur: v, owned: [0, v] });
@@ -364,10 +365,10 @@ describe('career settlement, seasons and the garage', () => {
     const old = parseSave(JSON.stringify({ cash: 900, up: { top: 9, steer: 2, hp: 1 }, div: 3 }));
     expect(old.tier).toBe(0);
     expect(old.garage).toEqual({ cur: 0, owned: [0] });
-    expect(old.up.top).toBe(C.UPGRADE_MAX.top > 9 ? 9 : C.UPGRADE_MAX.top);
+    expect(old.up.top).toBe(L.UPGRADE_MAX.top > 9 ? 9 : L.UPGRADE_MAX.top);
     const bad = parseSave(JSON.stringify({ tier: 99, up: { top: 99 }, garage: { cur: 3, owned: [2, 2, 99, -1, 'x'] } }));
-    expect(bad.tier).toBe(C.TIERS.length - 1);
-    expect(bad.up.top).toBe(C.UPGRADE_MAX.top);
+    expect(bad.tier).toBe(L.TIERS.length - 1);
+    expect(bad.up.top).toBe(L.UPGRADE_MAX.top);
     expect(bad.garage).toEqual({ cur: 0, owned: [0, 2] });
   });
 
@@ -424,28 +425,28 @@ describe('career settlement, seasons and the garage', () => {
 describe('the ladder', () => {
   /** The player's top speed on what the career owns at a rung, and the fastest rival's there. */
   function tops(div: number, tier: number): { player: number; rival: number } {
-    const gear = C.careerGear(div, tier);
-    const v = C.VEHICLES[gear.vehicle];
-    const s = C.stage(div, tier);
+    const gear = L.careerGear(div, tier);
+    const v = L.VEHICLES[gear.vehicle];
+    const s = L.stage(div, tier);
     return {
-      player: C.PLAYER_BASE.top + v.top + gear.up.top * C.UPGRADE_STEP.top,
+      player: C.PLAYER_BASE.top + v.top + gear.up.top * L.UPGRADE_STEP.top,
       rival: s.top + Math.max(...C.ROSTER.map((r) => r.top)),
     };
   }
 
   it('leaves the player a lead that shrinks up the ladder (3.3.54)', () => {
     const leads: number[] = [];
-    for (let tier = 0; tier < C.TIERS.length; tier++) {
-      for (let div = 0; div < C.DIVISIONS.length; div++) {
+    for (let tier = 0; tier < L.TIERS.length; tier++) {
+      for (let div = 0; div < L.DIVISIONS.length; div++) {
         const t = tops(div, tier);
-        leads[C.rung(div, tier)] = t.player - t.rival;
+        leads[L.rung(div, tier)] = t.player - t.rival;
       }
     }
     // the table used to be the other way up: 0.9 m/s at the first race, 2.7 at the last
     expect(leads[0]).toBeGreaterThan(leads[leads.length - 1]);
     for (const lead of leads) {
-      expect(lead).toBeGreaterThan(Math.min(...C.LEAD) - 0.4); // always a little faster than the rivals
-      expect(lead).toBeLessThan(Math.max(...C.LEAD) + 0.4); // but never cruising away from them
+      expect(lead).toBeGreaterThan(Math.min(...L.LEAD) - 0.4); // always a little faster than the rivals
+      expect(lead).toBeLessThan(Math.max(...L.LEAD) + 0.4); // but never cruising away from them
     }
   });
 
@@ -453,8 +454,8 @@ describe('the ladder', () => {
   function downs(tier: number, n: number): number {
     let ko = 0;
     let races = 0;
-    for (let div = 0; div < C.DIVISIONS.length; div++) {
-      const gear = C.careerGear(div, tier);
+    for (let div = 0; div < L.DIVISIONS.length; div++) {
+      const gear = L.careerGear(div, tier);
       for (let seed = 1; seed <= n; seed++) {
         const w = new World({ seed, div, tier, upgrades: gear.up, vehicle: gear.vehicle });
         races++;
@@ -474,8 +475,8 @@ describe('the ladder', () => {
     // field landed 0.7 knockdowns a race in Amateur and 0.4 in Legend, so climbing the ladder made the
     // player safer. Five seeds a division is thin -- these are counted in ones -- so the floor is loose.
     const amateur = downs(0, 5);
-    const legend = downs(C.TIERS.length - 1, 5);
-    expect(C.stage(0, C.TIERS.length - 1).dmg).toBeGreaterThan(C.stage(0, 0).dmg);
+    const legend = downs(L.TIERS.length - 1, 5);
+    expect(L.stage(0, L.TIERS.length - 1).dmg).toBeGreaterThan(L.stage(0, 0).dmg);
     expect(legend).toBeGreaterThan(amateur);
     expect(legend).toBeLessThan(4); // but the last season is still a race, not a beating
   }, 90_000);

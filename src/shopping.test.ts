@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { upgradePrice } from './career';
 import { parseSave, type Save } from './meta';
 import { carryPrice, CARRY } from './shop';
-import * as C from './sim/config';
+import * as L from './sim/ladder';
 
 const host = vi.hoisted(() => ({
   sent: [] as { name: string; data: Record<string, unknown> }[],
@@ -118,17 +118,17 @@ describe('the results screen does the shopping', () => {
       return carryPrice(save, 'bat');
     };
     const first = at(0, 0);
-    const last = at(C.DIVISIONS.length - 1, C.TIERS.length - 1);
+    const last = at(L.DIVISIONS.length - 1, L.TIERS.length - 1);
     expect(first).toBe(CARRY.bat);
     // the purse multiplies about elevenfold across the ladder; what a race pays the player barely doubles,
     // and the weapon follows the pay (3.3.45)
-    expect(C.stage(C.DIVISIONS.length - 1, C.TIERS.length - 1).prize).toBeGreaterThan(10);
+    expect(L.stage(L.DIVISIONS.length - 1, L.TIERS.length - 1).prize).toBeGreaterThan(10);
     expect(last).toBeGreaterThan(first);
     expect(last).toBeLessThan(first * 2.5);
     // never cheaper further up a season (a new season restarts at the first division, purse and all)
     for (const tier of [0, 1, 2]) {
       let prev = 0;
-      for (let div = 0; div < C.DIVISIONS.length; div++) {
+      for (let div = 0; div < L.DIVISIONS.length; div++) {
         const now = at(div, tier);
         expect(now).toBeGreaterThanOrEqual(prev);
         prev = now;
@@ -168,7 +168,7 @@ describe('the results screen does the shopping', () => {
   it('a ride is bought once and then just ridden', () => {
     const { save, act, won } = shop(50_000);
     save.div = 2; // rung 2: the Shopping Cart is on sale
-    const price = C.VEHICLES[1].price;
+    const price = L.VEHICLES[1].price;
     // buying a ride can win an achievement, and `unlock` pays that straight back into the save
     const paid = () => won.reduce((n, a) => n + a.pay, 0);
 

@@ -15,6 +15,7 @@
 
 import { World } from '../src/sim/world';
 import * as C from '../src/sim/config';
+import * as L from '../src/sim/ladder';
 import { botInput } from '../src/sim/ai';
 
 const seeds = Number(process.argv[2] ?? 30);
@@ -29,14 +30,14 @@ const zero = (): Row => ({ place: 0, top3: 0, kos: 0, downs: 0, falls: 0, hits: 
 const add = (a: Row, b: Row) => { for (const k of Object.keys(a) as (keyof Row)[]) a[k] += b[k]; return a; };
 const div_ = (a: Row, n: number) => { const o = zero(); for (const k of Object.keys(a) as (keyof Row)[]) o[k] = a[k] / n; return o; };
 
-const seasons: Row[] = C.TIERS.map(zero);
-const seasonN: number[] = C.TIERS.map(() => 0);
+const seasons: Row[] = L.TIERS.map(zero);
+const seasonN: number[] = L.TIERS.map(() => 0);
 
 console.log(`${seeds} seeds a rung, skill ${skill}\n`);
 console.log('rung                      place  top3   KOs  downs falls  swung  taken  AIfall AIko  edge  time');
-for (let tier = 0; tier < C.TIERS.length; tier++) {
-  for (let div = 0; div < C.DIVISIONS.length; div++) {
-    const gear = C.careerGear(div, tier);
+for (let tier = 0; tier < L.TIERS.length; tier++) {
+  for (let div = 0; div < L.DIVISIONS.length; div++) {
+    const gear = L.careerGear(div, tier);
     const sum = zero();
     for (let seed = 1; seed <= seeds; seed++) {
       const w = new World({ seed, div, tier, upgrades: gear.up, vehicle: gear.vehicle });
@@ -62,7 +63,7 @@ for (let tier = 0; tier < C.TIERS.length; tier++) {
       add(sum, r);
     }
     const a = div_(sum, seeds);
-    const s = C.stage(div, tier);
+    const s = L.stage(div, tier);
     console.log(`${s.name.padEnd(22)} ${a.place.toFixed(2).padStart(7)} ${(a.top3 * 100).toFixed(0).padStart(4)}% ${a.kos.toFixed(1).padStart(5)} ${a.downs.toFixed(2).padStart(6)} ${a.falls.toFixed(2).padStart(5)} ${a.hits.toFixed(1).padStart(6)} ${a.taken.toFixed(1).padStart(6)} ${a.aiFalls.toFixed(1).padStart(6)} ${a.aiKos.toFixed(1).padStart(5)} ${a.edge.toFixed(1).padStart(5)} ${a.time.toFixed(0).padStart(5)}s`);
     add(seasons[tier], sum);
     seasonN[tier] += seeds;
@@ -70,25 +71,25 @@ for (let tier = 0; tier < C.TIERS.length; tier++) {
   console.log('');
 }
 console.log('season                    place  top3   KOs  downs falls  swung  taken  AIfall AIko  edge  time');
-for (let tier = 0; tier < C.TIERS.length; tier++) {
+for (let tier = 0; tier < L.TIERS.length; tier++) {
   const a = div_(seasons[tier], seasonN[tier]);
-  console.log(`${C.TIERS[tier].name.padEnd(22)} ${a.place.toFixed(2).padStart(7)} ${(a.top3 * 100).toFixed(0).padStart(4)}% ${a.kos.toFixed(1).padStart(5)} ${a.downs.toFixed(2).padStart(6)} ${a.falls.toFixed(2).padStart(5)} ${a.hits.toFixed(1).padStart(6)} ${a.taken.toFixed(1).padStart(6)} ${a.aiFalls.toFixed(1).padStart(6)} ${a.aiKos.toFixed(1).padStart(5)} ${a.edge.toFixed(1).padStart(5)} ${a.time.toFixed(0).padStart(5)}s`);
+  console.log(`${L.TIERS[tier].name.padEnd(22)} ${a.place.toFixed(2).padStart(7)} ${(a.top3 * 100).toFixed(0).padStart(4)}% ${a.kos.toFixed(1).padStart(5)} ${a.downs.toFixed(2).padStart(6)} ${a.falls.toFixed(2).padStart(5)} ${a.hits.toFixed(1).padStart(6)} ${a.taken.toFixed(1).padStart(6)} ${a.aiFalls.toFixed(1).padStart(6)} ${a.aiKos.toFixed(1).padStart(5)} ${a.edge.toFixed(1).padStart(5)} ${a.time.toFixed(0).padStart(5)}s`);
 }
 
 console.log('');
 console.log('What puts them on the tarmac, per race (AI riders, then the player)');
 console.log(`season                 ${CAUSES.map((c) => c.padStart(6)).join('')}   |${CAUSES.map((c) => c.padStart(6)).join('')}`);
-for (let tier = 0; tier < C.TIERS.length; tier++) {
+for (let tier = 0; tier < L.TIERS.length; tier++) {
   const a = div_(seasons[tier], seasonN[tier]);
   const ai = CAUSES.map((c) => (a[c] as number).toFixed(1).padStart(6)).join('');
   const pl = CAUSES.map((c) => (a[`p${c[0].toUpperCase()}${c.slice(1)}` as keyof Row] as number).toFixed(2).padStart(6)).join('');
-  console.log(`${C.TIERS[tier].name.padEnd(22)} ${ai}   |${pl}`);
+  console.log(`${L.TIERS[tier].name.padEnd(22)} ${ai}   |${pl}`);
 }
 
 console.log('');
 console.log('Of those AI crashes, how many were a shove into something (rival did it / player did it)');
 console.log('season                   byAI   byP');
-for (let tier = 0; tier < C.TIERS.length; tier++) {
+for (let tier = 0; tier < L.TIERS.length; tier++) {
   const a = div_(seasons[tier], seasonN[tier]);
-  console.log(`${C.TIERS[tier].name.padEnd(22)} ${a.shoveByAi.toFixed(1).padStart(6)} ${a.shoveByP.toFixed(1).padStart(5)}`);
+  console.log(`${L.TIERS[tier].name.padEnd(22)} ${a.shoveByAi.toFixed(1).padStart(6)} ${a.shoveByP.toFixed(1).padStart(5)}`);
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DIVISIONS, stage } from './sim/config';
+import { DIVISIONS, stage } from './sim/ladder';
 import { parseSave } from './meta';
 import { pickDiv, reached } from './career';
 import { freeEdge, freeOpen, freePay, scenes, stakes, STAKE_MIN, FREE_BACK } from './free';

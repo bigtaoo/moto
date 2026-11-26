@@ -3,6 +3,7 @@
 
 import type { Save } from './meta';
 import * as C from './sim/config';
+import * as L from './sim/ladder';
 
 export interface Paint {
   /** The dummy, the ride's paint and the target marks on the chest and head. */
@@ -99,7 +100,7 @@ export const CARRY: Record<C.WeaponKind, number> = { pan: 60, bat: 100, oil: 80 
 export const CARRY_CURVE = 0.3;
 
 export const carryPrice = (save: Save, k: C.WeaponKind): number =>
-  Math.round((CARRY[k] * C.stage(save.div, save.tier, save.endless).prize ** CARRY_CURVE) / 10) * 10;
+  Math.round((CARRY[k] * L.stage(save.div, save.tier, save.endless).prize ** CARRY_CURVE) / 10) * 10;
 
 /** Buy a weapon for the next race: one at a time, so not while one is already bought. */
 export function buyCarry(save: Save, k: C.WeaponKind): boolean {

@@ -1,6 +1,7 @@
 // Blows: who can be hit, swings and what they do, knock-offs and crashes, and who gets the credit.
 
 import * as C from './config';
+import * as LAW from './law';
 import { clamp, type Rider, type Pickup, type CrashCause } from './types';
 import type { World } from './world';
 import { chainKo } from './flair';
@@ -110,7 +111,7 @@ export function resolveAttack(w: World, r: Rider): void {
   victim.hitBy = r.id;
   const ko = victim.hp <= 0;
   w.events.push({ type: 'hit', from: r.id, to: victim.id, side: r.atkSide, dmg, ko, counter, power: r.power });
-  if (r.isPlayer && patrolSees(w)) addHeat(w, ko ? C.HEAT.hit + C.HEAT.down : C.HEAT.hit);
+  if (r.isPlayer && patrolSees(w)) addHeat(w, ko ? LAW.HEAT.hit + LAW.HEAT.down : LAW.HEAT.hit);
   if (ko) return knockOff(w, victim, r);
   // the blow can knock their weapon loose: an empty hand takes it, an armed one knocks it to the road
   if (victim.weapon && w.combatRng.float() < (counter ? 1 : r.isPlayer ? C.STEAL.player : C.STEAL.ai)) {
@@ -126,11 +127,11 @@ export function resolveAttack(w: World, r: Rider): void {
 
 /** A security buggy is close enough to see what the player is up to. */
 export function patrolSees(w: World): boolean {
-  return w.patrol.active && Math.abs(w.patrol.z - w.player.z) < C.HEAT.near;
+  return w.patrol.active && Math.abs(w.patrol.z - w.player.z) < LAW.HEAT.near;
 }
 
 export function addHeat(w: World, v: number): void {
-  w.heat = clamp(w.heat + v, 0, C.HEAT.max);
+  w.heat = clamp(w.heat + v, 0, LAW.HEAT.max);
 }
 
 /** Whoever put `v` down gets the credit: the player's settle grudges, a rival's on the player starts one. */
@@ -186,7 +187,7 @@ export function crash(w: World, r: Rider, c: CrashCause, vx: number): void {
     const by = w.riders[r.hitBy];
     if (by.isPlayer) {
       w.shoves++;
-      if (patrolSees(w)) addHeat(w, C.HEAT.down);
+      if (patrolSees(w)) addHeat(w, LAW.HEAT.down);
     }
     credit(w, r, by);
     w.events.push({ type: 'shove', from: by.id, to: r.id, into: c });

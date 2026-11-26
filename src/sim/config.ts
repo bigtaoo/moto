@@ -1,4 +1,5 @@
-// Every tuning number for the race lives here. Units: metres, seconds, m/s.
+// Every tuning number for the race lives here, except two tables big enough to want their own file and
+// read on their own: the career ladder (ladder.ts) and the law (law.ts). Units: metres, seconds, m/s.
 
 /**
  * Bump on any change to the race rules that alters what a seed plus inputs produce, and record the new
@@ -196,8 +197,6 @@ export const CAR = { halfW: 0.95, halfL: 2.2, riderHalfW: 0.4, minSpeed: 9, maxS
  */
 export const TRAFFIC = { ahead: 260, behind: 50, spawnFrom: 170, base: 9, extra: 6, gap: 14, wall: 34, sway: 0.5, swayS: 7 };
 
-export * from './law';
-
 /**
  * Whoever leads gets company: after a short breather, either a rival hunts them down from behind or
  * thugs waiting on the shoulder ahead pull out to box them in. One threat at a time, alternating.
@@ -388,9 +387,6 @@ export const CUT = {
  * to pick which lane to come down in, not enough to cross the road. It is a lean, not a carve.
  */
 export const RAMP = { halfW: 1.2, trailHalfW: 1.7, air: 0.035, airSteer: 0.45, minSpeed: 10, boost: 1.08, stompX: 1.1, stompZ: 1.6, before: 10, after: 3 };
-
-// The career ladder (divisions, seasons, rides, upgrade levels) lives in ladder.ts; it reads as part of config.
-export * from './ladder';
 
 export const PLAYER_BODY = 0xf2c230;
 export const PLAYER_RIDE = 0x2a6fdb;

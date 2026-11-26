@@ -2,6 +2,7 @@
 // lines from being safe - or merging round a closure, and running riders down.
 
 import * as C from './config';
+import * as LAW from './law';
 import { clamp, type Car } from './types';
 import type { World } from './world';
 import { crash } from './combat';
@@ -34,7 +35,7 @@ export function spawnCar(w: World, z: number): void {
   if (lane !== C.ONCOMING_LANE && wallsRoad(w, lane, z)) return;
   // nor on top of (or right on the tail of) the security buggy
   const pt = w.patrol;
-  if (pt.active && Math.abs(pt.x - x) < C.CAR.halfW + C.PATROL.halfW + 0.5 && Math.abs(pt.z - z) < C.TRAFFIC.gap) return;
+  if (pt.active && Math.abs(pt.x - x) < C.CAR.halfW + LAW.PATROL.halfW + 0.5 && Math.abs(pt.z - z) < C.TRAFFIC.gap) return;
   const oncoming = lane === C.ONCOMING_LANE;
   const flow = oncoming ? 0 : w.div.flow; // only the cars going our way: a head-on closes fast enough
   const speed = oncoming ? C.CAR.oncoming : C.CAR.minSpeed + flow + w.traffic.float() * (C.CAR.maxSpeed - C.CAR.minSpeed);
@@ -66,7 +67,7 @@ export function updateTraffic(w: World): void {
         const opts = c.lane === 3 ? [2] : c.lane === 2 ? [1, 3] : [2];
         const to = opts.find((l) => R.blockAhead(l, c.z - 10, C.WORKS.carMerge + 20) === Infinity &&
           w.cars.every((o) => o === c || o.lane !== l || Math.abs(o.z - c.z) > C.TRAFFIC.gap) &&
-          !(pt.active && Math.abs(pt.x - C.LANE_X[l]) < C.CAR.halfW + C.PATROL.halfW + 0.15 && Math.abs(pt.z - c.z) < C.TRAFFIC.gap));
+          !(pt.active && Math.abs(pt.x - C.LANE_X[l]) < C.CAR.halfW + LAW.PATROL.halfW + 0.15 && Math.abs(pt.z - c.z) < C.TRAFFIC.gap));
         if (to !== undefined) c.lane = to;
         else cap = Math.min(cap, Math.max(0, (block - 8 - c.z) * 0.8));
       }
@@ -75,13 +76,13 @@ export function updateTraffic(w: World): void {
         if (o !== c && o.lane === c.lane && o.z > c.z && o.z - c.z < 9 && o.speed < cap) cap = Math.max(0, o.speed);
       }
       // ...and behind the security buggy when it is in their lane
-      if (pt.active && Math.abs(pt.x - c.x) < C.CAR.halfW + C.PATROL.halfW + 0.15 &&
+      if (pt.active && Math.abs(pt.x - c.x) < C.CAR.halfW + LAW.PATROL.halfW + 0.15 &&
         pt.z > c.z && pt.z - c.z < 10 && pt.speed < cap) cap = pt.speed;
       c.speed = c.speed < cap ? Math.min(cap, c.speed + 3 * C.DT) : cap;
       // the wander gives way to the security buggy: that one has its own way round traffic, and nothing
       // in it expects a car to drift onto it
       const mid = C.LANE_X[c.lane];
-      const reach = C.CAR.halfL + C.PATROL.halfL + 4 + Math.abs(c.speed - pt.speed) * 0.6;
+      const reach = C.CAR.halfL + LAW.PATROL.halfL + 4 + Math.abs(c.speed - pt.speed) * 0.6;
       const near = pt.active && Math.abs(pt.z - c.z) < reach;
       c.x += clamp((near ? mid : mid + sway(w, c)) - c.x, -3 * C.DT, 3 * C.DT);
     }

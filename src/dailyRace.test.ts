@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import * as C from './sim/config';
+import * as L from './sim/ladder';
 import { MUTATORS } from './sim/fun';
 import { World } from './sim/world';
 import { parseSave } from './meta';
@@ -27,16 +28,16 @@ describe('the day picks the race', () => {
     for (let d = DAY; d < DAY + 400; d++) {
       const { div, tier } = dailyStage(d);
       expect(div).toBeGreaterThanOrEqual(0);
-      expect(div).toBeLessThan(C.DIVISIONS.length);
+      expect(div).toBeLessThan(L.DIVISIONS.length);
       expect(tier).toBeGreaterThanOrEqual(0);
-      expect(tier).toBeLessThan(C.TIERS.length);
+      expect(tier).toBeLessThan(L.TIERS.length);
       expect(MUTATORS).toContain(dailyMutator(d));
       expect(dailyOpts(d).seed).toBeGreaterThan(0);
     }
   });
 
   it('visits every rung of the ladder once a fortnight', () => {
-    const n = C.DIVISIONS.length * C.TIERS.length;
+    const n = L.DIVISIONS.length * L.TIERS.length;
     const rungs = new Set<string>();
     for (let d = DAY; d < DAY + n; d++) { const s = dailyStage(d); rungs.add(`${s.div}/${s.tier}`); }
     expect(rungs.size).toBe(n);
@@ -44,7 +45,7 @@ describe('the day picks the race', () => {
 
   it('rides the gear the ladder is balanced against, not the player’s garage', () => {
     const { div, tier } = dailyStage(DAY);
-    const gear = C.careerGear(div, tier);
+    const gear = L.careerGear(div, tier);
     const o = dailyOpts(DAY);
     expect(o.vehicle).toBe(gear.vehicle);
     expect(o.upgrades).toEqual(gear.up);

@@ -4,7 +4,8 @@
 // doesn't skip it.
 
 import { icon } from './icons';
-import { GRUDGE_BONUS, stage } from '../sim/config';
+import { GRUDGE_BONUS } from '../sim/config';
+import { stage } from '../sim/ladder';
 import { bountyPay } from '../shift';
 import type { Save } from '../meta';
 import { BREAK_AT, type CupEnd, type FeudOutcome, type Nemesis } from '../career';
