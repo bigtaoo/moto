@@ -48,6 +48,14 @@ export default defineConfig({
   // and are checked key by key in i18n.test.ts instead. Measured against everything, the drawing code
   // buries the number that matters under a few thousand lines nothing here can run (doc 3.3.32).
   test: {
+    // Vitest's default is 5 s. That is a number nobody here chose, and it is the wrong one for this
+    // suite: a dozen of these tests are deterministic sim loops -- seeds x 300 simulated seconds --
+    // that honestly take two to five, so what they run against is a budget, not a hang. Two of them
+    // failed CI on separate commits inside one day, each a few hundred ms over, and each time the
+    // answer was one more per-test argument; six of those had piled up. So the number is set once,
+    // here. A test that really hangs still dies, thirty seconds later. The 90_000s that remain are
+    // the three that genuinely need more than this.
+    testTimeout: 30_000,
     coverage: {
       provider: 'v8',
       include: ['src/*.ts', 'src/sim/**/*.ts', 'src/i18n/index.ts', 'src/view/audio.ts', 'src/view/quality.ts'],

@@ -127,10 +127,11 @@ describe('security buggy', () => {
     }
     expect(squeezed).toBeGreaterThan(60);
     expect(lost / squeezed).toBeGreaterThan(0.05); // m/s per tick, net of the scooter's own acceleration
-    // Its own budget: 3.3.85 took this one to 24 seeds -- three times the file's others -- and left it on
-    // vitest's 5 s default, where it ran 4919 ms green and 5393 ms red on the next commit, which had not
-    // touched the sim. A test that counts episodes needs the seeds; what it needed was the room to run.
-  }, 30_000);
+    // 24 seeds is about five seconds of work: 3.3.85 raised it from 8 so that one seed would stop
+    // carrying the whole episode count. It then ran 4919 ms green and 5393 ms red against vitest's 5 s
+    // default on two commits that never touched the sim, which is what moved that budget into
+    // vite.config.ts. The seeds are the test; the budget was never meant to be the test.
+  });
   it('charges a ticket in the money of the division it was written in (3.3.52)', () => {
     // Flat fines meant a ticket was most of a first prize in Rookie Meadow and petty cash in
     // Legend Neon Coast. Each one is now the stage's prize multiplier times the base.
@@ -163,5 +164,5 @@ describe('security buggy', () => {
     const mul = C.stage(4, 2).prize;
     expect(legend / rookie).toBeGreaterThan(mul * 0.7);
     expect(legend / rookie).toBeLessThan(mul * 1.4);
-  }, 30_000);
+  });
 });

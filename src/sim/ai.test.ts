@@ -220,7 +220,7 @@ describe('traffic', () => {
     // 3.3 a race before the lanes on the way were counted, and dodging better did not help
     expect(crashes / N).toBeLessThan(2);
     expect(crashes).toBeGreaterThan(0); // but traffic still bites
-  }, 30_000);
+  });
 });
 
 describe('the first race eases off the rivals ahead of a new player (3.3.71)', () => {
