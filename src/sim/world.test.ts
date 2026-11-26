@@ -14,7 +14,9 @@ import { World, type WorldOpts } from './world';
 // The golden hashes pin what a seed plus inputs produce. If one changes, either the change was meant
 // to alter the race (bump SIM_VERSION in config.ts and paste the new hashes here) or the sim lost
 // its determinism (find out why before touching anything).
-const GOLDEN = { version: 47, mid: 'b48841ac', end: '2127e25b', endTick: 4569 };
+// 3.3.85: a rival's sideways speed is tied to its top speed now (ladder.ts RIVAL_STEER), so every rival in
+// this race steers a little differently and the race ends sooner.
+const GOLDEN = { version: 48, mid: '5be7612a', end: 'eb8462ea', endTick: 4181 };
 
 const OPTS: WorldOpts = { seed: 1, upgrades: { top: 2, steer: 2, hp: 2 }, div: 2, nemesis: 3, tier: 1, vehicle: 2 };
 const MID = 60 * TICK_HZ;

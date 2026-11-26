@@ -245,16 +245,21 @@ describe('the weekly mutator', () => {
   it('more traffic, more buggies, longer flights', () => {
     const plain = new World({ seed: 1, div: 2 });
     expect(new World({ seed: 1, div: 2, mutator: 'police' }).patrolCount).toBeGreaterThan(plain.patrolCount);
+    // The first flight of the race, added up over several seeds: whether anybody reaches a ramp inside
+    // 200 s is the seed's business, and one seed that never jumps used to fail this on its own.
     const air = (mutator?: 'lowgrav'): number => {
-      const w = new World({ seed: 1, mutator });
-      while (!w.over && w.tick < 200 * C.TICK_HZ) {
-        botInput(w, 1, false);
-        w.step();
-        w.events.length = 0;
-        const r = w.riders.find((o) => o.airMax > 0);
-        if (r) return r.airMax / r.speed;
+      let total = 0;
+      for (let seed = 1; seed <= 6; seed++) {
+        const w = new World({ seed, mutator });
+        while (!w.over && w.tick < 200 * C.TICK_HZ) {
+          botInput(w, 1, false);
+          w.step();
+          w.events.length = 0;
+          const r = w.riders.find((o) => o.airMax > 0);
+          if (r) { total += r.airMax / r.speed; break; }
+        }
       }
-      return 0;
+      return total;
     };
     expect(air('lowgrav')).toBeGreaterThan(air() * 1.5);
   });

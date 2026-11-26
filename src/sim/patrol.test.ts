@@ -109,7 +109,9 @@ describe('security buggy', () => {
   it('slows you while it squeezes you', () => {
     let squeezed = 0;
     let lost = 0;
-    for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+    // Two dozen seeds, not eight: a squeeze is one long episode rather than a tick here and there, so a
+    // handful of seeds means a handful of episodes and one of them carries the whole count.
+    for (let seed = 1; seed <= 24; seed++) {
       const w = new World({ seed, upgrades: { top: 3, steer: 3, hp: 0 } });
       while (!w.over && w.tick < 300 * C.TICK_HZ) {
         botInput(w, 1, false);

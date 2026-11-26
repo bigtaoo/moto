@@ -165,7 +165,7 @@ export class World {
       const d = this.div;
       const nem = i + 1 === this.nemesis;
       this.addRider({
-        name: s.name, isPlayer: false, x: g.x, z: g.z, top: s.top + d.top + C.rookieTop(rk) + (nem ? C.NEMESIS.top : 0), steer: 7, hp: C.RIVAL_HP + d.hp + (nem ? C.NEMESIS.hp : 0), hit: d.dmg,
+        name: s.name, isPlayer: false, x: g.x, z: g.z, top: s.top + d.top + C.rookieTop(rk) + (nem ? C.NEMESIS.top : 0), steer: C.RIVAL_STEER * (s.top + d.top) / C.RIVAL_SPEED, hp: C.RIVAL_HP + d.hp + (nem ? C.NEMESIS.hp : 0), hit: d.dmg,
         aggr: Math.min(1, s.aggr + d.mind + (nem ? C.NEMESIS.aggr : 0)), aware: Math.min(1, s.aware + d.mind), body: s.body, ride: s.ride, weapon: bats ? 'bat' : s.weapon,
       });
     });

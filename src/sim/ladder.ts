@@ -43,6 +43,20 @@ export const DIVISIONS: readonly Division[] = [
 export const PROMOTE = 3;
 
 /**
+ * A rival's sideways speed: `RIVAL_STEER` m/s for a rider whose top speed is `RIVAL_SPEED`, and in
+ * proportion for one faster or slower. It used to be a flat 7 for the whole career, and that is where the
+ * ladder stopped getting harder (doc 3.3.85). The stages nearly double everyone's top speed and the player
+ * buys its own steering from 8.5 up to about 16.5, so by the last season the field was doing 47 m/s and
+ * still taking over a second to cross a lane: it could no longer get across to the player at all. Tying the
+ * two together is what finally made the seasons get harder in order (2.15 / 1.98 / 1.58 at 3.3.55, 1.90 /
+ * 2.38 / 2.19 before this, 1.89 / 2.31 / 2.39 after). It does not stop them driving into cars -- that is
+ * unchanged at 5.6 / 10.0 / 15.7 a race, and per rider it is about what the player crashes anyway -- it
+ * stops the player riding away from the fight.
+ */
+export const RIVAL_STEER = 7;
+export const RIVAL_SPEED = 27.8;
+
+/**
  * Seasons: winning the top division's cup moves the career on to the next tier, back at the first
  * division. Everything there is harder on top of the division's own numbers: rivals faster (`top`),
  * keener (`mind`) and tougher (`hp`), more traffic and buggies, longer races (`len`, so the faster
