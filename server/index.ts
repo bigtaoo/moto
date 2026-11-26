@@ -49,11 +49,13 @@ export interface Options {
   /** Overridable so a test can reach the cap and the cutoff without half a gigabyte and a year. */
   maxFile?: number;
   keepDays?: number;
+  /** ...and the minute's request cap without 245 requests, which take longer than the minute. */
+  maxReqs?: number;
 }
 
-export function collector({ dir, token = '', maxFile = MAX_FILE, keepDays = KEEP_DAYS }: Options): Server {
+export function collector({ dir, token = '', maxFile = MAX_FILE, keepDays = KEEP_DAYS, maxReqs }: Options): Server {
   mkdirSync(dir, { recursive: true });
-  const budget = new Budget();
+  const budget = new Budget(maxReqs);
   const fileFor = (day: string): string => join(dir, `events-${day}.ndjson`);
 
   // Nothing here runs between requests except this: a sweep of addresses nobody has used in a minute,

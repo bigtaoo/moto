@@ -48,6 +48,18 @@ export class Budget {
   /** How many addresses went over since the last report, for the one log line a minute. */
   over = 0;
 
+  /**
+   * `reqs`: the per-window request cap, overridable the way index.ts's `maxFile` and `keepDays` are,
+   * so a test can be turned away without sending 245 requests at a 60-second window -- a loop that
+   * takes four seconds idle and outruns the window outright on a busy machine, failing for the one
+   * reason the test is not about.
+   */
+  private readonly reqs: number;
+
+  constructor(reqs: number = RATE.reqs) {
+    this.reqs = reqs;
+  }
+
   /** True while this address may be served. `bytes` is charged up front from `content-length`. */
   take(addr: string, bytes: number, now = Date.now()): boolean {
     let e = this.seen.get(addr);
@@ -57,7 +69,7 @@ export class Budget {
     }
     e.reqs++;
     e.bytes += bytes;
-    const ok = e.reqs <= RATE.reqs && e.bytes <= RATE.bytes;
+    const ok = e.reqs <= this.reqs && e.bytes <= RATE.bytes;
     if (!ok) this.over++;
     return ok;
   }

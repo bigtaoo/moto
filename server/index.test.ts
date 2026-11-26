@@ -4,7 +4,6 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { collector, type Options } from './index.ts';
-import { RATE } from './limits.ts';
 import type { Stored } from './wire.ts';
 
 // A real server on a real port against a real directory. Nothing here is mocked: the whole point of
@@ -105,8 +104,16 @@ describe('taking a batch', () => {
   });
 
   it('turns one address away once it has had its minute', async () => {
+    // Ten, not the real 240. This used to send RATE.reqs + 5 = 245 requests one after another at a
+    // window only 60 seconds wide: four seconds on an idle machine, and on a busy one it outruns the
+    // window outright, which hands the address a fresh budget and fails the test over its own running
+    // time. The real number is already tested where it can be tested instantly -- limits.test.ts
+    // walks Budget to RATE.reqs with an injected clock. What is left for a real socket to prove is
+    // that the server wires that refusal to a 429 with a retry-after, and ten is plenty for that.
+    const cap = 10;
+    await restart({ maxReqs: cap });
     let refused = 0;
-    for (let i = 0; i < RATE.reqs + 5; i++) {
+    for (let i = 0; i < cap + 5; i++) {
       const r = await post(body({ n: i }), { 'cf-connecting-ip': '198.51.100.7' });
       if (r.status === 429) {
         refused++;
